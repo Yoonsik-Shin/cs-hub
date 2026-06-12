@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <!-- Root logger writes to Console by default -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <!-- Appender for skill webhook logs -->
+    <appender name="SKILL_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/webhooks/skill.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Daily rollover with a size cap -->
+            <fileNamePattern>logs/webhooks/skill-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <!-- Print raw log message only, formatted as JSON string, followed by a newline -->
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Appender for validation webhook logs -->
+    <appender name="VALIDATION_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/webhooks/validation.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Daily rollover with a size cap -->
+            <fileNamePattern>logs/webhooks/validation-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <!-- Print raw log message only, formatted as JSON string, followed by a newline -->
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Loggers for webhooks -->
+    <logger name="com.ttam.cs.webhooks.logging.SkillLogger" level="INFO" additivity="false">
+        <appender-ref ref="SKILL_FILE"/>
+    </logger>
+
+    <logger name="com.ttam.cs.webhooks.logging.ValidationLogger" level="INFO" additivity="false">
+        <appender-ref ref="VALIDATION_FILE"/>
+    </logger>
+</configuration>

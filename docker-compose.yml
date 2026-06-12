@@ -1,0 +1,203 @@
+version: '3.8'
+
+volumes:
+  n8n_storage:
+  postgres_storage:
+  wikijs_storage:
+  webhook_logs:
+  minio_storage:
+
+networks:
+  n8n_network:
+
+services:
+  postgres-db:
+    image: postgres:16
+    container_name: postgres-db
+    restart: always
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_DB=cs_database
+    volumes:
+      - postgres_storage:/var/lib/postgresql/data
+      - ./init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql
+    networks:
+      - n8n_network
+    ports:
+      - "5432:5432" # 로컬 DB 툴(DBeaver 등)에서 접속하기 위한 포트
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: n8n
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_DATABASE=cs_database
+      - DB_POSTGRESDB_HOST=postgres-db # n8n이 DB를 찾을 때 사용하는 주소
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_USER=myuser
+      - DB_POSTGRESDB_PASSWORD=mypassword
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
+      - N8N_EDITOR_BASE_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      - N8N_PROXY_HOPS=1
+      - GENERIC_TIMEZONE=Asia/Seoul
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_storage:/home/node/.n8n
+    networks:
+      - n8n_network
+    depends_on:
+      - postgres-db
+
+  # n8n 2.x부터 내장 --tunnel(hooks.n8n.cloud)은 종료됨 → ngrok으로 대체
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: http cs-api:8080
+    ports:
+      - "4040:4040" # 터널 URL 확인: http://localhost:4040
+    networks:
+      - n8n_network
+    depends_on:
+      - cs-api
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - n8n_network
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadminpassword}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_storage:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - n8n_network
+
+  fluent-bit:
+    image: fluent/fluent-bit:latest
+    container_name: fluent-bit
+    restart: always
+    environment:
+      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY:-minioadmin}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_KEY:-minioadminpassword}
+    volumes:
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./fluent-bit/state:/fluent-bit/state
+      - webhook_logs:/app/logs/webhooks
+    depends_on:
+      - minio
+    networks:
+      - n8n_network
+
+  cs-api:
+    build:
+      context: ./backend
+    container_name: cs-api
+    restart: always
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/cs_database
+      - SPRING_DATASOURCE_USERNAME=myuser
+      - SPRING_DATASOURCE_PASSWORD=mypassword
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-changeme}
+    volumes:
+      - webhook_logs:/app/logs/webhooks
+    depends_on:
+      - postgres-db
+      - redis
+    networks:
+      - n8n_network
+    ports:
+      - "8080:8080"
+
+  wikijs:
+    image: ghcr.io/requarks/wiki:latest
+    container_name: wikijs
+    restart: always
+    environment:
+      - DB_TYPE=postgres
+      - DB_HOST=postgres-db
+      - DB_PORT=5432
+      - DB_USER=myuser
+      - DB_PASS=mypassword
+      - DB_NAME=wikijs
+    ports:
+      - "3000:3000"
+    volumes:
+      - wikijs_storage:/wiki/data
+    depends_on:
+      - postgres-db
+    networks:
+      - n8n_network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - n8n_network
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - n8n_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3002:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - n8n_network
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadminpassword); do echo 'Waiting for MinIO...'; sleep 1; done;
+      /usr/bin/mc mb --ignore-existing myminio/kakao-webhook-logs;
+      echo 'Bucket kakao-webhook-logs created successfully!';
+      exit 0;
+      "
+    networks:
+      - n8n_network

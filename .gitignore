@@ -1,0 +1,30 @@
+# Gradle
+.gradle
+**/build/
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Databases & Runtime State
+*.db
+*.db-shm
+*.db-wal
+*.duckdb
+fluent-bit/state/
