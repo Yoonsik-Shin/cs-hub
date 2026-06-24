@@ -5,11 +5,6 @@ spring:
   application:
     name: cs-api
 
-  data:
-    redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
-
   datasource:
     url: jdbc:postgresql://postgres-db:5432/cs_database
     username: myuser
@@ -31,6 +26,10 @@ spring:
 security:
   internal:
     token: ${INTERNAL_API_TOKEN:changeme}
+
+naver:
+  session:
+    renew-trigger-url: ${NAVER_SESSION_RENEW_TRIGGER_URL:}
 
 server:
   port: 8080
