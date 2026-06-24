@@ -124,9 +124,9 @@ export const inquiryApi = {
   },
 
   /**
-   * Renew Naver session using 8-digit one-time code
+   * Renew Naver session using 8-digit one-time code and security token
    */
-  async renewNaverSession(code: string): Promise<void> {
+  async renewNaverSession(code: string, token: string): Promise<void> {
     const response = await fetch('/api/internal/v1/naver/session/one-time-login', {
       method: 'POST',
       headers: {
@@ -136,6 +136,7 @@ export const inquiryApi = {
       body: JSON.stringify({
         id: 'default',
         code: code,
+        token: token,
       }),
     });
 

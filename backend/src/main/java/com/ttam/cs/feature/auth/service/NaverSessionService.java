@@ -75,8 +75,25 @@ public class NaverSessionService {
     }
 
     @SuppressWarnings("unchecked")
-    public void renewSessionWithOneTimeCode(String id, String code) {
+    public void renewSessionWithOneTimeCode(String id, String code, String token) {
         log.info("Requesting Naver one-time login for session ID: {}, code: {}", id, code);
+
+        NaverCafeSession session = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
+
+        // Validate the one-time renewal token
+        if (session.getRenewalToken() == null) {
+            log.warn("Login attempt without an active token for session ID: {}", id);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No active renewal token found for this session.");
+        }
+        if (token == null || !session.getRenewalToken().equals(token)) {
+            log.warn("Invalid token provided for session ID: {}. Expected: {}, Provided: {}", id, session.getRenewalToken(), token);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid renewal token.");
+        }
+        if (session.getRenewalTokenExpiresAt() == null || session.getRenewalTokenExpiresAt().isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
+            log.warn("Expired token used for session ID: {}. Expires at: {}", id, session.getRenewalTokenExpiresAt());
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Renewal token has expired.");
+        }
 
         Map<String, String> requestBody = new HashMap<>();
         requestBody.put("code", code);
@@ -105,6 +122,11 @@ public class NaverSessionService {
                 String cookiesJson = objectMapper.writeValueAsString(filteredCookies);
 
                 String encrypted = encryptionUtils.encrypt(cookiesJson);
+                
+                // Clear the one-time renewal token first
+                session.clearRenewalToken();
+                repository.save(session);
+
                 saveSession(id, encrypted);
                 log.info("Naver Cafe Session successfully updated via one-time code. ID: {}", id);
 

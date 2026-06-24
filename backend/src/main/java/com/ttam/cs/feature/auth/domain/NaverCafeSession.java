@@ -30,6 +30,12 @@ public class NaverCafeSession {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Column(name = "renewal_token")
+    private String renewalToken;
+
+    @Column(name = "renewal_token_expires_at")
+    private OffsetDateTime renewalTokenExpiresAt;
+
     public NaverCafeSession(String id, String encryptedCookies, String status, OffsetDateTime updatedAt) {
         this.id = Objects.requireNonNull(id, "id");
         this.encryptedCookies = Objects.requireNonNull(encryptedCookies, "encryptedCookies");
@@ -46,5 +52,15 @@ public class NaverCafeSession {
     public void markExpired(OffsetDateTime updatedAt) {
         this.status = "EXPIRED";
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
+    }
+
+    public void generateRenewalToken(String token, OffsetDateTime expiresAt) {
+        this.renewalToken = Objects.requireNonNull(token, "token");
+        this.renewalTokenExpiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
+    }
+
+    public void clearRenewalToken() {
+        this.renewalToken = null;
+        this.renewalTokenExpiresAt = null;
     }
 }

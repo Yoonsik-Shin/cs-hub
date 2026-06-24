@@ -51,7 +51,7 @@ public class NaverSessionController {
     @Operation(summary = "일회용 로그인 코드로 세션 갱신", description = "네이버 로그인 시 8자리 일회용 코드를 사용하여 쿠키 세션을 갱신합니다.")
     @PostMapping("/one-time-login")
     public ResponseEntity<Void> oneTimeLogin(@RequestBody OneTimeLoginRequest request) {
-        naverSessionService.renewSessionWithOneTimeCode(request.getId(), request.getCode());
+        naverSessionService.renewSessionWithOneTimeCode(request.getId(), request.getCode(), request.getToken());
         return ResponseEntity.ok().build();
     }
 
@@ -140,6 +140,7 @@ public class NaverSessionController {
 
             boolean statusChanged = !oldStatus.equals(newStatus);
             boolean shouldAlert = false;
+            String renewalToken = null;
 
             if (statusChanged && "EXPIRED".equals(newStatus)) {
                 shouldAlert = true;
@@ -156,12 +157,20 @@ public class NaverSessionController {
                 }
             }
 
+            if (shouldAlert) {
+                renewalToken = java.util.UUID.randomUUID().toString();
+                OffsetDateTime expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(30);
+                sessionAfter.generateRenewalToken(renewalToken, expiresAt);
+                repository.save(sessionAfter);
+            }
+
             SessionStatusResponse response = new SessionStatusResponse();
             response.setId(sessionAfter.getId());
             response.setStatus(sessionAfter.getStatus());
             response.setUpdatedAt(sessionAfter.getUpdatedAt());
             response.setValid(isValid);
             response.setShouldAlert(shouldAlert);
+            response.setRenewalToken(renewalToken);
             return ResponseEntity.ok(response);
         } catch (ResponseStatusException e) {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
@@ -207,6 +216,7 @@ public class NaverSessionController {
     public static class OneTimeLoginRequest {
         private String id = "default";
         private String code;
+        private String token;
     }
 
     @Data
@@ -223,5 +233,6 @@ public class NaverSessionController {
         private OffsetDateTime updatedAt;
         private boolean isValid;
         private boolean shouldAlert;
+        private String renewalToken;
     }
 }
