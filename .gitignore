@@ -28,3 +28,11 @@ desktop.ini
 *.db-wal
 *.duckdb
 fluent-bit/state/
+data/
+
+# Dependencies & Build artifacts
+**/node_modules/
+**/dist/
+
+# Security & Secrets
+**/.htpasswd
