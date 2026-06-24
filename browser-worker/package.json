@@ -1,0 +1,19 @@
+{
+  "name": "browser-worker",
+  "version": "1.0.0",
+  "description": "General Browser Automation Worker using Playwright",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "mock-server": "node mock-naver-server.js",
+    "get-session": "node get_session.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "playwright": "1.44.1",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}
