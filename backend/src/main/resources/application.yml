@@ -27,9 +27,26 @@ security:
   internal:
     token: ${INTERNAL_API_TOKEN:changeme}
 
+# Nginx Basic Auth 계정 ↔ 관리자 정보 매핑
+# .htpasswd에 계정 추가 시 여기에도 동일하게 추가
+admin:
+  users:
+    runday-cs-admin:
+      id: runday-cs-admin
+      nickname: CS 관리자
+      email: admin@ttam.com
+
 naver:
   session:
     renew-trigger-url: ${NAVER_SESSION_RENEW_TRIGGER_URL:}
+
+s3:
+  endpoint: ${S3_ENDPOINT:http://localhost:9000}
+  access-key: ${S3_ACCESS_KEY:minioadmin}
+  secret-key: ${S3_SECRET_KEY:minioadminpassword}
+  bucket: ${S3_BUCKET:kakao-webhook-logs}
+  region: ${S3_REGION:ap-northeast-2}
+  external-url: ${S3_EXTERNAL_URL:http://localhost:9000}
 
 server:
   port: 8080

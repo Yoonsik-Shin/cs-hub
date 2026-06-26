@@ -8,7 +8,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
-@EnableConfigurationProperties(InternalAuthProperties.class)
+@EnableConfigurationProperties({InternalAuthProperties.class, AdminUserProperties.class})
 public class SecurityConfig {
 
     @Bean
