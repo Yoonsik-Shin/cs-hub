@@ -6,15 +6,24 @@ export interface OperatorInfo {
   email: string;
 }
 
+export interface FieldModification {
+  field: string;
+  beforeValue: string | null;
+  afterValue: string | null;
+  reason: string;
+}
+
 export interface InquiryWorkLog {
   id: string;
   inquiryId: string;
-  actionType: 'ANSWER_SUBMITTED' | 'MEMO_ADDED' | 'ANSWER_AND_MEMO_SUBMITTED' | 'STATUS_CHANGED';
+  actionType: 'ANSWER_SUBMITTED' | 'MEMO_ADDED' | 'ANSWER_AND_MEMO_SUBMITTED' | 'STATUS_CHANGED' | 'FIELD_MODIFIED';
   answer: string | null;
   memo: string | null;
   operatorInfo: OperatorInfo;
   previousStatus: InquiryStatus | null;
   currentStatus: InquiryStatus | null;
+  ipAddress: string | null;
+  modificationDetails: FieldModification[] | null;
   createdAt: string;
 }
 
@@ -29,6 +38,7 @@ export interface ChannelMetadata {
   uniqueKey?: string;
   title?: string;
   author?: string;
+  imageUrls?: string[];
   [key: string]: any;
 }
 
@@ -41,6 +51,7 @@ export interface CustomerInquiry {
   deviceInfo: DeviceInfo | null;
   status: InquiryStatus;
   content: string;
+  imageUrls?: string[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,9 +63,9 @@ export interface SearchInquiriesResponse {
 }
 
 export interface SearchInquiriesParams {
-  channel?: string;
+  channel?: string | string[];
   userCode?: string;
-  status?: InquiryStatus;
+  status?: InquiryStatus | InquiryStatus[];
   keyword?: string;
   start?: string; // ISO 8601 string
   end?: string;   // ISO 8601 string

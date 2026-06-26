@@ -6,11 +6,16 @@ import { ArrowUpDown } from 'lucide-react';
 interface InquiryListProps {
   inquiries: CustomerInquiry[];
   loading: boolean;
-  onRefresh?: () => void;
-  onUpdateInquiry?: (id: string, updatedFields: Partial<CustomerInquiry>) => void;
+  selectedInquiryId: string | null;
+  onSelectInquiry: (id: string) => void;
 }
 
-export const InquiryList: React.FC<InquiryListProps> = ({ inquiries, loading, onRefresh, onUpdateInquiry }) => {
+export const InquiryList: React.FC<InquiryListProps> = ({ 
+  inquiries, 
+  loading, 
+  selectedInquiryId,
+  onSelectInquiry
+}) => {
   if (loading) {
     return (
       <div className="inquiry-list">
@@ -29,20 +34,22 @@ export const InquiryList: React.FC<InquiryListProps> = ({ inquiries, loading, on
   if (inquiries.length === 0) {
     return (
       <div 
-        className="glass-card" 
         style={{ 
-          padding: '60px 20px', 
-          textAlign: 'center', 
-          color: 'var(--text-secondary)',
+          flex: 1,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '12px'
+          justifyContent: 'center',
+          gap: '10px',
+          textAlign: 'center',
+          color: 'var(--text-secondary)',
+          padding: '24px 16px',
+          minHeight: 0,
         }}
       >
-        <span style={{ fontSize: '32px' }}>💬</span>
-        <h3 style={{ color: 'var(--text-primary)', fontWeight: 600 }}>조회된 문의 내역이 없습니다</h3>
-        <p style={{ fontSize: '13px' }}>필터 조건을 변경하거나 검색어를 다르게 입력해 보세요.</p>
+        <span style={{ fontSize: '28px', opacity: 0.5 }}>💬</span>
+        <h3 style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '14px', margin: 0 }}>조회된 문의 내역이 없습니다</h3>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>필터 조건을 변경하거나 검색어를 다르게 입력해 보세요.</p>
       </div>
     );
   }
@@ -64,8 +71,8 @@ export const InquiryList: React.FC<InquiryListProps> = ({ inquiries, loading, on
           <InquiryCard 
             key={inquiry.id} 
             inquiry={inquiry} 
-            onUpdateInquiry={onUpdateInquiry} 
-            onRefresh={onRefresh} 
+            isSelected={inquiry.id === selectedInquiryId}
+            onClick={() => onSelectInquiry(inquiry.id)}
           />
         ))}
       </div>

@@ -4,8 +4,8 @@ import type { InquiryStatus } from '../types/inquiry';
 
 export interface FilterValues {
   userCode: string;
-  status: InquiryStatus | undefined;
-  channel: string;
+  statuses: InquiryStatus[];
+  channels: string[];
   startDate: string;
   endDate: string;
 }
@@ -21,25 +21,43 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 }) => {
   // Local temporary states for each filter control
   const [userCode, setUserCode] = useState(initialValues.userCode);
-  const [status, setStatus] = useState<InquiryStatus | undefined>(initialValues.status);
-  const [channel, setChannel] = useState(initialValues.channel);
+  const [statuses, setStatuses] = useState<InquiryStatus[]>(initialValues.statuses);
+  const [channels, setChannels] = useState<string[]>(initialValues.channels);
   const [startDate, setStartDate] = useState(initialValues.startDate);
   const [endDate, setEndDate] = useState(initialValues.endDate);
+
+  const statusOptions: { value: InquiryStatus; label: string }[] = [
+    { value: 'OPEN', label: '미처리' },
+    { value: 'IN_PROGRESS', label: '진행중' },
+    { value: 'RESOLVED', label: '완료' },
+  ];
+
+  const channelOptions = [
+    { value: 'GOOGLE_SHEET', label: '구글시트' },
+    { value: 'NAVER_CAFE', label: '네이버카페' },
+    { value: 'EMAIL', label: '이메일' },
+    { value: 'KAKAO', label: '카카오톡' },
+    { value: 'MANUAL', label: '수동' },
+  ];
 
   // Keep internal states synced if parent values change
   useEffect(() => {
     setUserCode(initialValues.userCode);
-    setStatus(initialValues.status);
-    setChannel(initialValues.channel);
+    setStatuses(initialValues.statuses);
+    setChannels(initialValues.channels);
     setStartDate(initialValues.startDate);
     setEndDate(initialValues.endDate);
   }, [initialValues]);
 
+  const toggleValue = <T extends string>(values: T[], value: T, setter: React.Dispatch<React.SetStateAction<T[]>>) => {
+    setter(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
+  };
+
   const handleSearch = () => {
     onSearch({
       userCode,
-      status,
-      channel,
+      statuses,
+      channels,
       startDate,
       endDate,
     });
@@ -48,14 +66,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const handleReset = () => {
     const cleared: FilterValues = {
       userCode: '',
-      status: undefined,
-      channel: '',
+      statuses: [],
+      channels: [],
       startDate: '',
       endDate: '',
     };
     setUserCode(cleared.userCode);
-    setStatus(cleared.status);
-    setChannel(cleared.channel);
+    setStatuses(cleared.statuses);
+    setChannels(cleared.channels);
     setStartDate(cleared.startDate);
     setEndDate(cleared.endDate);
     
@@ -70,95 +88,22 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   };
 
   return (
-    <div className="filter-bar glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'stretch' }}>
-      {/* Row 1: Other Filters (Status, Date, Channel) */}
-      <div className="filter-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'flex-end', width: '100%' }}>
-        {/* Status Segmented Control */}
-        <div className="filter-group status" style={{ minWidth: '320px', flex: '1.5' }}>
-          <label className="filter-label">처리 상태</label>
-          <div className="tabs-container">
-            <button
-              type="button"
-              className={`tab-btn ${status === undefined ? 'active' : ''}`}
-              onClick={() => setStatus(undefined)}
-            >
-              전체
-            </button>
-            <button
-              type="button"
-              className={`tab-btn ${status === 'OPEN' ? 'active' : ''}`}
-              onClick={() => setStatus('OPEN')}
-            >
-              미처리
-            </button>
-            <button
-              type="button"
-              className={`tab-btn ${status === 'IN_PROGRESS' ? 'active' : ''}`}
-              onClick={() => setStatus('IN_PROGRESS')}
-            >
-              진행중
-            </button>
-            <button
-              type="button"
-              className={`tab-btn ${status === 'RESOLVED' ? 'active' : ''}`}
-              onClick={() => setStatus('RESOLVED')}
-            >
-              처리완료
-            </button>
-          </div>
-        </div>
-
-        {/* Date Range Picker */}
-        <div className="filter-group date" style={{ minWidth: '280px', flex: '1.5' }}>
-          <label className="filter-label">날짜 범위</label>
-          <div className="date-range-inputs">
-            <input
-              type="date"
-              className="date-input"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-            <span className="date-separator">~</span>
-            <input
-              type="date"
-              className="date-input"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Channel Filter */}
-        <div className="filter-group channel" style={{ minWidth: '200px', flex: '1' }}>
-          <label className="filter-label">채널</label>
-          <select
-            className="select-input"
-            value={channel}
-            onChange={(e) => setChannel(e.target.value)}
-          >
-            <option value="">전체 채널</option>
-            <option value="GOOGLE_SHEET">GOOGLE_SHEET (구글 시트)</option>
-            <option value="NAVER_CAFE">NAVER_CAFE (네이버 카페)</option>
-            <option value="KAKAO">KAKAO (카카오톡)</option>
-            <option value="MANUAL">MANUAL (수동)</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Row 2: User Code Search & Actions */}
-      <div className="filter-row" style={{ display: 'flex', gap: '20px', alignItems: 'flex-end', width: '100%', flexWrap: 'wrap' }}>
+    <div className="filter-bar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch', background: 'transparent', border: 'none', boxShadow: 'none', padding: 0, width: '100%', overflow: 'hidden' }}>
+      {/* Row 1: Search & Actions */}
+      <div className="filter-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', width: '100%', flexWrap: 'wrap' }}>
         {/* User Code Search */}
-        <div className="filter-group search" style={{ flex: 1, minWidth: '200px' }}>
-          <label className="filter-label">유저코드 검색</label>
-          <div className="search-input-wrapper">
-            <Search className="search-icon" />
+        <div className="filter-group search" style={{ flex: '1', minWidth: '140px' }}>
+          <label className="filter-label">유저코드</label>
+          <div className="search-input-wrapper" style={{ height: '30px', position: 'relative', width: '100%' }}>
+            <Search className="search-icon" style={{ left: '8px', width: '12px', height: '12px' }} />
             <input
               type="text"
               className="search-input"
-              placeholder="유저코드 입력..."
+              placeholder="검색..."
               value={userCode}
               onChange={(e) => setUserCode(e.target.value)}
               onKeyDown={handleKeyDown}
+              style={{ padding: '6px 8px 6px 26px', fontSize: '13px', height: '30px', width: '100%' }}
             />
           </div>
         </div>
@@ -169,8 +114,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           style={{ 
             marginLeft: 'auto', 
             display: 'flex', 
-            gap: '8px', 
-            flexDirection: 'row'
+            gap: '6px', 
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginTop: '4px'
           }}
         >
           <button
@@ -180,15 +127,16 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: '6px',
-              padding: '10px 16px',
-              borderRadius: '10px',
-              height: '42px',
+              gap: '4px',
+              padding: '6px 10px',
+              borderRadius: '6px',
+              height: '30px',
               cursor: 'pointer',
-              fontSize: '13px'
+              fontSize: '12px'
             }}
+            title="필터 초기화"
           >
-            <RotateCcw size={14} />
+            <RotateCcw size={12} />
             초기화
           </button>
           <button
@@ -196,19 +144,78 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             className="btn-primary"
             onClick={handleSearch}
             style={{ 
-              padding: '10px 24px', 
-              borderRadius: '10px',
-              height: '42px',
+              padding: '6px 14px', 
+              borderRadius: '6px',
+              height: '30px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: 'none',
-              fontSize: '13px',
+              fontSize: '12px',
               cursor: 'pointer'
             }}
           >
             조회
           </button>
+        </div>
+      </div>
+
+      {/* Row 2: Channel & Status Multi Select */}
+      <div className="filter-row" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px', width: '100%' }}>
+        <div className="filter-group channel">
+          <label className="filter-label">채널</label>
+          <div className="multi-filter-group">
+            {channelOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`multi-filter-chip ${channels.includes(option.value) ? 'selected' : ''}`}
+                onClick={() => toggleValue(channels, option.value, setChannels)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="filter-group status">
+          <label className="filter-label">상태</label>
+          <div className="multi-filter-group">
+            {statusOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`multi-filter-chip status-${option.value.toLowerCase()} ${statuses.includes(option.value) ? 'selected' : ''}`}
+                onClick={() => toggleValue(statuses, option.value, setStatuses)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3: Date Picker */}
+      <div className="filter-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', width: '100%', flexWrap: 'wrap' }}>
+        <div className="filter-group date" style={{ minWidth: '180px', flex: '2' }}>
+          <label className="filter-label">날짜 범위</label>
+          <div className="date-range-inputs" style={{ gap: '4px', display: 'flex', alignItems: 'center', width: '100%' }}>
+            <input
+              type="date"
+              className="date-input"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{ padding: '4px 6px', fontSize: '12px', height: '30px', flex: 1, minWidth: '80px', width: '100%' }}
+            />
+            <span className="date-separator" style={{ fontSize: '12px' }}>~</span>
+            <input
+              type="date"
+              className="date-input"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={{ padding: '4px 6px', fontSize: '12px', height: '30px', flex: 1, minWidth: '80px', width: '100%' }}
+            />
+          </div>
         </div>
       </div>
     </div>

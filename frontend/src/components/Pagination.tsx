@@ -17,32 +17,29 @@ export const Pagination: React.FC<PaginationProps> = ({
   loading,
 }) => {
   return (
-    <div className="pagination-container">
-      {/* Prev button */}
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', marginTop: '6px', paddingBottom: '2px' }}>
       <button
         type="button"
         className="page-btn"
         onClick={onPrev}
         disabled={currentPage === 1 || loading}
+        title="이전 페이지"
       >
-        <ChevronLeft size={16} />
-        이전
+        <ChevronLeft size={13} />
       </button>
 
-      {/* Page indicator */}
       <span className="page-number">
-        현재 페이지 <strong>{currentPage}</strong>
+        <strong>{currentPage}</strong>
       </span>
 
-      {/* Next button */}
       <button
         type="button"
         className="page-btn"
         onClick={onNext}
         disabled={!hasNext || loading}
+        title="다음 페이지"
       >
-        다음
-        <ChevronRight size={16} />
+        <ChevronRight size={13} />
       </button>
     </div>
   );
