@@ -8,20 +8,10 @@ export const NaverLoginRenewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Extract token from query params
-  const queryParams = new URLSearchParams(window.location.search);
-  const token = queryParams.get('token') || '';
-  const isTokenMissing = !token;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(false);
-
-    if (isTokenMissing) {
-      setError('유효한 세션 갱신 토큰이 없습니다. 슬랙 알림의 링크를 통해 다시 접속해 주세요.');
-      return;
-    }
 
     const cleanCode = code.trim().replace(/\s/g, '');
     if (cleanCode.length !== 8 || isNaN(Number(cleanCode))) {
@@ -31,7 +21,7 @@ export const NaverLoginRenewPage: React.FC = () => {
 
     setLoading(true);
     try {
-      await inquiryApi.renewNaverSession(cleanCode, token);
+      await inquiryApi.renewNaverSession(cleanCode);
       setSuccess(true);
       setCode('');
     } catch (err: any) {
@@ -94,29 +84,6 @@ export const NaverLoginRenewPage: React.FC = () => {
           </p>
         </div>
 
-        {isTokenMissing && (
-          <div 
-            style={{ 
-              display: 'flex', 
-              gap: '8px', 
-              alignItems: 'flex-start',
-              padding: '12px 16px', 
-              background: 'rgba(239, 68, 68, 0.15)', 
-              border: '1px solid rgba(239, 68, 68, 0.3)', 
-              borderRadius: '12px', 
-              color: '#f87171',
-              fontSize: '13px',
-              marginBottom: '24px',
-              lineHeight: 1.4
-            }}
-          >
-            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-            <span>
-              <strong>보안 경고:</strong> 유효한 세션 갱신 토큰이 없습니다. 이 페이지에 직접 접속하여 세션을 임의로 갱신할 수 없으며, 슬랙 알림의 링크를 통해 토큰을 포함한 주소로 접속해야 합니다.
-            </span>
-          </div>
-        )}
-
         {/* Guide Steps */}
         <div 
           style={{
@@ -152,13 +119,13 @@ export const NaverLoginRenewPage: React.FC = () => {
               type="text" 
               inputMode="numeric"
               maxLength={8}
-              placeholder={isTokenMissing ? "접근이 제한됨" : "12345678"}
+              placeholder="12345678"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
-              disabled={loading || isTokenMissing}
+              disabled={loading}
               style={{
                 width: '100%',
-                background: isTokenMissing ? 'rgba(15, 23, 42, 0.3)' : 'rgba(15, 23, 42, 0.6)',
+                background: 'rgba(15, 23, 42, 0.6)',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
                 borderRadius: '12px',
                 padding: '14px 16px',
@@ -166,13 +133,13 @@ export const NaverLoginRenewPage: React.FC = () => {
                 fontWeight: 600,
                 textAlign: 'center',
                 letterSpacing: '4px',
-                color: isTokenMissing ? '#64748b' : '#ffffff',
+                color: '#ffffff',
                 boxSizing: 'border-box',
                 outline: 'none',
                 transition: 'border-color 0.2s, box-shadow 0.2s'
               }}
               onFocus={(e) => {
-                if (!isTokenMissing) e.target.style.borderColor = '#10b981';
+                e.target.style.borderColor = '#10b981';
               }}
               onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
             />
@@ -221,24 +188,24 @@ export const NaverLoginRenewPage: React.FC = () => {
 
           <button 
             type="submit"
-            disabled={loading || code.length !== 8 || isTokenMissing}
+            disabled={loading || code.length !== 8}
             style={{
               width: '100%',
-              background: loading || code.length !== 8 || isTokenMissing
+              background: loading || code.length !== 8
                 ? 'rgba(16, 185, 129, 0.15)' 
                 : 'linear-gradient(to right, #10b981, #059669)',
-              color: loading || code.length !== 8 || isTokenMissing ? '#64748b' : '#ffffff',
+              color: loading || code.length !== 8 ? '#64748b' : '#ffffff',
               border: 'none',
               borderRadius: '12px',
               padding: '14px',
               fontSize: '15px',
               fontWeight: 600,
-              cursor: loading || code.length !== 8 || isTokenMissing ? 'not-allowed' : 'pointer',
+              cursor: loading || code.length !== 8 ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              boxShadow: code.length === 8 && !loading && !isTokenMissing ? '0 4px 12px rgba(16, 185, 129, 0.2)' : 'none',
+              boxShadow: code.length === 8 && !loading ? '0 4px 12px rgba(16, 185, 129, 0.2)' : 'none',
               transition: 'transform 0.1s, opacity 0.2s'
             }}
           >

@@ -51,7 +51,7 @@ public class NaverSessionController {
     @Operation(summary = "일회용 로그인 코드로 세션 갱신", description = "네이버 로그인 시 8자리 일회용 코드를 사용하여 쿠키 세션을 갱신합니다.")
     @PostMapping("/one-time-login")
     public ResponseEntity<Void> oneTimeLogin(@RequestBody OneTimeLoginRequest request) {
-        naverSessionService.renewSessionWithOneTimeCode(request.getId(), request.getCode(), request.getToken());
+        naverSessionService.renewSessionWithOneTimeCode(request.getId(), request.getCode());
         return ResponseEntity.ok().build();
     }
 
@@ -122,9 +122,9 @@ public class NaverSessionController {
         return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "네이버 세션 유효성 검증", description = "해당 세션이 여전히 유효한지 외부 검증 절차를 거쳐 체크합니다.")
-    @PostMapping("/validate")
-    public ResponseEntity<SessionStatusResponse> validateSession(
+    @Operation(summary = "네이버 세션 상태 동기화", description = "실제 네이버 서버와 세션 상태를 검사하여 DB를 동기화하고 알림 여부를 판단합니다.")
+    @PostMapping("/sync")
+    public ResponseEntity<SessionStatusResponse> syncSession(
             @RequestParam(name = "id", defaultValue = "default") String id) {
         try {
             NaverCafeSession sessionBefore = repository.findById(id)
@@ -132,7 +132,7 @@ public class NaverSessionController {
             String oldStatus = sessionBefore.getStatus();
             OffsetDateTime oldUpdatedAt = sessionBefore.getUpdatedAt();
 
-            boolean isValid = naverSessionService.validateSession(id);
+            boolean isValid = naverSessionService.syncSessionStatus(id);
             
             NaverCafeSession sessionAfter = repository.findById(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
@@ -140,7 +140,6 @@ public class NaverSessionController {
 
             boolean statusChanged = !oldStatus.equals(newStatus);
             boolean shouldAlert = false;
-            String renewalToken = null;
 
             if (statusChanged && "EXPIRED".equals(newStatus)) {
                 shouldAlert = true;
@@ -157,20 +156,13 @@ public class NaverSessionController {
                 }
             }
 
-            if (shouldAlert) {
-                renewalToken = java.util.UUID.randomUUID().toString();
-                OffsetDateTime expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(30);
-                sessionAfter.generateRenewalToken(renewalToken, expiresAt);
-                repository.save(sessionAfter);
-            }
-
             SessionStatusResponse response = new SessionStatusResponse();
             response.setId(sessionAfter.getId());
             response.setStatus(sessionAfter.getStatus());
             response.setUpdatedAt(sessionAfter.getUpdatedAt());
             response.setValid(isValid);
             response.setShouldAlert(shouldAlert);
-            response.setRenewalToken(renewalToken);
+            response.setRenewalToken(null);
             return ResponseEntity.ok(response);
         } catch (ResponseStatusException e) {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {

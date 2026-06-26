@@ -75,25 +75,11 @@ public class NaverSessionService {
     }
 
     @SuppressWarnings("unchecked")
-    public void renewSessionWithOneTimeCode(String id, String code, String token) {
+    public void renewSessionWithOneTimeCode(String id, String code) {
         log.info("Requesting Naver one-time login for session ID: {}, code: {}", id, code);
 
         NaverCafeSession session = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
-
-        // Validate the one-time renewal token
-        if (session.getRenewalToken() == null) {
-            log.warn("Login attempt without an active token for session ID: {}", id);
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No active renewal token found for this session.");
-        }
-        if (token == null || !session.getRenewalToken().equals(token)) {
-            log.warn("Invalid token provided for session ID: {}. Expected: {}, Provided: {}", id, session.getRenewalToken(), token);
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid renewal token.");
-        }
-        if (session.getRenewalTokenExpiresAt() == null || session.getRenewalTokenExpiresAt().isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
-            log.warn("Expired token used for session ID: {}. Expires at: {}", id, session.getRenewalTokenExpiresAt());
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Renewal token has expired.");
-        }
 
         Map<String, String> requestBody = new HashMap<>();
         requestBody.put("code", code);
@@ -122,10 +108,6 @@ public class NaverSessionService {
                 String cookiesJson = objectMapper.writeValueAsString(filteredCookies);
 
                 String encrypted = encryptionUtils.encrypt(cookiesJson);
-                
-                // Clear the one-time renewal token first
-                session.clearRenewalToken();
-                repository.save(session);
 
                 saveSession(id, encrypted);
                 log.info("Naver Cafe Session successfully updated via one-time code. ID: {}", id);
@@ -149,14 +131,14 @@ public class NaverSessionService {
     }
 
     @SuppressWarnings("unchecked")
-    public boolean validateSession(String id) {
-        log.info("Validating Naver Cafe session ID: {}", id);
+    public boolean syncSessionStatus(String id) {
+        log.info("Syncing Naver Cafe session status ID: {}", id);
 
         NaverCafeSession session = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
 
         if ("EXPIRED".equals(session.getStatus())) {
-            log.info("Session is already marked as EXPIRED in DB. Skipping worker validation.");
+            log.info("Session is already marked as EXPIRED in DB. Skipping worker validation during sync.");
             return false;
         }
 
@@ -182,21 +164,21 @@ public class NaverSessionService {
                 session.update(session.getEncryptedCookies(), newStatus, OffsetDateTime.now(ZoneOffset.UTC));
                 repository.save(session);
 
-                log.info("Naver Cafe Session validation result for ID: {}. Valid: {}, Status updated to: {}", id,
+                log.info("Naver Cafe Session sync result for ID: {}. Valid: {}, Status updated to: {}", id,
                         isValid, newStatus);
                 return isValid;
             } else {
                 String reason = body != null && body.get("reason") != null ? body.get("reason").toString()
                         : "Unknown failure";
-                log.error("Failed to validate Naver session. Reason: {}", reason);
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Naver session validation failed: " + reason);
+                log.error("Failed to sync Naver session status. Reason: {}", reason);
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Naver session sync failed: " + reason);
             }
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Error communicating with browser-worker for session validation", e);
+            log.error("Error communicating with browser-worker for session status sync", e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "Failed to connect to browser worker for validation: " + e.getMessage(), e);
+                    "Failed to connect to browser worker for sync: " + e.getMessage(), e);
         }
     }
 

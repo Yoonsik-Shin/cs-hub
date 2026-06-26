@@ -84,11 +84,11 @@ Playwright와 Chromium 브라우저를 이미지 빌드 시 내장 패키징하�
 * **[NaverSessionService.java](file:///c:/Users/RUNDAY/Desktop/test-bed/backend/src/main/java/com/ttam/cs/feature/auth/service/NaverSessionService.java)**:
   * `saveSession(id, encrypted)`: 세션을 데이터베이스에 영속화.
   * `renewSessionWithOneTimeCode(id, code)`: Extended Timeout(20초)이 설정된 `RestClient`를 통해 워커에 일회용 번호 로그인을 위임하고 반환받은 쿠키를 암호화하여 저장.
-  * `validateSession(id)`: 저장된 쿠키 유효성을 워커 호출을 통해 실시간 검증하고 결과를 DB 상태(status)와 동기화.
+  * `syncSessionStatus(id)`: 저장된 쿠키 유효성을 워커 호출을 통해 실시간 검증하고 결과를 DB 상태(status)와 동기화.
 * **[NaverSessionController.java](file:///c:/Users/RUNDAY/Desktop/test-bed/backend/src/main/java/com/ttam/cs/feature/auth/api/NaverSessionController.java)**:
   * `GET /api/internal/v1/naver/session`: n8n 등 내부 연동 시스템을 위한 세션 조회 API. **보안을 위해 쿠키 정보는 응답 바디(JSON)에서 제외**하고, 응답 헤더(`Set-Cookie` 및 단일 문자열 포맷인 `X-Naver-Cookie`)로 반환합니다.
   * `POST /api/internal/v1/naver/session/one-time-login`: 세션 일회용 로그인 갱신.
-  * `POST /api/internal/v1/naver/session/validate`: 세션 상태 실시간 강제 검사 및 동기화.
+  * `POST /api/internal/v1/naver/session/sync`: 세션 상태 실시간 강제 검사 및 동기화.
   * `GET /api/internal/v1/naver/session/status`: 복호화 정보 제외, 외부 비노출 세션 상태(status) 및 갱신 시간 조회.
 
 ### ③ 프론트엔드 (`frontend/`)
@@ -196,12 +196,12 @@ N8N 워크플로우에서 네이버 비공개 카페 게시글을 수집하기 �
 
 ### ② 각 노드별 세부 설정 지침
 
-#### 1. [네이버 세션 검증] 노드 (HTTP Request)
+#### 1. [네이버 세션 상태 동기화] 노드 (HTTP Request)
 * **Method**: `POST`
-* **URL**: `http://cs-api:8080/api/internal/v1/naver/session/validate`
+* **URL**: `http://cs-api:8080/api/internal/v1/naver/session/sync`
 * **Headers**:
   * `X-Internal-Token`: `<INTERNAL_API_TOKEN>` (기본값: `changeme`)
-* **역할**: 백엔드를 통해 browser-worker가 실시간으로 네이버에 접근해 세션 유효성을 체크하도록 지시합니다.
+* **역할**: 백엔드를 통해 실제 네이버 세션 상태를 확인하여 DB와 동기화하고 알림 여부를 반환하도록 지시합니다.
 * **응답 형태**:
   ```json
   {
