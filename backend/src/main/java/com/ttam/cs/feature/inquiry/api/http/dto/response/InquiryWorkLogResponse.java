@@ -3,8 +3,10 @@ package com.ttam.cs.feature.inquiry.api.http.dto.response;
 import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.InquiryWorkLog;
 import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
+import com.ttam.cs.feature.inquiry.domain.FieldModification;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record InquiryWorkLogResponse(
@@ -16,6 +18,8 @@ public record InquiryWorkLogResponse(
         OperatorInfo operatorInfo,
         CustomerInquiry.Status previousStatus,
         CustomerInquiry.Status currentStatus,
+        String ipAddress,
+        List<FieldModification> modificationDetails,
         OffsetDateTime createdAt
 ) {
     public InquiryWorkLogResponse(InquiryWorkLog entity) {
@@ -28,6 +32,8 @@ public record InquiryWorkLogResponse(
                 entity.getOperatorInfo(),
                 entity.getPreviousStatus(),
                 entity.getCurrentStatus(),
+                entity.getIpAddress(),
+                entity.getModificationDetails(),
                 entity.getCreatedAt()
         );
     }

@@ -4,12 +4,15 @@ import com.ttam.cs.feature.inquiry.service.CustomerInquiryService;
 import lombok.RequiredArgsConstructor;
 import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
 import com.ttam.cs.common.dto.CursorPage;
+import com.ttam.cs.feature.inquiry.api.http.dto.response.InquiryCountResponse;
 import com.ttam.cs.feature.inquiry.api.http.dto.response.SearchCustomerInquiryResponse;
 import com.ttam.cs.feature.inquiry.api.http.dto.response.InquiryWorkLogResponse;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.CreateInquiryRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.RegisterWorkLogRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryStatusRequest;
+import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryFieldsRequest;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,21 +32,47 @@ public class CustomerInquiryController {
 
     private final CustomerInquiryService inquiryService;
 
+    @org.springframework.beans.factory.annotation.Value("${s3.external-url}")
+    private String externalUrl;
+
+    @org.springframework.beans.factory.annotation.Value("${s3.bucket}")
+    private String bucketName;
+
+    @Operation(summary = "고객 문의 내역 조건별 카운트 조회", description = "목록 데이터를 내려주지 않고 조건에 맞는 문의 수와 초과 여부만 조회합니다.")
+    @GetMapping("/count")
+    public ResponseEntity<InquiryCountResponse> count(
+            @RequestParam(name = "channel", required = false) List<String> channels,
+            @RequestParam(name = "userCode", required = false) String userCode,
+            @RequestParam(name = "status", required = false) List<CustomerInquiry.Status> statuses,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime start,
+            @RequestParam(name = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
+            @RequestParam(name = "limit", defaultValue = "100") int limit) {
+        int boundedLimit = Math.max(1, limit);
+        long cappedCount = inquiryService.count(channels, userCode, statuses, keyword, start, end, boundedLimit + 1);
+        boolean hasMore = cappedCount > boundedLimit;
+        return ResponseEntity.ok(new InquiryCountResponse(Math.min(cappedCount, boundedLimit), hasMore));
+    }
+
     @Operation(summary = "고객 문의 내역 검색 및 조회", description = "채널, 유저 코드, 상태, 검색 키워드, 시작/종료 시간 및 커서를 조합하여 고객 문의 내역 목록을 조회합니다.")
     @GetMapping("")
     public ResponseEntity<SearchCustomerInquiryResponse> search(
-            @RequestParam(name = "channel", required = false) String channel,
+            @RequestParam(name = "channel", required = false) List<String> channels,
             @RequestParam(name = "userCode", required = false) String userCode,
-            @RequestParam(name = "status", required = false) CustomerInquiry.Status status,
+            @RequestParam(name = "status", required = false) List<CustomerInquiry.Status> statuses,
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime start,
             @RequestParam(name = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
             @RequestParam(name = "cursor", required = false) UUID cursor,
             @RequestParam(name = "size", defaultValue = "10") int size) {
-        CursorPage<CustomerInquiry> result = inquiryService.search(channel,
-                userCode, status, keyword, start, end, cursor, size);
+        CursorPage<CustomerInquiry> result = inquiryService.search(channels,
+                userCode, statuses, keyword, start, end, cursor, size);
 
-        return ResponseEntity.ok(SearchCustomerInquiryResponse.of(result));
+        String s3UrlPrefix = externalUrl.endsWith("/") ? 
+                externalUrl + bucketName : 
+                externalUrl + "/" + bucketName;
+
+        return ResponseEntity.ok(SearchCustomerInquiryResponse.of(result, s3UrlPrefix));
     }
 
     @Operation(summary = "고객 문의 생성", description = "신규 고객 문의 건을 접수 및 생성합니다.")
@@ -74,11 +103,45 @@ public class CustomerInquiryController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "고객 문의 필드 수정", description = "고객 문의 사항의 특정 필드(channel, userCode, deviceInfo, content)를 수정하고 변경 이력(로그)을 남깁니다.")
+    @PutMapping("/{id}")
+    public ResponseEntity<Void> updateFields(
+            @PathVariable("id") UUID id,
+            @RequestBody @Valid UpdateInquiryFieldsRequest request,
+            HttpServletRequest servletRequest) {
+        String ipAddress = getClientIp(servletRequest);
+        inquiryService.updateInquiryFields(id, request, ipAddress);
+        return ResponseEntity.ok().build();
+    }
+
     @Operation(summary = "문의 처리 작업 로그 전체 조회", description = "특정 문의 건에 기록된 모든 작업 처리 이력 목록을 조회합니다.")
     @GetMapping("/{id}/work-logs")
     public ResponseEntity<List<InquiryWorkLogResponse>> getWorkLogs(
             @PathVariable("id") UUID id) {
         List<InquiryWorkLogResponse> result = inquiryService.getWorkLogs(id);
         return ResponseEntity.ok(result);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("HTTP_CLIENT_IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("HTTP_X_FORWARDED_FOR");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+        return ip;
     }
 }

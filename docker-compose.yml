@@ -82,6 +82,12 @@ services:
       - SPRING_DATASOURCE_PASSWORD=mypassword
       - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-changeme}
       - NAVER_SESSION_RENEW_TRIGGER_URL=${NAVER_SESSION_RENEW_TRIGGER_URL:-}
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - S3_SECRET_KEY=${MINIO_SECRET_KEY:-minioadminpassword}
+      - S3_BUCKET=${MINIO_BUCKET:-kakao-webhook-logs}
+      - S3_REGION=us-east-1
+      - S3_EXTERNAL_URL=http://localhost:8888/attachments
     volumes:
       - webhook_logs:/app/logs/webhooks
     depends_on:
@@ -125,6 +131,6 @@ services:
     depends_on:
       - minio
     entrypoint: >
-      /bin/sh -c " until (/usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadminpassword); do echo 'Waiting for MinIO...'; sleep 1; done; /usr/bin/mc mb --ignore-existing myminio/kakao-webhook-logs; echo 'Bucket kakao-webhook-logs created successfully!'; exit 0; "
+      /bin/sh -c " until (/usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadminpassword); do echo 'Waiting for MinIO...'; sleep 1; done; /usr/bin/mc mb --ignore-existing myminio/kakao-webhook-logs; /usr/bin/mc anonymous set download myminio/kakao-webhook-logs; echo 'Bucket kakao-webhook-logs created and download policy set!'; exit 0; "
     networks:
       - n8n_network

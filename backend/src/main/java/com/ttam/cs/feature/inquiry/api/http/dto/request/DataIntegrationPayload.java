@@ -34,7 +34,9 @@ public record DataIntegrationPayload(
 
                         String content,
 
-                        @Valid DeviceInfo deviceInfo) {
+                        @Valid DeviceInfo deviceInfo,
+
+                        List<String> imageUrls) {
         }
 
         public static class Deserializer extends JsonDeserializer<DataIntegrationPayload> {
@@ -81,8 +83,18 @@ public record DataIntegrationPayload(
                                                 channelMetadata = mapper.treeToValue(metaNode, metadataClass);
                                         }
 
+                                        List<String> imageUrls = new ArrayList<>();
+                                        if (itemNode.has("imageUrls") && !itemNode.get("imageUrls").isNull()) {
+                                                JsonNode imageUrlsNode = itemNode.get("imageUrls");
+                                                if (imageUrlsNode.isArray()) {
+                                                        for (JsonNode urlNode : imageUrlsNode) {
+                                                                imageUrls.add(urlNode.asText());
+                                                        }
+                                                }
+                                        }
+
                                         items.add(new IntegrationItem(timestamp, userCode, channelMetadata, content,
-                                                        deviceInfo));
+                                                        deviceInfo, imageUrls));
                                 }
                         }
 

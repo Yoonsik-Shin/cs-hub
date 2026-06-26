@@ -16,15 +16,19 @@ public record SearchCustomerInquiryResponse(
         boolean hasNext
 ) implements CustomCursorPageResponse<SearchCustomerInquiryResponse.Content> {
 
-    public static SearchCustomerInquiryResponse of(CursorPage<CustomerInquiry> page) {
+    public static SearchCustomerInquiryResponse of(CursorPage<CustomerInquiry> page, String s3UrlPrefix) {
         List<Content> mappedContent = page.content().stream()
-                .map(Content::new)
+                .map(entity -> new Content(entity, s3UrlPrefix))
                 .toList();
         return new SearchCustomerInquiryResponse(
                 mappedContent,
                 page.nextCursor(),
                 page.hasNext()
         );
+    }
+
+    public static SearchCustomerInquiryResponse of(CursorPage<CustomerInquiry> page) {
+        return of(page, "");
     }
 
     public record Content(
@@ -37,10 +41,11 @@ public record SearchCustomerInquiryResponse(
             DeviceInfo deviceInfo,
             String status,
             String content,
+            List<String> imageUrls,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
     ) {
-        public Content(CustomerInquiry entity) {
+        public Content(CustomerInquiry entity, String s3UrlPrefix) {
             this(
                     entity.getId(),
                     entity.getUniqueKey(),
@@ -51,9 +56,22 @@ public record SearchCustomerInquiryResponse(
                     entity.getDeviceInfo(),
                     entity.getStatus().name(),
                     entity.getContent(),
+                    entity.getImageUrls() == null ? null : entity.getImageUrls().stream()
+                            .map(url -> {
+                                if (url == null) return null;
+                                if (url.startsWith("http://") || url.startsWith("https://")) {
+                                    return url; // Legacy absolute URL
+                                }
+                                return s3UrlPrefix.endsWith("/") ? s3UrlPrefix + url : s3UrlPrefix + "/" + url;
+                            })
+                            .toList(),
                     entity.getCreatedAt(),
                     entity.getUpdatedAt()
             );
+        }
+
+        public Content(CustomerInquiry entity) {
+            this(entity, "");
         }
     }
 }

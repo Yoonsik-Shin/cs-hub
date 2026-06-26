@@ -1,6 +1,7 @@
 package com.ttam.cs.feature.inquiry.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record NaverCafeMetadata(
@@ -9,7 +10,8 @@ public record NaverCafeMetadata(
     MenuInfo menu,
     String articleUrl,
     WriterInfo writer,
-    MetricsInfo metrics
+    MetricsInfo metrics,
+    List<String> imageUrls
 ) implements ChannelMetadata {
 
     @Override

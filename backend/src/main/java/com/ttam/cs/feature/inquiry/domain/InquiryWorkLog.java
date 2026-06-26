@@ -8,6 +8,7 @@ import org.hibernate.type.SqlTypes;
 import com.ttam.cs.common.util.UuidUtils;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -30,7 +31,8 @@ public class InquiryWorkLog {
         ANSWER_SUBMITTED,
         MEMO_ADDED,
         ANSWER_AND_MEMO_SUBMITTED,
-        STATUS_CHANGED
+        STATUS_CHANGED,
+        FIELD_MODIFIED
     }
 
     @Enumerated(EnumType.STRING)
@@ -55,6 +57,13 @@ public class InquiryWorkLog {
     @Column(name = "current_status", length = 20)
     private CustomerInquiry.Status currentStatus;
 
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "modification_details", columnDefinition = "jsonb")
+    private List<FieldModification> modificationDetails;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -75,6 +84,18 @@ public class InquiryWorkLog {
                 .operatorInfo(operatorInfo)
                 .previousStatus(previousStatus)
                 .currentStatus(currentStatus)
+                .build();
+    }
+
+    public static InquiryWorkLog createForModification(UUID inquiryId, OperatorInfo operatorInfo,
+                                                       String ipAddress, List<FieldModification> modifications) {
+        return InquiryWorkLog.builder()
+                .id(nextId())
+                .inquiryId(inquiryId)
+                .actionType(ActionType.FIELD_MODIFIED)
+                .operatorInfo(operatorInfo)
+                .ipAddress(ipAddress)
+                .modificationDetails(modifications)
                 .build();
     }
 }

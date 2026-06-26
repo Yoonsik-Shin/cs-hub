@@ -35,9 +35,9 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
 
     @Override
     public CursorPage<CustomerInquiry> searchInquiries(
-            String channel,
+            List<String> channels,
             String userCode,
-            CustomerInquiry.Status status,
+            List<CustomerInquiry.Status> statuses,
             String contentKeyword,
             OffsetDateTime startDateTime,
             OffsetDateTime endDateTime,
@@ -48,9 +48,9 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
         List<CustomerInquiry> result = queryFactory
                 .selectFrom(customerInquiry)
                 .where(
-                        channelEq(channel),
+                        channelIn(channels),
                         userCodeEq(userCode),
-                        statusEq(status),
+                        statusIn(statuses),
                         contentContains(contentKeyword),
                         timestampBetween(startDateTime, endDateTime),
                         cursorLessThan(cursor))
@@ -61,20 +61,50 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
         return CursorPage.of(result, size, CustomerInquiry::getId);
     }
 
+    @Override
+    public long countInquiries(
+            List<String> channels,
+            String userCode,
+            List<CustomerInquiry.Status> statuses,
+            String contentKeyword,
+            OffsetDateTime startDateTime,
+            OffsetDateTime endDateTime,
+            int limit) {
+        QCustomerInquiry customerInquiry = QCustomerInquiry.customerInquiry;
+
+        Integer boundedLimit = Math.max(1, limit);
+        List<UUID> ids = queryFactory
+                .select(customerInquiry.id)
+                .from(customerInquiry)
+                .where(
+                        channelIn(channels),
+                        userCodeEq(userCode),
+                        statusIn(statuses),
+                        contentContains(contentKeyword),
+                        timestampBetween(startDateTime, endDateTime))
+                .limit(boundedLimit)
+                .fetch();
+
+        return ids.size();
+    }
+
     private BooleanExpression cursorLessThan(UUID cursor) {
         return cursor != null ? QCustomerInquiry.customerInquiry.id.lt(cursor) : null;
     }
 
-    private BooleanExpression channelEq(String channel) {
-        return StringUtils.hasText(channel) ? QCustomerInquiry.customerInquiry.channel.eq(channel) : null;
+    private BooleanExpression channelIn(List<String> channels) {
+        List<String> normalizedChannels = channels == null ? List.of() : channels.stream()
+                .filter(StringUtils::hasText)
+                .toList();
+        return normalizedChannels.isEmpty() ? null : QCustomerInquiry.customerInquiry.channel.in(normalizedChannels);
     }
 
     private BooleanExpression userCodeEq(String userCode) {
         return StringUtils.hasText(userCode) ? QCustomerInquiry.customerInquiry.userCode.eq(userCode) : null;
     }
 
-    private BooleanExpression statusEq(CustomerInquiry.Status status) {
-        return status != null ? QCustomerInquiry.customerInquiry.status.eq(status) : null;
+    private BooleanExpression statusIn(List<CustomerInquiry.Status> statuses) {
+        return statuses == null || statuses.isEmpty() ? null : QCustomerInquiry.customerInquiry.status.in(statuses);
     }
 
     private BooleanExpression contentContains(String keyword) {
@@ -102,7 +132,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
 
         StringBuilder sql = new StringBuilder(
                 "INSERT INTO customer_inquiries " +
-                        "(id, unique_key, channel, timestamp, user_code, channel_metadata, device_info, status, content, created_at, updated_at) "
+                        "(id, unique_key, channel, timestamp, user_code, channel_metadata, device_info, status, content, image_urls, created_at, updated_at) "
                         +
                         "VALUES ");
 
@@ -111,7 +141,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         for (CustomerInquiry inquiry : inquiries) {
-            valuesJoiner.add("(?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?)");
+            valuesJoiner.add("(?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, ?)");
 
             params.add(inquiry.getId().toString());
             params.add(inquiry.getUniqueKey().toString());
@@ -122,6 +152,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             params.add(toJson(inquiry.getDeviceInfo()));
             params.add(inquiry.getStatus().name());
             params.add(inquiry.getContent());
+            params.add(toJson(inquiry.getImageUrls()));
             params.add(Timestamp.from(now.toInstant()));
             params.add(Timestamp.from(now.toInstant()));
         }

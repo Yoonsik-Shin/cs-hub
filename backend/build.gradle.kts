@@ -49,6 +49,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("io.micrometer:micrometer-registry-prometheus")
 
+    // AWS SDK v2 for S3 (including S3Presigner)
+    implementation("software.amazon.awssdk:s3:2.25.27")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 

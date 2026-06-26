@@ -7,6 +7,10 @@ import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.RegisterWorkLogRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryStatusRequest;
+import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryFieldsRequest;
+import com.ttam.cs.feature.inquiry.domain.DeviceInfo;
+import java.util.Map;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -74,5 +78,62 @@ class CustomerInquiryServiceTest {
         verify(inquiry, times(1)).updateStatus(eq(CustomerInquiry.Status.IN_PROGRESS), any());
         verify(repository, times(1)).save(inquiry);
         verify(workLogRepository, times(1)).save(any(InquiryWorkLog.class));
+    }
+
+    @Test
+    void testUpdateInquiryFields_Success() {
+        // Given
+        when(repository.findById(inquiryId)).thenReturn(Optional.of(inquiry));
+        when(inquiry.getChannel()).thenReturn("EMAIL");
+        when(inquiry.getUserCode()).thenReturn("user_old");
+        when(inquiry.getContent()).thenReturn("Old content");
+        when(inquiry.getDeviceInfo()).thenReturn(new DeviceInfo("1.0.0", "iPhone", "17.0"));
+
+        UpdateInquiryFieldsRequest request = new UpdateInquiryFieldsRequest(
+                operatorInfo,
+                "KAKAO",
+                "user_new",
+                new DeviceInfo("1.1.0", "iPhone", "17.1"),
+                "New content",
+                Map.of(
+                        "channel", "Correcting channel",
+                        "userCode", "Updated user code",
+                        "deviceInfo", "App upgrade",
+                        "content", "Editing content typo"
+                )
+        );
+
+        // When
+        service.updateInquiryFields(inquiryId, request, "127.0.0.1");
+
+        // Then
+        verify(inquiry, times(1)).updateChannel("KAKAO");
+        verify(inquiry, times(1)).updateUserCode("user_new");
+        verify(inquiry, times(1)).updateDeviceInfo(any(DeviceInfo.class));
+        verify(inquiry, times(1)).updateContent("New content");
+        verify(repository, times(1)).save(inquiry);
+        verify(workLogRepository, times(1)).save(any(InquiryWorkLog.class));
+    }
+
+    @Test
+    void testUpdateInquiryFields_MissingReason_ThrowsException() {
+        // Given
+        when(repository.findById(inquiryId)).thenReturn(Optional.of(inquiry));
+        when(inquiry.getChannel()).thenReturn("EMAIL");
+
+        UpdateInquiryFieldsRequest request = new UpdateInquiryFieldsRequest(
+                operatorInfo,
+                "KAKAO", // changed
+                null,
+                null,
+                null,
+                Map.of() // missing reason for channel
+        );
+
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> 
+                service.updateInquiryFields(inquiryId, request, "127.0.0.1")
+        );
+        assertEquals("channel 수정 사유를 입력해주세요.", exception.getMessage());
     }
 }

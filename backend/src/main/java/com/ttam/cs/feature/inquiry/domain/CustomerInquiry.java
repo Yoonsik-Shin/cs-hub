@@ -21,6 +21,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import com.ttam.cs.feature.inquiry.domain.service.InquiryUniqueKeyGenerator;
@@ -59,6 +60,10 @@ public class CustomerInquiry {
     @Column(name = "device_info", columnDefinition = "jsonb")
     private DeviceInfo deviceInfo;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "image_urls", columnDefinition = "jsonb")
+    private List<String> imageUrls;
+
     public enum Status {
         OPEN, IN_PROGRESS, RESOLVED
     }
@@ -85,7 +90,7 @@ public class CustomerInquiry {
     public static CustomerInquiry create(InquiryUniqueKeyGenerator keyGenerator,
             String channel, OffsetDateTime timestamp, String userCode,
             ChannelMetadata channelMetadata, DeviceInfo deviceInfo,
-            String content) {
+            String content, List<String> imageUrls) {
 
         OffsetDateTime now = OffsetDateTime.now(java.time.ZoneOffset.UTC);
         UUID generatedUniqueKey = keyGenerator.generateUniqueKey(channel,
@@ -97,7 +102,24 @@ public class CustomerInquiry {
                 .timestamp(timestamp != null ? timestamp : now)
                 .userCode(userCode).channelMetadata(channelMetadata)
                 .deviceInfo(deviceInfo).status(Status.OPEN)
-                .content(content != null ? content : "").build();
+                .content(content != null ? content : "")
+                .imageUrls(imageUrls != null ? imageUrls : List.of())
+                .build();
+    }
+
+    public static CustomerInquiry create(InquiryUniqueKeyGenerator keyGenerator,
+            String channel, OffsetDateTime timestamp, String userCode,
+            ChannelMetadata channelMetadata, DeviceInfo deviceInfo,
+            String content) {
+        return create(keyGenerator, channel, timestamp, userCode, channelMetadata, deviceInfo, content, List.of());
+    }
+
+    public static CustomerInquiry create(InquiryUniqueKeyGenerator keyGenerator,
+            String channel, String rawTimestamp, String userCode,
+            ChannelMetadata channelMetadata, DeviceInfo deviceInfo,
+            String content, List<String> imageUrls) {
+        return create(keyGenerator, channel, parseTimestamp(rawTimestamp),
+                userCode, channelMetadata, deviceInfo, content, imageUrls);
     }
 
     public static CustomerInquiry create(InquiryUniqueKeyGenerator keyGenerator,
@@ -105,7 +127,7 @@ public class CustomerInquiry {
             ChannelMetadata channelMetadata, DeviceInfo deviceInfo,
             String content) {
         return create(keyGenerator, channel, parseTimestamp(rawTimestamp),
-                userCode, channelMetadata, deviceInfo, content);
+                userCode, channelMetadata, deviceInfo, content, List.of());
     }
 
     private static OffsetDateTime parseTimestamp(String rawTimestamp) {
@@ -124,7 +146,7 @@ public class CustomerInquiry {
     public static CustomerInquiry reconstitute(UUID id, UUID uniqueKey,
             String channel, OffsetDateTime timestamp, String userCode,
             ChannelMetadata channelMetadata, DeviceInfo deviceInfo,
-            String content, Status status) {
+            String content, Status status, List<String> imageUrls) {
 
         return CustomerInquiry.builder()
                 .id(Objects.requireNonNull(id, "id must not be null"))
@@ -134,7 +156,16 @@ public class CustomerInquiry {
                 .userCode(userCode).channelMetadata(channelMetadata)
                 .deviceInfo(deviceInfo)
                 .status(status != null ? status : Status.OPEN)
-                .content(content != null ? content : "").build();
+                .content(content != null ? content : "")
+                .imageUrls(imageUrls != null ? imageUrls : List.of())
+                .build();
+    }
+
+    public static CustomerInquiry reconstitute(UUID id, UUID uniqueKey,
+            String channel, OffsetDateTime timestamp, String userCode,
+            ChannelMetadata channelMetadata, DeviceInfo deviceInfo,
+            String content, Status status) {
+        return reconstitute(id, uniqueKey, channel, timestamp, userCode, channelMetadata, deviceInfo, content, status, List.of());
     }
 
     public void markInProgress(OffsetDateTime at) {
@@ -150,6 +181,26 @@ public class CustomerInquiry {
     public void updateStatus(Status status, OffsetDateTime at) {
         this.status = Objects.requireNonNull(status, "status");
         this.updatedAt = Objects.requireNonNull(at, "at");
+    }
+
+    public void updateChannel(String channel) {
+        this.channel = requireText(channel, "channel");
+    }
+
+    public void updateUserCode(String userCode) {
+        this.userCode = userCode;
+    }
+
+    public void updateDeviceInfo(DeviceInfo deviceInfo) {
+        this.deviceInfo = deviceInfo;
+    }
+
+    public void updateContent(String content) {
+        this.content = content != null ? content : "";
+    }
+
+    public void updateTimestamp(OffsetDateTime updatedAt) {
+        this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
     }
 
     private static String requireText(String value, String name) {
