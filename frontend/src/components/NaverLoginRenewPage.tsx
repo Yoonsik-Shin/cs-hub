@@ -2,7 +2,12 @@ import React, { useState } from 'react';
 import { Lock, Smartphone, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import { inquiryApi } from '../api/inquiryApi';
 
-export const NaverLoginRenewPage: React.FC = () => {
+interface NaverLoginRenewPageProps {
+  onClose?: () => void;
+  isModal?: boolean;
+}
+
+export const NaverLoginRenewPage: React.FC<NaverLoginRenewPageProps> = ({ onClose, isModal = false }) => {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,25 +46,65 @@ export const NaverLoginRenewPage: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        position: isModal ? 'fixed' : 'relative',
+        top: isModal ? 0 : undefined,
+        left: isModal ? 0 : undefined,
+        right: isModal ? 0 : undefined,
+        bottom: isModal ? 0 : undefined,
         minHeight: '100vh',
-        background: 'radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%)',
+        background: isModal ? 'rgba(15, 23, 42, 0.75)' : 'radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%)',
+        backdropFilter: isModal ? 'blur(12px)' : undefined,
         color: '#f8fafc',
         fontFamily: 'Inter, system-ui, sans-serif',
-        padding: '20px'
+        padding: '20px',
+        zIndex: isModal ? 1100 : undefined
+      }}
+      onClick={(e) => {
+        if (isModal && onClose && e.target === e.currentTarget) {
+          onClose();
+        }
       }}
     >
       <div 
         style={{
           width: '100%',
           maxWidth: '480px',
-          background: 'rgba(30, 41, 59, 0.45)',
+          background: 'rgba(30, 41, 59, 0.85)',
           backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
           borderRadius: '24px',
           padding: '40px',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)'
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+          position: 'relative'
         }}
       >
+        {isModal && onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '24px',
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              fontSize: '18px',
+              cursor: 'pointer',
+              padding: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '50%',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+            onMouseOut={(e) => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}
+            title="닫기"
+          >
+            ✕
+          </button>
+        )}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div 
             style={{

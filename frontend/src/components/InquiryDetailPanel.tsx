@@ -28,6 +28,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
 
     // Form states
+    const [isEditing, setIsEditing] = useState(false);
     const [answerText, setAnswerText] = useState('');
     const [memoText, setMemoText] = useState('');
     const [submittingLog, setSubmittingLog] = useState(false);
@@ -177,6 +178,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         fetchWorkLogs();
         setAnswerText('');
         setMemoText('');
+        setIsEditing(false); // Reset edit state when ticket changes
     }, [inquiry.id, fetchWorkLogs]);
 
     const handleRegisterWorkLogClick = (e: React.FormEvent) => {
@@ -259,7 +261,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         }
     };
 
-    const handleOpenEditModal = () => {
+    const handleStartEdit = () => {
         setEditChannel(inquiry.channel);
         setEditUserCode(inquiry.userCode || '');
         setEditContent(inquiry.content);
@@ -268,10 +270,13 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         setEditOsVersion(inquiry.deviceInfo?.osVersion || '');
         setReasons({});
         setEditError(null);
-        setModal({
-            isOpen: true,
-            type: 'EDIT_FIELDS'
-        });
+        setIsEditing(true);
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditing(false);
+        setEditError(null);
+        setReasons({});
     };
 
     const executeEditFields = async () => {
@@ -332,7 +337,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         }
 
         if (!hasChanges) {
-            setModal({ isOpen: false, type: 'EDIT_FIELDS' });
+            setIsEditing(false);
             return;
         }
 
@@ -359,7 +364,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             }
 
             await fetchWorkLogs();
-            setModal({ isOpen: false, type: 'EDIT_FIELDS' });
+            setIsEditing(false);
         } catch (err: any) {
             console.error(err);
             setEditError('수정 중 오류가 발생했습니다: ' + err.message);
@@ -399,205 +404,251 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     };
 
     const renderChannelMetadata = (meta: any) => {
-        if (!meta) return <div style={{ color: 'var(--text-muted)' }}>메타데이터 없음</div>;
-        const isNaverCafe = inquiry.channel.toUpperCase().includes('NAVER_CAFE') || meta.metadataType === 'NAVER_CAFE';
-        const isGoogleSheet = inquiry.channel.toUpperCase().includes('GOOGLE_SHEET') || meta.metadataType === 'GOOGLE_SHEET';
+        const hasChannelChanged = editChannel !== inquiry.channel;
+        const hasUserCodeChanged = editUserCode.trim() !== (inquiry.userCode || '');
 
-        if (isNaverCafe) {
-            return (
-                <table className="profile-table" style={{ width: '100%', tableLayout: 'fixed' }}>
-                    <tbody>
-                        {meta.cafeId && (
-                            <tr>
-                                <th style={{ width: '35%' }}>카페 ID</th>
-                                <td style={{ wordBreak: 'break-all' }}>{meta.cafeId}</td>
-                            </tr>
-                        )}
-                        {meta.articleId && (
-                            <tr>
-                                <th>게시글 ID</th>
-                                <td style={{ wordBreak: 'break-all' }}>{meta.articleId}</td>
-                            </tr>
-                        )}
-                        {meta.menu && (
-                            <tr>
-                                <th>게시판</th>
-                                <td style={{ wordBreak: 'break-all' }}>
-                                    {meta.menu.name} <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>(ID: {meta.menu.id})</span>
-                                </td>
-                            </tr>
-                        )}
-                        {meta.writer && (
-                            <tr>
-                                <th>작성자</th>
-                                <td style={{ wordBreak: 'break-all' }}>
-                                    {meta.writer.nickname} <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({meta.writer.id})</span>
-                                </td>
-                            </tr>
-                        )}
-                        {meta.metrics && (
-                            <tr>
-                                <th>지표</th>
-                                <td>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                        <span>조회 {meta.metrics.readCount ?? 0}</span>
-                                        <span>•</span>
-                                        <span>댓글 {meta.metrics.commentCount ?? 0}</span>
-                                        <span>•</span>
-                                        <span>좋아요 {meta.metrics.likeCount ?? 0}</span>
-                                    </div>
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            );
-        }
+        // 1. Channel Row
+        const channelRow = (
+            <tr key="edit-row-channel">
+                <th style={{ width: '35%' }}>접수 채널</th>
+                <td>
+                    {isEditing ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <select
+                                id="edit-channel"
+                                className="select-input"
+                                value={editChannel}
+                                onChange={(e) => setEditChannel(e.target.value)}
+                                style={{ padding: '4px 8px', fontSize: '12px', height: '28px', border: '1px solid var(--border-light)', borderRadius: '6px' }}
+                            >
+                                <option value="KAKAO">카카오톡 (KAKAO)</option>
+                                <option value="NAVER_CAFE">네이버 카페 (NAVER_CAFE)</option>
+                                <option value="EMAIL">이메일 (EMAIL)</option>
+                                <option value="MANUAL">수동 생성 (MANUAL)</option>
+                            </select>
+                            {hasChannelChanged && (
+                                <input
+                                    type="text"
+                                    className="text-input"
+                                    placeholder="채널 수정 사유 (필수)"
+                                    value={reasons.channel || ''}
+                                    onChange={(e) => setReasons({ ...reasons, channel: e.target.value })}
+                                    style={{ fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '4px 8px', height: '24px', marginTop: '2px' }}
+                                    required
+                                />
+                            )}
+                        </div>
+                    ) : (
+                        <span>{getChannelInfo(inquiry.channel).label} ({inquiry.channel})</span>
+                    )}
+                </td>
+            </tr>
+        );
 
-        if (isGoogleSheet) {
-            return (
-                <table className="profile-table" style={{ width: '100%', tableLayout: 'fixed' }}>
-                    <tbody>
-                        {meta.rowNumber && (
-                            <tr>
-                                <th style={{ width: '35%' }}>행 번호</th>
-                                <td style={{ wordBreak: 'break-all' }}>{meta.rowNumber}번 행</td>
-                            </tr>
-                        )}
-                        {meta.category && (
-                            <tr>
-                                <th>카테고리</th>
-                                <td style={{ wordBreak: 'break-all' }}>{meta.category}</td>
-                            </tr>
-                        )}
-                        {meta.type && (
-                            <tr>
-                                <th>문의 항목</th>
-                                <td style={{ wordBreak: 'break-all' }}>{meta.type}</td>
-                            </tr>
-                        )}
-                        {meta.contact && (
-                            <tr>
-                                <th>연락처</th>
-                                <td style={{ wordBreak: 'break-all' }}>{meta.contact}</td>
-                            </tr>
-                        )}
-                        {meta.reply && (
-                            <tr>
-                                <th>답변 수신</th>
-                                <td style={{ wordBreak: 'break-all' }}>
-                                    {meta.reply.type} {meta.reply.email && <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({meta.reply.email})</span>}
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            );
-        }
+        // 2. UserCode Row
+        const userCodeRow = (
+            <tr key="edit-row-usercode">
+                <th>유저 코드</th>
+                <td>
+                    {isEditing ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <input
+                                type="text"
+                                id="edit-usercode"
+                                className="text-input"
+                                value={editUserCode}
+                                onChange={(e) => setEditUserCode(e.target.value)}
+                                placeholder="유저 코드 입력"
+                                style={{ padding: '4px 8px', fontSize: '12px', height: '28px' }}
+                            />
+                            {hasUserCodeChanged && (
+                                <input
+                                    type="text"
+                                    className="text-input"
+                                    placeholder="유저 코드 수정 사유 (필수)"
+                                    value={reasons.userCode || ''}
+                                    onChange={(e) => setReasons({ ...reasons, userCode: e.target.value })}
+                                    style={{ fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '4px 8px', height: '24px', marginTop: '2px' }}
+                                    required
+                                />
+                            )}
+                        </div>
+                    ) : (
+                        <span>{inquiry.userCode || '(없음)'}</span>
+                    )}
+                </td>
+            </tr>
+        );
 
-        const isEmail = inquiry.channel.toUpperCase().includes('EMAIL') || meta.metadataType === 'EMAIL';
-        if (isEmail) {
-            const messageId = meta.headers ? (meta.headers['message-id'] || meta.headers.messageId) : null;
-            const uid = meta.attributes ? meta.attributes.uid : null;
-            return (
-                <table className="profile-table" style={{ width: '100%', tableLayout: 'fixed' }}>
-                    <tbody>
-                        {meta.from && (
-                            <tr>
-                                <th style={{ width: '35%' }}>보낸 사람</th>
-                                <td style={{ wordBreak: 'break-all' }}>{meta.from}</td>
-                            </tr>
-                        )}
-                        {meta.to && (
-                            <tr>
-                                <th>받는 사람</th>
-                                <td style={{ wordBreak: 'break-all' }}>{meta.to}</td>
-                            </tr>
-                        )}
-                        {meta.subject && (
-                            <tr>
-                                <th>제목</th>
-                                <td style={{ wordBreak: 'break-all' }}>{meta.subject}</td>
-                            </tr>
-                        )}
-                        {messageId && (
-                            <tr>
-                                <th>메시지 ID</th>
-                                <td style={{ wordBreak: 'break-all', fontSize: '11px', fontFamily: 'monospace' }}>{messageId}</td>
-                            </tr>
-                        )}
-                        {uid && (
-                            <tr>
-                                <th>IMAP UID</th>
-                                <td style={{ wordBreak: 'break-all' }}>{uid}</td>
-                            </tr>
-                        )}
-                        {meta.date && (
-                            <tr>
-                                <th>작성 일시</th>
-                                <td style={{ wordBreak: 'break-all' }}>{meta.date}</td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            );
+        // 3. Other Channel specific metadata rows
+        const metadataRows: React.ReactNode[] = [];
+        if (meta) {
+            const isNaverCafe = inquiry.channel.toUpperCase().includes('NAVER_CAFE') || meta.metadataType === 'NAVER_CAFE';
+            const isGoogleSheet = inquiry.channel.toUpperCase().includes('GOOGLE_SHEET') || meta.metadataType === 'GOOGLE_SHEET';
+            const isEmail = inquiry.channel.toUpperCase().includes('EMAIL') || meta.metadataType === 'EMAIL';
+
+            if (isNaverCafe) {
+                if (meta.cafeId) metadataRows.push(<tr key="cafeId"><th>카페 ID</th><td style={{ wordBreak: 'break-all' }}>{meta.cafeId}</td></tr>);
+                if (meta.articleId) metadataRows.push(<tr key="articleId"><th>게시글 ID</th><td style={{ wordBreak: 'break-all' }}>{meta.articleId}</td></tr>);
+                if (meta.menu) metadataRows.push(<tr key="menu"><th>게시판</th><td style={{ wordBreak: 'break-all' }}>{meta.menu.name} <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>(ID: {meta.menu.id})</span></td></tr>);
+                if (meta.writer) metadataRows.push(<tr key="writer"><th>작성자</th><td style={{ wordBreak: 'break-all' }}>{meta.writer.nickname} <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({meta.writer.id})</span></td></tr>);
+                if (meta.metrics) {
+                    metadataRows.push(
+                        <tr key="metrics">
+                            <th>지표</th>
+                            <td>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    <span>조회 {meta.metrics.readCount ?? 0}</span>
+                                    <span>•</span>
+                                    <span>댓글 {meta.metrics.commentCount ?? 0}</span>
+                                    <span>•</span>
+                                    <span>좋아요 {meta.metrics.likeCount ?? 0}</span>
+                                </div>
+                            </td>
+                        </tr>
+                    );
+                }
+            } else if (isGoogleSheet) {
+                if (meta.rowNumber) metadataRows.push(<tr key="rowNumber"><th>행 번호</th><td style={{ wordBreak: 'break-all' }}>{meta.rowNumber}번 행</td></tr>);
+                if (meta.category) metadataRows.push(<tr key="category"><th>카테고리</th><td style={{ wordBreak: 'break-all' }}>{meta.category}</td></tr>);
+                if (meta.type) metadataRows.push(<tr key="type"><th>문의 항목</th><td style={{ wordBreak: 'break-all' }}>{meta.type}</td></tr>);
+                if (meta.contact) metadataRows.push(<tr key="contact"><th>연락처</th><td style={{ wordBreak: 'break-all' }}>{meta.contact}</td></tr>);
+                if (meta.reply) {
+                    metadataRows.push(
+                        <tr key="reply">
+                            <th>답변 수신</th>
+                            <td style={{ wordBreak: 'break-all' }}>
+                                {meta.reply.type} {meta.reply.email && <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({meta.reply.email})</span>}
+                            </td>
+                        </tr>
+                    );
+                }
+            } else if (isEmail) {
+                const messageId = meta.headers ? (meta.headers['message-id'] || meta.headers.messageId) : null;
+                const uid = meta.attributes ? meta.attributes.uid : null;
+                if (meta.from) metadataRows.push(<tr key="from"><th>보낸 사람</th><td style={{ wordBreak: 'break-all' }}>{meta.from}</td></tr>);
+                if (meta.to) metadataRows.push(<tr key="to"><th>받는 사람</th><td style={{ wordBreak: 'break-all' }}>{meta.to}</td></tr>);
+                if (meta.subject) metadataRows.push(<tr key="subject"><th>제목</th><td style={{ wordBreak: 'break-all' }}>{meta.subject}</td></tr>);
+                if (messageId) metadataRows.push(<tr key="messageId"><th>메시지 ID</th><td style={{ wordBreak: 'break-all', fontSize: '11px', fontFamily: 'monospace' }}>{messageId}</td></tr>);
+                if (uid) metadataRows.push(<tr key="uid"><th>IMAP UID</th><td style={{ wordBreak: 'break-all' }}>{uid}</td></tr>);
+                if (meta.date) metadataRows.push(<tr key="date"><th>작성 일시</th><td style={{ wordBreak: 'break-all' }}>{meta.date}</td></tr>);
+            } else {
+                Object.entries(meta).forEach(([key, val]) => {
+                    if (key === 'metadataType' || key === 'imageUrls' || key === 'articleUrl') return;
+                    metadataRows.push(
+                        <tr key={key}>
+                            <th style={{ textTransform: 'capitalize' }}>{key}</th>
+                            <td style={{ wordBreak: 'break-all' }}>
+                                {typeof val === 'object' ? JSON.stringify(val) : String(val)}
+                            </td>
+                        </tr>
+                    );
+                });
+            }
         }
 
         return (
             <table className="profile-table" style={{ width: '100%', tableLayout: 'fixed' }}>
                 <tbody>
-                    {Object.entries(meta).map(([key, val]) => {
-                        if (key === 'metadataType' || key === 'imageUrls' || key === 'articleUrl') return null;
-                        return (
-                            <tr key={key}>
-                                <th style={{ width: '35%', textTransform: 'capitalize' }}>{key}</th>
-                                <td style={{ wordBreak: 'break-all' }}>
-                                    {typeof val === 'object' ? JSON.stringify(val) : String(val)}
-                                </td>
-                            </tr>
-                        );
-                    })}
+                    {channelRow}
+                    {userCodeRow}
+                    {metadataRows}
                 </tbody>
             </table>
         );
     };
 
     const renderDeviceInfo = (device: any) => {
-        if (!device) return <div style={{ color: 'var(--text-muted)' }}>디바이스 정보 없음</div>;
+        if (!device && !isEditing) return <div style={{ color: 'var(--text-muted)' }}>디바이스 정보 없음</div>;
+
+        const hasDeviceInfoChanged = 
+            editAppVersion.trim() !== (device?.appVersion || '') ||
+            editModel.trim() !== (device?.model || '') ||
+            editOsVersion.trim() !== (device?.osVersion || '');
+
         return (
-            <table className="profile-table" style={{ width: '100%', tableLayout: 'fixed' }}>
-                <tbody>
-                    {device.appVersion && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <table className="profile-table" style={{ width: '100%', tableLayout: 'fixed' }}>
+                    <tbody>
                         <tr>
                             <th style={{ width: '35%' }}>앱 버전</th>
-                            <td style={{ wordBreak: 'break-all' }}>{device.appVersion}</td>
+                            <td>
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        id="edit-appversion"
+                                        className="text-input"
+                                        style={{ padding: '4px 8px', fontSize: '12px', height: '28px' }}
+                                        value={editAppVersion}
+                                        onChange={(e) => setEditAppVersion(e.target.value)}
+                                        placeholder="예: 1.0.0"
+                                    />
+                                ) : (
+                                    <span>{device?.appVersion || '(값 없음)'}</span>
+                                )}
+                            </td>
                         </tr>
-                    )}
-                    {device.model && (
                         <tr>
                             <th>기기 모델</th>
-                            <td style={{ wordBreak: 'break-all' }}>{device.model}</td>
+                            <td>
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        id="edit-model"
+                                        className="text-input"
+                                        style={{ padding: '4px 8px', fontSize: '12px', height: '28px' }}
+                                        value={editModel}
+                                        onChange={(e) => setEditModel(e.target.value)}
+                                        placeholder="예: iPhone 15"
+                                    />
+                                ) : (
+                                    <span>{device?.model || '(값 없음)'}</span>
+                                )}
+                            </td>
                         </tr>
-                    )}
-                    {device.osVersion && (
                         <tr>
                             <th>OS 버전</th>
-                            <td style={{ wordBreak: 'break-all' }}>{device.osVersion}</td>
+                            <td>
+                                {isEditing ? (
+                                    <input
+                                        type="text"
+                                        id="edit-osversion"
+                                        className="text-input"
+                                        style={{ padding: '4px 8px', fontSize: '12px', height: '28px' }}
+                                        value={editOsVersion}
+                                        onChange={(e) => setEditOsVersion(e.target.value)}
+                                        placeholder="예: 17.2"
+                                    />
+                                ) : (
+                                    <span>{device?.osVersion || '(값 없음)'}</span>
+                                )}
+                            </td>
                         </tr>
-                    )}
-                    {Object.entries(device).map(([key, val]) => {
-                        if (key === 'appVersion' || key === 'model' || key === 'osVersion') return null;
-                        return (
-                            <tr key={key}>
-                                <th style={{ width: '35%', textTransform: 'capitalize' }}>{key}</th>
-                                <td style={{ wordBreak: 'break-all' }}>
-                                    {typeof val === 'object' ? JSON.stringify(val) : String(val)}
-                                </td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
+                        {device && Object.entries(device).map(([key, val]) => {
+                            if (key === 'appVersion' || key === 'model' || key === 'osVersion') return null;
+                            return (
+                                <tr key={key}>
+                                    <th style={{ textTransform: 'capitalize' }}>{key}</th>
+                                    <td style={{ wordBreak: 'break-all' }}>
+                                        {typeof val === 'object' ? JSON.stringify(val) : String(val)}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+                {isEditing && hasDeviceInfoChanged && (
+                    <input
+                        type="text"
+                        className="text-input"
+                        placeholder="디바이스 정보 수정 사유 (필수)"
+                        value={reasons.deviceInfo || ''}
+                        onChange={(e) => setReasons({ ...reasons, deviceInfo: e.target.value })}
+                        style={{ fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '4px 8px', height: '28px' }}
+                        required
+                    />
+                )}
+            </div>
         );
     };
 
@@ -726,24 +777,89 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 <FileText size={16} style={{ color: 'var(--accent-indigo)' }} />
                                 <span>문의 참조 정보 (Ticket Reference)</span>
                             </div>
-                            <button
-                                type="button"
-                                className="btn-secondary"
-                                style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid var(--border-light)', borderRadius: '6px', cursor: 'pointer', height: '24px' }}
-                                onClick={handleOpenEditModal}
-                            >
-                                정보 수정
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                {isEditing ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            className="btn-secondary"
+                                            style={{ padding: '0 14px', fontSize: '12.5px', fontWeight: '600', borderRadius: '8px', cursor: 'pointer', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                            onClick={handleCancelEdit}
+                                        >
+                                            취소
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn-primary"
+                                            style={{ padding: '0 14px', fontSize: '12.5px', fontWeight: '600', borderRadius: '8px', cursor: 'pointer', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                            onClick={executeEditFields}
+                                            disabled={submittingLog}
+                                        >
+                                            저장
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        style={{ padding: '0 14px', fontSize: '12.5px', fontWeight: '600', borderRadius: '8px', cursor: 'pointer', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                        onClick={handleStartEdit}
+                                    >
+                                        정보 수정
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {/* Scrollable Body */}
                         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px', minHeight: 0 }}>
+                            {editError && (
+                                <div style={{ color: '#f87171', fontSize: '13px', padding: '8px 12px', background: 'rgba(248, 113, 113, 0.1)', borderRadius: '8px', border: '1px solid rgba(248, 113, 113, 0.2)', marginBottom: '4px' }}>
+                                    ⚠️ {editError}
+                                </div>
+                            )}
+
                             {/* Flat Customer Message Block */}
                             <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0 }}>
                                 <div className="detail-query-box-title">고객 접수 내용</div>
-                                <div className="detail-query-text">
-                                    {inquiry.content || '(내용 없음)'}
-                                </div>
+                                {isEditing ? (
+                                    <div style={{ marginTop: '8px' }}>
+                                        <textarea
+                                            id="edit-content"
+                                            className="form-textarea"
+                                            value={editContent}
+                                            onChange={(e) => setEditContent(e.target.value)}
+                                            placeholder="문의 내용을 입력하세요"
+                                            style={{
+                                                width: '100%',
+                                                minHeight: '100px',
+                                                height: '100px',
+                                                padding: '8px 12px',
+                                                fontSize: '13px',
+                                                border: '1px solid var(--border-light)',
+                                                borderRadius: '8px',
+                                                resize: 'none',
+                                                background: '#ffffff',
+                                                fontFamily: 'inherit'
+                                            }}
+                                        />
+                                        {editContent !== inquiry.content && (
+                                            <input
+                                                type="text"
+                                                className="text-input"
+                                                placeholder="문의 내용 수정 사유를 입력하세요 (필수)"
+                                                value={reasons.content || ''}
+                                                onChange={(e) => setReasons({ ...reasons, content: e.target.value })}
+                                                style={{ marginTop: '6px', fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '6px 10px', height: '28px' }}
+                                                required
+                                            />
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="detail-query-text">
+                                        {inquiry.content || '(내용 없음)'}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Attachment Images */}
@@ -1074,7 +1190,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             type="submit"
                                             className="btn-primary"
                                             disabled={submittingLog}
-                                            style={{ padding: '6px 16px', fontSize: '12.5px', height: '32px' }}
+                                            style={{ padding: '0 16px', fontSize: '12.5px', fontWeight: '600', borderRadius: '8px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         >
                                             {submittingLog ? '등록 중...' : '답변 및 메모 등록'}
                                         </button>
@@ -1339,147 +1455,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                                 티켓 상태를 <strong>[{getStatusKorean(modal.targetStatus || '')}]</strong> 상태로 변경하시겠습니까?
                             </div>
-                        ) : modal.type === 'EDIT_FIELDS' ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '60vh', overflowY: 'auto', paddingRight: '8px' }}>
-                                {editError && (
-                                    <div style={{ color: '#f87171', fontSize: '13px', padding: '8px 12px', background: 'rgba(248, 113, 113, 0.1)', borderRadius: '8px', border: '1px solid rgba(248, 113, 113, 0.2)' }}>
-                                        ⚠️ {editError}
-                                    </div>
-                                )}
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                                    {/* Channel field */}
-                                    <div className="form-group" style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <label htmlFor="edit-channel" style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>채널 (Channel)</label>
-                                        <select
-                                            id="edit-channel"
-                                            className="select-input"
-                                            value={editChannel}
-                                            onChange={(e) => setEditChannel(e.target.value)}
-                                        >
-                                            <option value="KAKAO">카카오톡 (KAKAO)</option>
-                                            <option value="NAVER_CAFE">네이버 카페 (NAVER_CAFE)</option>
-                                            <option value="EMAIL">이메일 (EMAIL)</option>
-                                            <option value="MANUAL">수동 생성 (MANUAL)</option>
-                                        </select>
-                                        {editChannel !== inquiry.channel && (
-                                            <input
-                                                type="text"
-                                                className="text-input"
-                                                placeholder="채널 수정 사유를 입력하세요 (필수)"
-                                                value={reasons.channel || ''}
-                                                onChange={(e) => setReasons({ ...reasons, channel: e.target.value })}
-                                                style={{ marginTop: '6px', fontSize: '12px', borderColor: 'var(--accent-indigo)' }}
-                                                required
-                                            />
-                                        )}
-                                    </div>
-
-                                    {/* User Code field */}
-                                    <div className="form-group" style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <label htmlFor="edit-usercode" style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>유저 코드 (User Code)</label>
-                                        <input
-                                            type="text"
-                                            id="edit-usercode"
-                                            className="text-input"
-                                            value={editUserCode}
-                                            onChange={(e) => setEditUserCode(e.target.value)}
-                                            placeholder="유저 코드를 입력하세요"
-                                        />
-                                        {editUserCode.trim() !== (inquiry.userCode || '') && (
-                                            <input
-                                                type="text"
-                                                className="text-input"
-                                                placeholder="유저 코드 수정 사유를 입력하세요 (필수)"
-                                                value={reasons.userCode || ''}
-                                                onChange={(e) => setReasons({ ...reasons, userCode: e.target.value })}
-                                                style={{ marginTop: '6px', fontSize: '12px', borderColor: 'var(--accent-indigo)' }}
-                                                required
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Device Info fields */}
-                                <div style={{ border: '1px solid var(--border-light)', borderRadius: '8px', padding: '12px', background: 'var(--bg-tertiary)' }}>
-                                    <div style={{ fontWeight: '600', fontSize: '12px', marginBottom: '8px', color: 'var(--text-primary)' }}>디바이스 정보 (Device Info)</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                                        <div className="form-group" style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <label htmlFor="edit-appversion" style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>앱 버전</label>
-                                            <input
-                                                type="text"
-                                                id="edit-appversion"
-                                                className="text-input"
-                                                style={{ padding: '6px 8px', fontSize: '12px' }}
-                                                value={editAppVersion}
-                                                onChange={(e) => setEditAppVersion(e.target.value)}
-                                                placeholder="예: 1.0.0"
-                                            />
-                                        </div>
-                                        <div className="form-group" style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <label htmlFor="edit-model" style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>기기 모델</label>
-                                            <input
-                                                type="text"
-                                                id="edit-model"
-                                                className="text-input"
-                                                style={{ padding: '6px 8px', fontSize: '12px' }}
-                                                value={editModel}
-                                                onChange={(e) => setEditModel(e.target.value)}
-                                                placeholder="예: iPhone 15"
-                                            />
-                                        </div>
-                                        <div className="form-group" style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                            <label htmlFor="edit-osversion" style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>OS 버전</label>
-                                            <input
-                                                type="text"
-                                                id="edit-osversion"
-                                                className="text-input"
-                                                style={{ padding: '6px 8px', fontSize: '12px' }}
-                                                value={editOsVersion}
-                                                onChange={(e) => setEditOsVersion(e.target.value)}
-                                                placeholder="예: 17.2"
-                                            />
-                                        </div>
-                                    </div>
-                                    {(editAppVersion.trim() !== (inquiry.deviceInfo?.appVersion || '') ||
-                                        editModel.trim() !== (inquiry.deviceInfo?.model || '') ||
-                                        editOsVersion.trim() !== (inquiry.deviceInfo?.osVersion || '')) && (
-                                            <input
-                                                type="text"
-                                                className="text-input"
-                                                placeholder="디바이스 정보 수정 사유를 입력하세요 (필수)"
-                                                value={reasons.deviceInfo || ''}
-                                                onChange={(e) => setReasons({ ...reasons, deviceInfo: e.target.value })}
-                                                style={{ marginTop: '10px', fontSize: '12px', borderColor: 'var(--accent-indigo)' }}
-                                                required
-                                            />
-                                        )}
-                                </div>
-
-                                {/* Content field */}
-                                <div className="form-group" style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    <label htmlFor="edit-content" style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)' }}>문의 내용 (Content)</label>
-                                    <textarea
-                                        id="edit-content"
-                                        className="form-textarea"
-                                        value={editContent}
-                                        onChange={(e) => setEditContent(e.target.value)}
-                                        placeholder="문의 내용을 입력하세요"
-                                        style={{ minHeight: '100px', height: '100px', padding: '8px 12px', fontSize: '13px' }}
-                                    />
-                                    {editContent !== inquiry.content && (
-                                        <input
-                                            type="text"
-                                            className="text-input"
-                                            placeholder="문의 내용 수정 사유를 입력하세요 (필수)"
-                                            value={reasons.content || ''}
-                                            onChange={(e) => setReasons({ ...reasons, content: e.target.value })}
-                                            style={{ marginTop: '6px', fontSize: '12px', borderColor: 'var(--accent-indigo)' }}
-                                            required
-                                        />
-                                    )}
-                                </div>
-                            </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                 <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
@@ -1517,16 +1492,13 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 onClick={() => {
                                     if (modal.type === 'STATUS_CHANGE') {
                                         executeStatusChange();
-                                    } else if (modal.type === 'EDIT_FIELDS') {
-                                        executeEditFields();
                                     } else {
                                         executeRegisterWorkLog();
                                     }
                                 }}
                             >
                                 {submittingLog || statusChanging ? '처리 중...' :
-                                    (modal.type === 'STATUS_CHANGE' ? '확인' :
-                                        modal.type === 'EDIT_FIELDS' ? '저장' : '등록')}
+                                    (modal.type === 'STATUS_CHANGE' ? '확인' : '등록')}
                             </button>
                         </div>
                     </div>

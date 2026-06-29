@@ -1,7 +1,6 @@
 import React from 'react';
 import { InquiryCard } from './InquiryCard';
 import type { CustomerInquiry } from '../types/inquiry';
-import { ArrowUpDown } from 'lucide-react';
 
 interface InquiryListProps {
   inquiries: CustomerInquiry[];
@@ -56,16 +55,6 @@ export const InquiryList: React.FC<InquiryListProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div className="list-section-header">
-        <div className="list-count">
-          총 <strong>{inquiries.length}</strong> 건의 문의가 로드되었습니다
-        </div>
-        <div className="list-sort-info">
-          <ArrowUpDown size={14} />
-          정렬기준: 등록일 기준 최신순
-        </div>
-      </div>
-      
       <div className="inquiry-list">
         {inquiries.map((inquiry) => (
           <InquiryCard 

@@ -11,6 +11,7 @@ import com.ttam.cs.feature.inquiry.api.http.dto.request.CreateInquiryRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.RegisterWorkLogRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryFieldsRequest;
+import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryRequest;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -94,23 +95,40 @@ public class CustomerInquiryController {
         return ResponseEntity.created(URI.create("/api/internal/v1/inquiries/" + id + "/work-logs/" + logId)).build();
     }
 
-    @Operation(summary = "문의 상태 업데이트", description = "문의 건의 진행 상태(RECEIVED, IN_PROGRESS, RESOLVED 등)를 업데이트합니다.")
+    @Operation(summary = "고객 문의 정보 및 상태 수정", description = "고객 문의 리소스의 진행 상태 또는 세부 정보 필드들을 수정하고 이력을 남깁니다.")
     @PatchMapping("/{id}")
-    public ResponseEntity<Void> updateStatus(
+    public ResponseEntity<Void> updateInquiry(
             @PathVariable("id") UUID id,
-            @RequestBody @Valid UpdateInquiryStatusRequest request) {
-        inquiryService.updateStatus(id, request);
-        return ResponseEntity.ok().build();
-    }
-
-    @Operation(summary = "고객 문의 필드 수정", description = "고객 문의 사항의 특정 필드(channel, userCode, deviceInfo, content)를 수정하고 변경 이력(로그)을 남깁니다.")
-    @PutMapping("/{id}")
-    public ResponseEntity<Void> updateFields(
-            @PathVariable("id") UUID id,
-            @RequestBody @Valid UpdateInquiryFieldsRequest request,
+            @RequestBody @Valid UpdateInquiryRequest request,
             HttpServletRequest servletRequest) {
-        String ipAddress = getClientIp(servletRequest);
-        inquiryService.updateInquiryFields(id, request, ipAddress);
+
+        // 1. 상태 변경 건 처리
+        if (request.status() != null) {
+            UpdateInquiryStatusRequest statusRequest = new UpdateInquiryStatusRequest(
+                    request.operatorInfo(),
+                    request.status()
+            );
+            inquiryService.updateStatus(id, statusRequest);
+        }
+
+        // 2. 정보 필드 수정 건 처리
+        if (request.channel() != null || 
+            request.userCode() != null || 
+            request.deviceInfo() != null || 
+            request.content() != null) {
+            
+            UpdateInquiryFieldsRequest fieldsRequest = new UpdateInquiryFieldsRequest(
+                    request.operatorInfo(),
+                    request.channel(),
+                    request.userCode(),
+                    request.deviceInfo(),
+                    request.content(),
+                    request.reasons()
+            );
+            String ipAddress = getClientIp(servletRequest);
+            inquiryService.updateInquiryFields(id, fieldsRequest, ipAddress);
+        }
+
         return ResponseEntity.ok().build();
     }
 

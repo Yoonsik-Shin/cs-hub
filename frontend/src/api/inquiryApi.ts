@@ -142,7 +142,7 @@ export const inquiryApi = {
     reasons: { channel?: string; userCode?: string; deviceInfo?: string; content?: string };
   }): Promise<void> {
     const response = await fetch(`/api/internal/v1/inquiries/${id}`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',

@@ -89,10 +89,69 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
   return (
     <div className="filter-bar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch', background: 'transparent', border: 'none', boxShadow: 'none', padding: 0, width: '100%', overflow: 'hidden' }}>
-      {/* Row 1: Search & Actions */}
+      {/* Row 1: Channel & Status Multi Select */}
+      <div className="filter-row" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px', width: '100%' }}>
+        <div className="filter-group channel">
+          <label className="filter-label">채널</label>
+          <div className="multi-filter-group">
+            {channelOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`multi-filter-chip ${channels.includes(option.value) ? 'selected' : ''}`}
+                onClick={() => toggleValue(channels, option.value, setChannels)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="filter-group status">
+          <label className="filter-label">상태</label>
+          <div className="multi-filter-group">
+            {statusOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`multi-filter-chip status-${option.value.toLowerCase()} ${statuses.includes(option.value) ? 'selected' : ''}`}
+                onClick={() => toggleValue(statuses, option.value, setStatuses)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2: Date Picker */}
       <div className="filter-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', width: '100%', flexWrap: 'wrap' }}>
+        <div className="filter-group date" style={{ minWidth: '180px', flex: '2' }}>
+          <label className="filter-label">날짜 범위</label>
+          <div className="date-range-inputs" style={{ gap: '4px', display: 'flex', alignItems: 'center', width: '100%' }}>
+            <input
+              type="date"
+              className="date-input"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{ padding: '4px 6px', fontSize: '12px', height: '30px', flex: 1, minWidth: '80px', width: '100%' }}
+            />
+            <span className="date-separator" style={{ fontSize: '12px' }}>~</span>
+            <input
+              type="date"
+              className="date-input"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={{ padding: '4px 6px', fontSize: '12px', height: '30px', flex: 1, minWidth: '80px', width: '100%' }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3: Search & Actions */}
+      <div className="filter-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', width: '100%', flexWrap: 'nowrap' }}>
         {/* User Code Search */}
-        <div className="filter-group search" style={{ flex: '1', minWidth: '140px' }}>
+        <div className="filter-group search" style={{ flex: '1', minWidth: '100px' }}>
           <label className="filter-label">유저코드</label>
           <div className="search-input-wrapper" style={{ height: '30px', position: 'relative', width: '100%' }}>
             <Search className="search-icon" style={{ left: '8px', width: '12px', height: '12px' }} />
@@ -117,7 +176,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             gap: '6px', 
             flexDirection: 'row',
             alignItems: 'center',
-            marginTop: '4px'
+            marginTop: '4px',
+            flexShrink: 0
           }}
         >
           <button
@@ -157,65 +217,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           >
             조회
           </button>
-        </div>
-      </div>
-
-      {/* Row 2: Channel & Status Multi Select */}
-      <div className="filter-row" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px', width: '100%' }}>
-        <div className="filter-group channel">
-          <label className="filter-label">채널</label>
-          <div className="multi-filter-group">
-            {channelOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={`multi-filter-chip ${channels.includes(option.value) ? 'selected' : ''}`}
-                onClick={() => toggleValue(channels, option.value, setChannels)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="filter-group status">
-          <label className="filter-label">상태</label>
-          <div className="multi-filter-group">
-            {statusOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={`multi-filter-chip status-${option.value.toLowerCase()} ${statuses.includes(option.value) ? 'selected' : ''}`}
-                onClick={() => toggleValue(statuses, option.value, setStatuses)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Row 3: Date Picker */}
-      <div className="filter-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', width: '100%', flexWrap: 'wrap' }}>
-        <div className="filter-group date" style={{ minWidth: '180px', flex: '2' }}>
-          <label className="filter-label">날짜 범위</label>
-          <div className="date-range-inputs" style={{ gap: '4px', display: 'flex', alignItems: 'center', width: '100%' }}>
-            <input
-              type="date"
-              className="date-input"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              style={{ padding: '4px 6px', fontSize: '12px', height: '30px', flex: 1, minWidth: '80px', width: '100%' }}
-            />
-            <span className="date-separator" style={{ fontSize: '12px' }}>~</span>
-            <input
-              type="date"
-              className="date-input"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              style={{ padding: '4px 6px', fontSize: '12px', height: '30px', flex: 1, minWidth: '80px', width: '100%' }}
-            />
-          </div>
         </div>
       </div>
     </div>

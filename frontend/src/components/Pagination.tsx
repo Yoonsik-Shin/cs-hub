@@ -17,7 +17,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   loading,
 }) => {
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', marginTop: '6px', paddingBottom: '2px' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', marginTop: '2px', paddingBottom: '0px' }}>
       <button
         type="button"
         className="page-btn"

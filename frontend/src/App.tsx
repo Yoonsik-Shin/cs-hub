@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StatsCards } from './components/StatsCards';
+import { createPortal } from 'react-dom';
+import { UnprocessedStatsCard, TodayStatsCard } from './components/StatsCards';
 import { FilterBar } from './components/FilterBar';
 import type { FilterValues } from './components/FilterBar';
 import { InquiryList } from './components/InquiryList';
@@ -57,6 +58,7 @@ export const App: React.FC = () => {
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isNaverRenewModalOpen, setIsNaverRenewModalOpen] = useState(false);
 
   // Resizable & Collapsible columns states
   const [sidebarWidth, setSidebarWidth] = useState(250);
@@ -65,6 +67,83 @@ export const App: React.FC = () => {
   const [isListCollapsed, setIsListCollapsed] = useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingList, setIsResizingList] = useState(false);
+
+  // Drag and Drop (DND) states for Sidebar widgets
+  const [widgetOrder, setWidgetOrder] = useState<string[]>([
+    'PROFILE',
+    'STATS_UNPROCESSED',
+    'STATS_TODAY',
+    'SESSION'
+  ]);
+  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedItemIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedItemIndex === null || draggedItemIndex === index) return;
+    const newOrder = [...widgetOrder];
+    const draggedItem = newOrder[draggedItemIndex];
+    newOrder.splice(draggedItemIndex, 1);
+    newOrder.splice(index, 0, draggedItem);
+    setDraggedItemIndex(index);
+    setWidgetOrder(newOrder);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItemIndex(null);
+  };
+
+  const renderWidget = (type: string, isCollapsed: boolean) => {
+    const wrapperStyle: React.CSSProperties = {
+      width: '100%',
+      display: 'flex',
+      justifyContent: isCollapsed ? 'center' : 'stretch'
+    };
+
+    switch (type) {
+      case 'PROFILE':
+        return (
+          <div key="widget-profile" style={wrapperStyle}>
+            {renderOperatorWidget()}
+          </div>
+        );
+      case 'STATS_UNPROCESSED':
+        return (
+          <div key="widget-unprocessed" style={wrapperStyle}>
+            <UnprocessedStatsCard
+              count={unprocessedCount}
+              hasMore={unprocessedHasMore}
+              isCollapsed={isCollapsed}
+              onClick={handleUnprocessedStatsClick}
+            />
+          </div>
+        );
+      case 'STATS_TODAY':
+        return (
+          <div key="widget-today" style={wrapperStyle}>
+            <TodayStatsCard
+              count={todayCount}
+              hasMore={todayHasMore}
+              isCollapsed={isCollapsed}
+              onClick={handleTodayStatsClick}
+            />
+          </div>
+        );
+      case 'SESSION':
+        return (
+          <div key="widget-session" style={wrapperStyle}>
+            {renderNaverSessionWidget()}
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   const startResizingSidebar = (mouseDownEvent: React.MouseEvent) => {
     mouseDownEvent.preventDefault();
@@ -96,7 +175,7 @@ export const App: React.FC = () => {
 
     const onMouseMove = (mouseMoveEvent: MouseEvent) => {
       const deltaX = mouseMoveEvent.clientX - startX;
-      const newWidth = Math.max(300, Math.min(600, startWidth + deltaX));
+      const newWidth = Math.max(300, Math.min(700, startWidth + deltaX));
       setListWidth(newWidth);
     };
 
@@ -154,7 +233,7 @@ export const App: React.FC = () => {
       if (result.valid) {
         alert('네이버 카페 세션이 유효합니다 (정상).');
       } else {
-        alert('네이버 카페 세션이 만료되었습니다. 일회용 로그인 번호로 재로그인해 주세요.');
+        setIsNaverRenewModalOpen(true);
       }
     } catch (err) {
       console.error('Failed to sync Naver session:', err);
@@ -258,7 +337,7 @@ export const App: React.FC = () => {
             <button
               type="button"
               className="btn-session-action renew"
-              onClick={() => window.open('/naver-login', '_blank')}
+              onClick={() => setIsNaverRenewModalOpen(true)}
               title="네이버 세션을 새로 로그인하여 갱신합니다"
             >
               <ExternalLink size={12} />
@@ -465,7 +544,8 @@ export const App: React.FC = () => {
           padding: isSidebarCollapsed ? '20px 0' : undefined,
           alignItems: isSidebarCollapsed ? 'center' : undefined,
           overflow: isSidebarCollapsed ? 'visible' : 'hidden',
-          transition: 'width 0.2s ease'
+          transition: 'width 0.2s ease',
+          gap: isSidebarCollapsed ? '8px' : undefined
         }}
       >
         {isSidebarCollapsed ? (
@@ -497,7 +577,26 @@ export const App: React.FC = () => {
               <ChevronRight size={18} />
             </button>
 
-            {renderOperatorWidget()}
+            {widgetOrder.map((type, idx) => (
+              <div
+                key={type}
+                draggable
+                onDragStart={(e) => handleDragStart(e, idx)}
+                onDragOver={(e) => handleDragOver(e, idx)}
+                onDragEnd={handleDragEnd}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  opacity: draggedItemIndex === idx ? 0.4 : 1,
+                  cursor: 'grab',
+                  transition: 'opacity 0.2s',
+                  padding: '2px 0',
+                }}
+              >
+                {renderWidget(type, true)}
+              </div>
+            ))}
 
             {/* Compact Create Button */}
             <button
@@ -506,24 +605,10 @@ export const App: React.FC = () => {
               onClick={() => setIsModalOpen(true)}
               data-tooltip="CS 티켓 수동 생성"
               aria-label="CS 티켓 수동 생성"
-              style={{ width: '40px', height: '40px', padding: 0, justifyContent: 'center', borderRadius: '50%' }}
+              style={{ width: '40px', height: '40px', padding: 0, justifyContent: 'center', borderRadius: '50%', marginTop: 'auto', marginBottom: '8px', flexShrink: 0 }}
             >
               <Plus size={18} />
             </button>
-
-            {/* Compact Stats Badges */}
-            <StatsCards
-              unprocessedCount={unprocessedCount}
-              unprocessedHasMore={unprocessedHasMore}
-              todayCount={todayCount}
-              todayHasMore={todayHasMore}
-              isCollapsed
-              onUnprocessedClick={handleUnprocessedStatsClick}
-              onTodayClick={handleTodayStatsClick}
-            />
-
-            {/* Naver Session Dot */}
-            {renderNaverSessionWidget()}
           </>
         ) : (
           /* ── Expanded Sidebar ── */
@@ -546,25 +631,36 @@ export const App: React.FC = () => {
               </button>
             </div>
 
-            {renderOperatorWidget()}
-
-            <StatsCards
-              unprocessedCount={unprocessedCount}
-              unprocessedHasMore={unprocessedHasMore}
-              todayCount={todayCount}
-              todayHasMore={todayHasMore}
-              onUnprocessedClick={handleUnprocessedStatsClick}
-              onTodayClick={handleTodayStatsClick}
-            />
-
-            {renderNaverSessionWidget()}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              {widgetOrder.map((type, idx) => (
+                <div
+                  key={type}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  style={{
+                    width: '100%',
+                    opacity: draggedItemIndex === idx ? 0.4 : 1,
+                    cursor: 'grab',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    borderRadius: '16px',
+                  }}
+                  onDragEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)'; }}
+                  onDragLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+                  onDrop={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  {renderWidget(type, false)}
+                </div>
+              ))}
+            </div>
 
             {/* CS 티켓 수동 생성 — 하단 고정 */}
             <button
               type="button"
               className="btn-primary glow-violet-hover"
               onClick={() => setIsModalOpen(true)}
-              style={{ width: '100%', justifyContent: 'center', marginTop: 'auto', flexShrink: 0 }}
+              style={{ width: '100%', justifyContent: 'center', marginTop: '12px', flexShrink: 0 }}
             >
               <Plus size={16} />
               CS 티켓 수동 생성
@@ -648,25 +744,19 @@ export const App: React.FC = () => {
         ) : (
           /* ── Expanded List Column ── */
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', gap: '12px', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexShrink: 0 }}>
-              <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                문의 검색 및 필터
-              </span>
+            {/* Filter Bar Component with Bottom Border */}
+            <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', flexShrink: 0, width: '100%', position: 'relative', paddingRight: '24px' }}>
               <button
                 type="button"
                 onClick={() => setIsListCollapsed(true)}
                 className="panel-toggle-btn"
                 title="목록 접기"
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                style={{ position: 'absolute', top: '-2px', right: '0px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', zIndex: 10 }}
                 onMouseOver={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
                 onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
               >
                 <ChevronLeft size={16} />
               </button>
-            </div>
-
-            {/* Filter Bar Component with Bottom Border */}
-            <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', flexShrink: 0, width: '100%' }}>
               <FilterBar
                 initialValues={queryFilters}
                 onSearch={setQueryFilters}
@@ -674,7 +764,7 @@ export const App: React.FC = () => {
             </div>
 
             {/* Scrollable list area — flex:1 so it fills remaining height */}
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px', minHeight: 0, width: '100%' }}>
+            <div className="inquiry-scroll-area" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '0px', minHeight: 0, width: '100%' }}>
               {/* Error Message */}
               {error && (
                 <div
@@ -703,7 +793,7 @@ export const App: React.FC = () => {
 
             {/* Pagination Controls — always at the bottom, never scrolls */}
             {inquiries.length > 0 && !loading && (
-              <div style={{ flexShrink: 0, paddingTop: '8px', borderTop: '1px solid var(--border-light)', width: '100%' }}>
+              <div style={{ flexShrink: 0, paddingTop: '0px', borderTop: '1px solid var(--border-light)', width: '100%' }}>
                 <Pagination
                   currentPage={currentPage}
                   hasNext={hasNext}
@@ -790,6 +880,15 @@ export const App: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateTicket}
       />
+
+      {/* Naver Session Renew Modal */}
+      {isNaverRenewModalOpen && createPortal(
+        <NaverLoginRenewPage
+          isModal
+          onClose={() => setIsNaverRenewModalOpen(false)}
+        />,
+        document.body
+      )}
     </div>
   );
 };
