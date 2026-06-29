@@ -6,10 +6,14 @@ import com.ttam.cs.infra.config.AdminUserProperties;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -37,5 +41,48 @@ public class AuthController {
     ) {
         AdminUser user = adminUserProperties.resolve(remoteUser);
         return ResponseEntity.ok(AdminUserResponse.from(user));
+    }
+
+    @Operation(
+            summary = "로그아웃 및 계정 전환",
+            description = "현재 사용자가 로그아웃하거나 계정을 전환할 수 있도록 WWW-Authenticate 401 도전을 보냅니다."
+    )
+    @GetMapping("/logout")
+    public ResponseEntity<String> logout(
+            @RequestHeader(value = "X-Remote-User", required = false) String remoteUser,
+            @RequestParam(value = "current", required = false) String currentUser,
+            @CookieValue(value = "cs_auth_logout_challenge", required = false) String logoutChallenge
+    ) {
+        HttpHeaders headers = new HttpHeaders();
+
+        // 현재 사용자가 파라미터로 명시한 사용자(currentUser)와 동일하면,
+        // 브라우저가 다시 로그인 챌린지 팝업을 띄우도록 401 Unauthorized 및 인증 렐름 정보를 전송합니다.
+        if (remoteUser != null && remoteUser.equals(currentUser)) {
+            if ("1".equals(logoutChallenge)) {
+                headers.add(HttpHeaders.SET_COOKIE, "cs_auth_logout_challenge=; Max-Age=0; Path=/api/auth/logout; SameSite=Lax");
+                headers.set("Location", "/");
+                return new ResponseEntity<>("", headers, HttpStatus.FOUND);
+            }
+
+            headers.set("WWW-Authenticate", "Basic realm=\"Restricted Access - CS System\"");
+            headers.add(HttpHeaders.SET_COOKIE, "cs_auth_logout_challenge=1; Max-Age=30; Path=/api/auth/logout; SameSite=Lax");
+            String htmlBody = "<html>"
+                    + "<head><meta charset=\"UTF-8\"><title>로그아웃 완료</title></head>"
+                    + "<body style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; background-color: #f8fafc; color: #1e293b; margin: 0;\">"
+                    + "  <div style=\"background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -4px rgba(0,0,0,0.05); text-align: center; max-width: 400px; border: 1px solid #e2e8f0;\">"
+                    + "    <h2 style=\"color: #ef4444; margin: 0 0 10px 0; font-size: 20px; font-weight: 700;\">로그아웃 되었습니다</h2>"
+                    + "    <p style=\"color: #64748b; font-size: 14px; line-height: 1.5; margin: 0 0 20px 0;\">다른 계정으로 전환하려면 새 계정을 입력해 주세요. 같은 계정을 다시 입력하면 기존 계정으로 계속 사용합니다.</p>"
+                    + "    <a href=\"/\" style=\"display: inline-block; padding: 10px 24px; background: #6366f1; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; transition: background 0.15s ease;\">홈 화면으로 돌아가기</a>"
+                    + "  </div>"
+                    + "</body>"
+                    + "</html>";
+            return new ResponseEntity<>(htmlBody, headers, HttpStatus.UNAUTHORIZED);
+        }
+
+        // 사용자가 취소를 누르지 않고 새로운 계정을 입력하여 remoteUser 정보가 변경된 경우
+        // 메인 화면으로 리다이렉트 시켜 신규 계정 세션으로 브라우저가 동작하도록 합니다.
+        headers.add(HttpHeaders.SET_COOKIE, "cs_auth_logout_challenge=; Max-Age=0; Path=/api/auth/logout; SameSite=Lax");
+        headers.set("Location", "/");
+        return new ResponseEntity<>("", headers, HttpStatus.FOUND);
     }
 }
