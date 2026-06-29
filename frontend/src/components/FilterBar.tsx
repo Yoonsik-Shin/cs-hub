@@ -8,6 +8,7 @@ export interface FilterValues {
   channels: string[];
   startDate: string;
   endDate: string;
+  isManual: boolean | undefined;
 }
 
 interface FilterBarProps {
@@ -25,6 +26,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const [channels, setChannels] = useState<string[]>(initialValues.channels);
   const [startDate, setStartDate] = useState(initialValues.startDate);
   const [endDate, setEndDate] = useState(initialValues.endDate);
+  const [isManual, setIsManual] = useState<boolean | undefined>(initialValues.isManual);
 
   const statusOptions: { value: InquiryStatus; label: string }[] = [
     { value: 'OPEN', label: '미처리' },
@@ -33,11 +35,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   ];
 
   const channelOptions = [
+    { value: 'EMAIL', label: '이메일' },
+    { value: 'PHONE', label: '전화' },
     { value: 'GOOGLE_SHEET', label: '구글시트' },
     { value: 'NAVER_CAFE', label: '네이버카페' },
-    { value: 'EMAIL', label: '이메일' },
-    { value: 'KAKAO', label: '카카오톡' },
-    { value: 'MANUAL', label: '수동' },
   ];
 
   // Keep internal states synced if parent values change
@@ -47,6 +48,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     setChannels(initialValues.channels);
     setStartDate(initialValues.startDate);
     setEndDate(initialValues.endDate);
+    setIsManual(initialValues.isManual);
   }, [initialValues]);
 
   const toggleValue = <T extends string>(values: T[], value: T, setter: React.Dispatch<React.SetStateAction<T[]>>) => {
@@ -60,6 +62,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       channels,
       startDate,
       endDate,
+      isManual,
     });
   };
 
@@ -70,12 +73,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       channels: [],
       startDate: '',
       endDate: '',
+      isManual: undefined,
     };
     setUserCode(cleared.userCode);
     setStatuses(cleared.statuses);
     setChannels(cleared.channels);
     setStartDate(cleared.startDate);
     setEndDate(cleared.endDate);
+    setIsManual(cleared.isManual);
     
     // Automatically trigger search with cleared filters
     onSearch(cleared);
@@ -124,7 +129,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </div>
       </div>
 
-      {/* Row 2: Date Picker */}
+      {/* Row 2: Date Picker & Creation Type */}
       <div className="filter-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', width: '100%', flexWrap: 'wrap' }}>
         <div className="filter-group date" style={{ minWidth: '180px', flex: '2' }}>
           <label className="filter-label">날짜 범위</label>
@@ -144,6 +149,40 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               onChange={(e) => setEndDate(e.target.value)}
               style={{ padding: '4px 6px', fontSize: '12px', height: '30px', flex: 1, minWidth: '80px', width: '100%' }}
             />
+          </div>
+        </div>
+        <div className="filter-group creation-type" style={{ minWidth: '140px', flex: '1' }}>
+          <label className="filter-label">생성 방식</label>
+          <div className="multi-filter-group" style={{ display: 'flex', gap: '2px', background: 'var(--bg-tertiary)', padding: '2px', borderRadius: '8px', border: '1px solid var(--border-light)', height: '30px', alignItems: 'center' }}>
+            {[
+              { value: undefined, label: '전체' },
+              { value: false, label: '자동' },
+              { value: true, label: '수동' }
+            ].map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => setIsManual(opt.value)}
+                style={{ 
+                  flex: 1, 
+                  padding: '4px 6px', 
+                  fontSize: '11px', 
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: isManual === opt.value ? 'var(--accent-indigo)' : 'transparent',
+                  color: isManual === opt.value ? '#ffffff' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontWeight: isManual === opt.value ? '600' : '400',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '24px'
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>

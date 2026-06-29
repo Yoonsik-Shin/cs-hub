@@ -35,6 +35,7 @@ export const App: React.FC = () => {
     channels: [],
     startDate: '',
     endDate: '',
+    isManual: undefined,
   });
 
   // Pagination states (Cursor Stack for page-like navigation)
@@ -371,6 +372,7 @@ export const App: React.FC = () => {
         channel: queryFilters.channels.length > 0 ? queryFilters.channels : undefined,
         start: startISO,
         end: endISO,
+        isManual: queryFilters.isManual,
         cursor: cursorVal || undefined,
         size: 10,
       });
@@ -451,12 +453,14 @@ export const App: React.FC = () => {
     fetchStats();
   }, [fetchStats]);
 
-  const handleCreateTicket = async (ticketData: { channel: string; userCode: string; content: string }) => {
+  const handleCreateTicket = async (ticketData: { channel: string; userCode: string; content: string; channelMetadata?: any; imageUrls?: string[] }) => {
     try {
       await inquiryApi.createInquiry({
         channel: ticketData.channel,
         userCode: ticketData.userCode || undefined,
         content: ticketData.content,
+        channelMetadata: ticketData.channelMetadata,
+        imageUrls: ticketData.imageUrls,
       });
       fetchStats();
       fetchPage(null);
@@ -480,6 +484,7 @@ export const App: React.FC = () => {
       channels: [],
       startDate: '',
       endDate: '',
+      isManual: undefined,
     });
   };
 
@@ -491,6 +496,7 @@ export const App: React.FC = () => {
       channels: [],
       startDate: today,
       endDate: today,
+      isManual: undefined,
     });
   };
 

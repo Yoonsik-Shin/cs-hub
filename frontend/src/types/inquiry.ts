@@ -42,6 +42,13 @@ export interface ChannelMetadata {
   [key: string]: any;
 }
 
+export interface PhoneMetadata {
+  metadataType: 'PHONE';
+  phoneNumber: string;
+  memo?: string;
+  customFields?: Record<string, any>;
+}
+
 export interface CustomerInquiry {
   id: string;
   channel: string;
@@ -52,6 +59,7 @@ export interface CustomerInquiry {
   status: InquiryStatus;
   content: string;
   imageUrls?: string[] | null;
+  isManual: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -69,6 +77,7 @@ export interface SearchInquiriesParams {
   keyword?: string;
   start?: string; // ISO 8601 string
   end?: string;   // ISO 8601 string
+  isManual?: boolean;
   cursor?: string; // UUID string
   size?: number;
 }

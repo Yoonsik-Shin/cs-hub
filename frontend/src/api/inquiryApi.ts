@@ -64,7 +64,13 @@ export const inquiryApi = {
   /**
    * Create a new manual inquiry ticket on the backend
    */
-  async createInquiry(data: { channel: string; userCode?: string; content: string }): Promise<void> {
+  async createInquiry(data: {
+    channel: string;
+    userCode?: string;
+    content: string;
+    channelMetadata?: any;
+    imageUrls?: string[];
+  }): Promise<void> {
     const response = await fetch('/api/internal/v1/inquiries', {
       method: 'POST',
       headers: {
@@ -76,12 +82,61 @@ export const inquiryApi = {
         userCode: data.userCode || null,
         content: data.content,
         timestamp: new Date().toISOString(),
+        channelMetadata: data.channelMetadata || null,
+        imageUrls: data.imageUrls || [],
       }),
     });
 
     if (!response.ok) {
       const errorMsg = await response.text();
       throw new Error(`Failed to create inquiry: ${response.status} ${errorMsg}`);
+    }
+  },
+
+  /**
+   * Batch request presigned upload URLs from MinIO via the backend
+   */
+  async getPresignedUrls(files: { objectName: string; contentType: string }[]): Promise<{ objectName: string; uploadUrl: string; downloadUrl: string }[]> {
+    const response = await fetch('/api/internal/v1/inquiries/attachments/presigned-urls', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        objectNames: files.map(f => f.objectName),
+        contentType: files[0]?.contentType,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(`Failed to get presigned URLs: ${response.status} ${errorMsg}`);
+    }
+
+    const data = await response.json();
+    return data.urls;
+  },
+
+  /**
+   * Upload a single file directly to MinIO via presigned PUT URL
+   */
+  async uploadToMinIO(uploadUrl: string, file: File): Promise<void> {
+    let targetUrl = uploadUrl;
+    if (uploadUrl.includes('//minio:9000/')) {
+      targetUrl = uploadUrl.replace('//minio:9000/', `//${window.location.host}/attachments/`);
+    }
+
+    const response = await fetch(targetUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type,
+      },
+      body: file,
+    });
+
+    if (!response.ok) {
+      throw new Error(`MinIO upload failed: ${response.status}`);
     }
   },
 
@@ -139,6 +194,7 @@ export const inquiryApi = {
     userCode?: string;
     deviceInfo?: { appVersion?: string; model?: string; osVersion?: string } | null;
     content?: string;
+    imageUrls?: string[];
     reasons: { channel?: string; userCode?: string; deviceInfo?: string; content?: string };
   }): Promise<void> {
     const response = await fetch(`/api/internal/v1/inquiries/${id}`, {

@@ -1065,7 +1065,7 @@ body.modal-open {
 .modal-content {
   background: #ffffff;
   width: 90%;
-  max-width: 500px;
+  max-width: 900px;
   padding: 32px;
   border-radius: 20px;
   display: flex;

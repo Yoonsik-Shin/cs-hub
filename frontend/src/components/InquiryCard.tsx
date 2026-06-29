@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, BookOpen, Pencil, Circle, RotateCcw, Check, CalendarDays, Mail } from 'lucide-react';
+import { BookOpen, Pencil, Circle, RotateCcw, Check, CalendarDays, Mail, Phone } from 'lucide-react';
 import type { CustomerInquiry } from '../types/inquiry';
 
 interface InquiryCardProps {
@@ -39,20 +39,17 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({ inquiry, isSelected, o
 
   const getChannelInfo = (channel: string): { className: string; label: string; icon: React.ReactNode } => {
     const normalized = channel.toUpperCase();
-    if (normalized.includes('KAKAO')) {
-      return { className: 'kakao', label: '카카오', icon: <MessageSquare size={10} /> };
-    }
     if (normalized.includes('NAVER_CAFE') || normalized.includes('CAFE')) {
       return { className: 'naver_cafe', label: '네이버카페', icon: <BookOpen size={10} /> };
     }
     if (normalized.includes('GOOGLE_SHEET') || normalized.includes('SHEET')) {
-      return { className: 'manual', label: '구글시트', icon: <BookOpen size={10} /> };
+      return { className: 'google_sheet', label: '구글시트', icon: <BookOpen size={10} /> };
     }
     if (normalized.includes('EMAIL')) {
       return { className: 'email', label: '이메일', icon: <Mail size={10} /> };
     }
-    if (normalized.includes('MANUAL')) {
-      return { className: 'manual', label: '수동생성', icon: <Pencil size={10} /> };
+    if (normalized.includes('PHONE')) {
+      return { className: 'phone', label: '전화접수', icon: <Phone size={10} /> };
     }
     return { className: 'manual', label: channel, icon: <Pencil size={10} /> };
   };
@@ -68,10 +65,26 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({ inquiry, isSelected, o
     >
       {/* Row 1: Channel badge ← → Status badge */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-        <span className={`channel-badge ${channelInfo.className}`}>
-          {channelInfo.icon}
-          {channelInfo.label}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span className={`channel-badge ${channelInfo.className}`}>
+            {channelInfo.icon}
+            {channelInfo.label}
+          </span>
+          {inquiry.isManual && (
+            <span 
+              className="channel-badge manual" 
+              style={{ 
+                background: 'rgba(239, 68, 68, 0.12)', 
+                border: '1px solid rgba(239, 68, 68, 0.25)', 
+                color: '#ef4444'
+              }}
+              title="수동으로 등록된 티켓입니다"
+            >
+              <Pencil size={10} />
+              수동
+            </span>
+          )}
+        </div>
         <span className={`status-badge ${statusClass}`}>
           {statusInfo.icon}
           {statusInfo.label}
