@@ -48,9 +48,10 @@ public class CustomerInquiryController {
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime start,
             @RequestParam(name = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
+            @RequestParam(name = "isManual", required = false) Boolean isManual,
             @RequestParam(name = "limit", defaultValue = "100") int limit) {
         int boundedLimit = Math.max(1, limit);
-        long cappedCount = inquiryService.count(channels, userCode, statuses, keyword, start, end, boundedLimit + 1);
+        long cappedCount = inquiryService.count(channels, userCode, statuses, keyword, start, end, isManual, boundedLimit + 1);
         boolean hasMore = cappedCount > boundedLimit;
         return ResponseEntity.ok(new InquiryCountResponse(Math.min(cappedCount, boundedLimit), hasMore));
     }
@@ -64,10 +65,11 @@ public class CustomerInquiryController {
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime start,
             @RequestParam(name = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
+            @RequestParam(name = "isManual", required = false) Boolean isManual,
             @RequestParam(name = "cursor", required = false) UUID cursor,
             @RequestParam(name = "size", defaultValue = "10") int size) {
         CursorPage<CustomerInquiry> result = inquiryService.search(channels,
-                userCode, statuses, keyword, start, end, cursor, size);
+                userCode, statuses, keyword, start, end, isManual, cursor, size);
 
         String s3UrlPrefix = externalUrl.endsWith("/") ? 
                 externalUrl + bucketName : 
@@ -115,7 +117,8 @@ public class CustomerInquiryController {
         if (request.channel() != null || 
             request.userCode() != null || 
             request.deviceInfo() != null || 
-            request.content() != null) {
+            request.content() != null ||
+            request.imageUrls() != null) {
             
             UpdateInquiryFieldsRequest fieldsRequest = new UpdateInquiryFieldsRequest(
                     request.operatorInfo(),
@@ -123,6 +126,7 @@ public class CustomerInquiryController {
                     request.userCode(),
                     request.deviceInfo(),
                     request.content(),
+                    request.imageUrls(),
                     request.reasons()
             );
             String ipAddress = getClientIp(servletRequest);

@@ -26,7 +26,6 @@ public class AttachmentController {
 
     @Operation(summary = "Presigned 업로드 URL 발급", description = "파일을 S3/MinIO에 직접 업로드할 수 있는 Presigned URL과 최종 다운로드 URL을 발급합니다.")
     @PostMapping("/presigned-url")
-    @RequireInternalAuth
     public ResponseEntity<PresignedUrlResponseDto> getPresignedUploadUrl(
             @RequestBody @Valid GeneratePresignedUrlRequestDto request) {
         
@@ -43,7 +42,6 @@ public class AttachmentController {
 
     @Operation(summary = "일괄(Batch) Presigned 업로드 URL 발급", description = "여러 파일들에 대해 S3/MinIO에 직접 업로드할 수 있는 Presigned URL들과 최종 다운로드 URL 목록을 발급합니다.")
     @PostMapping("/presigned-urls")
-    @RequireInternalAuth
     public ResponseEntity<PresignedUrlsResponseDto> getPresignedUploadUrls(
             @RequestBody @Valid GeneratePresignedUrlsRequestDto request) {
         

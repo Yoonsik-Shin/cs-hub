@@ -42,6 +42,7 @@ public record SearchCustomerInquiryResponse(
             String status,
             String content,
             List<String> imageUrls,
+            boolean isManual,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
     ) {
@@ -65,6 +66,7 @@ public record SearchCustomerInquiryResponse(
                                 return s3UrlPrefix.endsWith("/") ? s3UrlPrefix + url : s3UrlPrefix + "/" + url;
                             })
                             .toList(),
+                    entity.isManual(),
                     entity.getCreatedAt(),
                     entity.getUpdatedAt()
             );

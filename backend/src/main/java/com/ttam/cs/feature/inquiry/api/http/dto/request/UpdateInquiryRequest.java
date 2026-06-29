@@ -5,6 +5,7 @@ import com.ttam.cs.feature.inquiry.domain.DeviceInfo;
 import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import java.util.List;
 import java.util.Map;
 
 public record UpdateInquiryRequest(
@@ -14,5 +15,7 @@ public record UpdateInquiryRequest(
     String userCode,
     DeviceInfo deviceInfo,
     String content,
+    List<String> imageUrls,
     Map<String, String> reasons
 ) {}
+

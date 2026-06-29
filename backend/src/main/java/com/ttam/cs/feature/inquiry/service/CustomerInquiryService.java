@@ -16,6 +16,7 @@ import com.ttam.cs.common.dto.CursorPage;
 import java.util.ArrayList;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import com.ttam.cs.infra.storage.StorageService;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CustomerInquiryService {
@@ -31,6 +35,7 @@ public class CustomerInquiryService {
     private final CustomerInquiryRepository repository;
     private final InquiryWorkLogRepository workLogRepository;
     private final InquiryUniqueKeyGenerator uniqueKeyGenerator;
+    private final StorageService storageService;
 
     @Transactional
     public void integrateInquiries(String channel, List<DataIntegrationPayload.IntegrationItem> items) {
@@ -48,7 +53,8 @@ public class CustomerInquiryService {
                             item.channelMetadata(),
                             item.deviceInfo(),
                             item.content(),
-                            imageUrls
+                            imageUrls,
+                            false
                     );
                 })
                 .toList();
@@ -64,9 +70,10 @@ public class CustomerInquiryService {
             String keyword,
             OffsetDateTime start,
             OffsetDateTime end,
+            Boolean isManual,
             UUID cursor,
             int size) {
-        return repository.searchInquiries(channels, userCode, statuses, keyword, start, end, cursor, size);
+        return repository.searchInquiries(channels, userCode, statuses, keyword, start, end, isManual, cursor, size);
     }
 
     @Transactional(readOnly = true)
@@ -77,8 +84,9 @@ public class CustomerInquiryService {
             String keyword,
             OffsetDateTime start,
             OffsetDateTime end,
+            Boolean isManual,
             int limit) {
-        return repository.countInquiries(channels, userCode, statuses, keyword, start, end, limit);
+        return repository.countInquiries(channels, userCode, statuses, keyword, start, end, isManual, limit);
     }
 
     @Transactional
@@ -90,7 +98,9 @@ public class CustomerInquiryService {
                 request.userCode(),
                 request.channelMetadata(),
                 request.deviceInfo(),
-                request.content());
+                request.content(),
+                request.imageUrls() != null ? request.imageUrls() : List.of(),
+                true);
         repository.save(inquiry);
         return inquiry.getId();
     }
@@ -180,39 +190,37 @@ public class CustomerInquiryService {
         }
 
         // Check userCode
-        String currentUserCode = inquiry.getUserCode() != null ? inquiry.getUserCode() : "";
-        String newUserCode = request.userCode() != null ? request.userCode() : "";
-        if (!newUserCode.equals(currentUserCode)) {
-            String reason = reasons.get("userCode");
-            if (reason == null || reason.trim().isEmpty()) {
-                throw new IllegalArgumentException("userCode 수정 사유를 입력해주세요.");
+        if (request.userCode() != null) {
+            String currentUserCode = inquiry.getUserCode() != null ? inquiry.getUserCode() : "";
+            String newUserCode = request.userCode();
+            if (!newUserCode.equals(currentUserCode)) {
+                String reason = reasons.get("userCode");
+                if (reason == null || reason.trim().isEmpty()) {
+                    throw new IllegalArgumentException("userCode 수정 사유를 입력해주세요.");
+                }
+                modifications.add(new FieldModification("userCode", inquiry.getUserCode(), request.userCode(), reason.trim()));
+                inquiry.updateUserCode(request.userCode().isEmpty() ? null : request.userCode());
             }
-            modifications.add(new FieldModification("userCode", inquiry.getUserCode(), request.userCode(), reason.trim()));
-            inquiry.updateUserCode(request.userCode());
         }
 
         // Check deviceInfo
-        boolean deviceChanged = false;
-        if (request.deviceInfo() == null && inquiry.getDeviceInfo() != null) {
-            deviceChanged = true;
-        } else if (request.deviceInfo() != null && !request.deviceInfo().equals(inquiry.getDeviceInfo())) {
-            deviceChanged = true;
-        }
-        if (deviceChanged) {
-            String reason = reasons.get("deviceInfo");
-            if (reason == null || reason.trim().isEmpty()) {
-                throw new IllegalArgumentException("deviceInfo 수정 사유를 입력해주세요.");
+        if (request.deviceInfo() != null) {
+            boolean deviceChanged = !request.deviceInfo().equals(inquiry.getDeviceInfo());
+            if (deviceChanged) {
+                String reason = reasons.get("deviceInfo");
+                if (reason == null || reason.trim().isEmpty()) {
+                    throw new IllegalArgumentException("deviceInfo 수정 사유를 입력해주세요.");
+                }
+                String beforeStr = inquiry.getDeviceInfo() != null ? 
+                    ("appVersion=" + inquiry.getDeviceInfo().appVersion() + 
+                     ", model=" + inquiry.getDeviceInfo().model() + 
+                     ", osVersion=" + inquiry.getDeviceInfo().osVersion()) : "null";
+                String afterStr = "appVersion=" + request.deviceInfo().appVersion() + 
+                     ", model=" + request.deviceInfo().model() + 
+                     ", osVersion=" + request.deviceInfo().osVersion();
+                modifications.add(new FieldModification("deviceInfo", beforeStr, afterStr, reason.trim()));
+                inquiry.updateDeviceInfo(request.deviceInfo());
             }
-            String beforeStr = inquiry.getDeviceInfo() != null ? 
-                ("appVersion=" + inquiry.getDeviceInfo().appVersion() + 
-                 ", model=" + inquiry.getDeviceInfo().model() + 
-                 ", osVersion=" + inquiry.getDeviceInfo().osVersion()) : "null";
-            String afterStr = request.deviceInfo() != null ? 
-                ("appVersion=" + request.deviceInfo().appVersion() + 
-                 ", model=" + request.deviceInfo().model() + 
-                 ", osVersion=" + request.deviceInfo().osVersion()) : "null";
-            modifications.add(new FieldModification("deviceInfo", beforeStr, afterStr, reason.trim()));
-            inquiry.updateDeviceInfo(request.deviceInfo());
         }
 
         // Check content
@@ -223,6 +231,30 @@ public class CustomerInquiryService {
             }
             modifications.add(new FieldModification("content", inquiry.getContent(), request.content(), reason.trim()));
             inquiry.updateContent(request.content());
+        }
+
+        // Check imageUrls (null = no change; non-null list = explicitly replace)
+        if (request.imageUrls() != null) {
+            List<String> currentUrls = inquiry.getImageUrls() != null ? inquiry.getImageUrls() : List.of();
+            List<String> newUrls = request.imageUrls();
+            // Find removed URLs and delete from MinIO
+            List<String> removed = currentUrls.stream()
+                    .filter(url -> !newUrls.contains(url))
+                    .toList();
+            for (String url : removed) {
+                try {
+                    storageService.deleteObject(url);
+                } catch (Exception e) {
+                    log.warn("MinIO 이미지 삭제 실패 (계속 진행): {}", url, e);
+                }
+            }
+            if (!newUrls.equals(currentUrls)) {
+                modifications.add(new FieldModification("imageUrls",
+                        String.valueOf(currentUrls.size()) + "개",
+                        String.valueOf(newUrls.size()) + "개",
+                        "이미지 첨부 변경"));
+                inquiry.updateImageUrls(newUrls);
+            }
         }
 
         if (modifications.isEmpty()) {

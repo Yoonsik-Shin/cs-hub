@@ -41,6 +41,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             String contentKeyword,
             OffsetDateTime startDateTime,
             OffsetDateTime endDateTime,
+            Boolean isManual,
             UUID cursor,
             int size) {
         QCustomerInquiry customerInquiry = QCustomerInquiry.customerInquiry;
@@ -53,6 +54,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                         statusIn(statuses),
                         contentContains(contentKeyword),
                         timestampBetween(startDateTime, endDateTime),
+                        isManualEq(isManual),
                         cursorLessThan(cursor))
                 .limit(size + 1)
                 .orderBy(customerInquiry.id.desc())
@@ -69,6 +71,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             String contentKeyword,
             OffsetDateTime startDateTime,
             OffsetDateTime endDateTime,
+            Boolean isManual,
             int limit) {
         QCustomerInquiry customerInquiry = QCustomerInquiry.customerInquiry;
 
@@ -81,7 +84,8 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                         userCodeEq(userCode),
                         statusIn(statuses),
                         contentContains(contentKeyword),
-                        timestampBetween(startDateTime, endDateTime))
+                        timestampBetween(startDateTime, endDateTime),
+                        isManualEq(isManual))
                 .limit(boundedLimit)
                 .fetch();
 
@@ -97,6 +101,10 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                 .filter(StringUtils::hasText)
                 .toList();
         return normalizedChannels.isEmpty() ? null : QCustomerInquiry.customerInquiry.channel.in(normalizedChannels);
+    }
+
+    private BooleanExpression isManualEq(Boolean isManual) {
+        return isManual != null ? QCustomerInquiry.customerInquiry.isManual.eq(isManual) : null;
     }
 
     private BooleanExpression userCodeEq(String userCode) {
@@ -132,7 +140,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
 
         StringBuilder sql = new StringBuilder(
                 "INSERT INTO customer_inquiries " +
-                        "(id, unique_key, channel, timestamp, user_code, channel_metadata, device_info, status, content, image_urls, created_at, updated_at) "
+                        "(id, unique_key, channel, timestamp, user_code, channel_metadata, device_info, status, content, image_urls, is_manual, created_at, updated_at) "
                         +
                         "VALUES ");
 
@@ -141,7 +149,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         for (CustomerInquiry inquiry : inquiries) {
-            valuesJoiner.add("(?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, ?)");
+            valuesJoiner.add("(?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, ?, ?)");
 
             params.add(inquiry.getId().toString());
             params.add(inquiry.getUniqueKey().toString());
@@ -153,6 +161,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             params.add(inquiry.getStatus().name());
             params.add(inquiry.getContent());
             params.add(toJson(inquiry.getImageUrls()));
+            params.add(inquiry.isManual());
             params.add(Timestamp.from(now.toInstant()));
             params.add(Timestamp.from(now.toInstant()));
         }
