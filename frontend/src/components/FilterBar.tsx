@@ -149,20 +149,27 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       </div>
 
       {/* Row 3: Search & Actions */}
-      <div className="filter-row" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', width: '100%', flexWrap: 'nowrap' }}>
-        {/* User Code Search */}
+      <div className="filter-row" style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', width: '100%', flexWrap: 'nowrap' }}>
         <div className="filter-group search" style={{ flex: '1', minWidth: '100px' }}>
-          <label className="filter-label">유저코드</label>
+          <label className="filter-label">
+            유저코드
+            <span style={{ fontSize: '10px', fontWeight: '500', color: userCode.length === 12 ? 'var(--accent-indigo)' : 'var(--text-muted)', marginLeft: '4px' }}>
+              ({userCode.length}/12)
+            </span>
+          </label>
           <div className="search-input-wrapper" style={{ height: '30px', position: 'relative', width: '100%' }}>
-            <Search className="search-icon" style={{ left: '8px', width: '12px', height: '12px' }} />
+            <Search className="search-icon" style={{ left: '6px', width: '11px', height: '11px' }} />
             <input
               type="text"
               className="search-input"
               placeholder="검색..."
               value={userCode}
-              onChange={(e) => setUserCode(e.target.value)}
+              onChange={(e) => {
+                const onlyNums = e.target.value.replace(/[^0-9]/g, '');
+                setUserCode(onlyNums.slice(0, 12));
+              }}
               onKeyDown={handleKeyDown}
-              style={{ padding: '6px 8px 6px 26px', fontSize: '13px', height: '30px', width: '100%' }}
+              style={{ padding: '6px 10px 6px 20px', fontSize: '12px', height: '30px', width: '100%', letterSpacing: '0.2px' }}
             />
           </div>
         </div>
@@ -171,9 +178,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <div 
           className="filter-group actions" 
           style={{ 
-            marginLeft: 'auto', 
             display: 'flex', 
-            gap: '6px', 
+            gap: '4px', 
             flexDirection: 'row',
             alignItems: 'center',
             marginTop: '4px',
@@ -187,16 +193,16 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: '4px',
-              padding: '6px 10px',
+              gap: '3px',
+              padding: '6px 8px',
               borderRadius: '6px',
               height: '30px',
               cursor: 'pointer',
-              fontSize: '12px'
+              fontSize: '11px'
             }}
             title="필터 초기화"
           >
-            <RotateCcw size={12} />
+            <RotateCcw size={11} />
             초기화
           </button>
           <button
@@ -204,14 +210,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             className="btn-primary"
             onClick={handleSearch}
             style={{ 
-              padding: '6px 14px', 
+              padding: '6px 10px', 
               borderRadius: '6px',
               height: '30px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: 'none',
-              fontSize: '12px',
+              fontSize: '11px',
               cursor: 'pointer'
             }}
           >

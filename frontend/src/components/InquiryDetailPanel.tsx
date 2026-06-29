@@ -561,7 +561,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const renderDeviceInfo = (device: any) => {
         if (!device && !isEditing) return <div style={{ color: 'var(--text-muted)' }}>디바이스 정보 없음</div>;
 
-        const hasDeviceInfoChanged = 
+        const hasDeviceInfoChanged =
             editAppVersion.trim() !== (device?.appVersion || '') ||
             editModel.trim() !== (device?.model || '') ||
             editOsVersion.trim() !== (device?.osVersion || '');
@@ -773,9 +773,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 gap: '8px'
                             }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                 <FileText size={16} style={{ color: 'var(--accent-indigo)' }} />
-                                <span>문의 참조 정보 (Ticket Reference)</span>
+                                <span>문의 참조 정보</span>
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 {isEditing ? (
@@ -993,7 +993,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                 <CheckCircle size={16} style={{ color: 'var(--accent-indigo)' }} />
-                                <span>실시간 티켓 처리 콘솔 (Support Actions)</span>
+                                <span>실시간 티켓 처리 콘솔</span>
                             </div>
                             <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}>
                                 <span>{isActionsCollapsed ? '펼치기' : '접기'}</span>
@@ -1217,7 +1217,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         display: 'flex',
                         flexDirection: 'column',
                         height: '100%',
-                        padding: isHistoryCollapsed ? '12px 0' : '12px 0 12px 16px',
+                        padding: isHistoryCollapsed ? '12px 0' : '12px 16px',
                         overflow: 'hidden',
                         borderLeft: '1px solid var(--border-light)',
                         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease',
@@ -1286,17 +1286,18 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             <div
                                 className="cs-panel-section-title"
                                 style={{
-                                    margin: '0 0 12px 0',
-                                    paddingRight: '16px',
+                                    margin: 0,
+                                    padding: '10px 12px',
+                                    borderBottom: '1px solid var(--border-light)',
                                     display: 'flex',
                                     justifyContent: 'space-between',
                                     alignItems: 'center',
                                     flexShrink: 0
                                 }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                     <History size={16} style={{ color: '#64748b' }} />
-                                    <span>업무 처리 이력 (Work History)</span>
+                                    <span>업무 처리 이력</span>
                                 </div>
                                 <button
                                     type="button"
@@ -1330,7 +1331,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             ) : logError ? (
                                 <div style={{ color: '#f87171', fontSize: '13px', padding: '8px 0', flex: 1 }}>⚠️ {logError}</div>
                             ) : (
-                                <div className="timeline-scroll-area" style={{ flex: 1, overflowY: 'auto', padding: '0 16px 0 12px' }}>
+                                <div className="timeline-scroll-area" style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 0 12px' }}>
                                     <div className="timeline-container">
                                         {timelineItems.map((log) => (
                                             <div key={log.id} className={`timeline-item ${getActionClass(log.actionType)}`}>

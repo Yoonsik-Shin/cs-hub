@@ -682,7 +682,7 @@ export const App: React.FC = () => {
         style={{
           width: isListCollapsed ? '56px' : `${listWidth}px`,
           minWidth: isListCollapsed ? '56px' : undefined,
-          padding: isListCollapsed ? '20px 0' : undefined,
+          padding: isListCollapsed ? '20px 0' : '20px 8px 8px 8px',
           alignItems: isListCollapsed ? 'center' : undefined,
           overflow: 'hidden',
           transition: 'width 0.2s ease'
@@ -764,7 +764,7 @@ export const App: React.FC = () => {
             </div>
 
             {/* Scrollable list area — flex:1 so it fills remaining height */}
-            <div className="inquiry-scroll-area" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '0px', minHeight: 0, width: '100%' }}>
+            <div className="inquiry-scroll-area" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', padding: '6px 4px 6px 4px', minHeight: 0, width: '100%' }}>
               {/* Error Message */}
               {error && (
                 <div
