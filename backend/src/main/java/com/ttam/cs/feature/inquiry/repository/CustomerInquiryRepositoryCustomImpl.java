@@ -3,16 +3,14 @@ package com.ttam.cs.feature.inquiry.repository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.ttam.cs.common.dto.CursorPage;
 import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.QCustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.QInquiryBookmark;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.StringUtils;
 
@@ -42,12 +40,20 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             OffsetDateTime startDateTime,
             OffsetDateTime endDateTime,
             Boolean isManual,
+            Boolean bookmarkedOnly,
+            String operatorId,
             UUID cursor,
             int size) {
+        if (Boolean.TRUE.equals(bookmarkedOnly) && !StringUtils.hasText(operatorId)) {
+            return new CursorPage<>(List.of(), null, false);
+        }
+
         QCustomerInquiry customerInquiry = QCustomerInquiry.customerInquiry;
 
-        List<CustomerInquiry> result = queryFactory
-                .selectFrom(customerInquiry)
+        JPAQuery<CustomerInquiry> query = queryFactory
+                .selectFrom(customerInquiry);
+
+        List<CustomerInquiry> result = query
                 .where(
                         channelIn(channels),
                         userCodeEq(userCode),
@@ -55,6 +61,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                         contentContains(contentKeyword),
                         timestampBetween(startDateTime, endDateTime),
                         isManualEq(isManual),
+                        bookmarkedByOperator(bookmarkedOnly, operatorId),
                         cursorLessThan(cursor))
                 .limit(size + 1)
                 .orderBy(customerInquiry.id.desc())
@@ -72,20 +79,29 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             OffsetDateTime startDateTime,
             OffsetDateTime endDateTime,
             Boolean isManual,
+            Boolean bookmarkedOnly,
+            String operatorId,
             int limit) {
+        if (Boolean.TRUE.equals(bookmarkedOnly) && !StringUtils.hasText(operatorId)) {
+            return 0;
+        }
+
         QCustomerInquiry customerInquiry = QCustomerInquiry.customerInquiry;
 
-        Integer boundedLimit = Math.max(1, limit);
-        List<UUID> ids = queryFactory
+        JPAQuery<UUID> query = queryFactory
                 .select(customerInquiry.id)
-                .from(customerInquiry)
+                .from(customerInquiry);
+
+        Integer boundedLimit = Math.max(1, limit);
+        List<UUID> ids = query
                 .where(
                         channelIn(channels),
                         userCodeEq(userCode),
                         statusIn(statuses),
                         contentContains(contentKeyword),
                         timestampBetween(startDateTime, endDateTime),
-                        isManualEq(isManual))
+                        isManualEq(isManual),
+                        bookmarkedByOperator(bookmarkedOnly, operatorId))
                 .limit(boundedLimit)
                 .fetch();
 
@@ -105,6 +121,20 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
 
     private BooleanExpression isManualEq(Boolean isManual) {
         return isManual != null ? QCustomerInquiry.customerInquiry.isManual.eq(isManual) : null;
+    }
+
+    private BooleanExpression bookmarkedByOperator(Boolean bookmarkedOnly, String operatorId) {
+        if (!Boolean.TRUE.equals(bookmarkedOnly)) {
+            return null;
+        }
+
+        QInquiryBookmark bookmark = QInquiryBookmark.inquiryBookmark;
+        return QCustomerInquiry.customerInquiry.id.in(
+                JPAExpressions
+                        .select(bookmark.inquiryId)
+                        .from(bookmark)
+                        .where(bookmark.operatorId.eq(operatorId.trim()))
+        );
     }
 
     private BooleanExpression userCodeEq(String userCode) {

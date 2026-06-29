@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
@@ -42,6 +43,7 @@ public class CustomerInquiryController {
     @Operation(summary = "고객 문의 내역 조건별 카운트 조회", description = "목록 데이터를 내려주지 않고 조건에 맞는 문의 수와 초과 여부만 조회합니다.")
     @GetMapping("/count")
     public ResponseEntity<InquiryCountResponse> count(
+            @RequestHeader(value = "X-Remote-User", required = false) String remoteUser,
             @RequestParam(name = "channel", required = false) List<String> channels,
             @RequestParam(name = "userCode", required = false) String userCode,
             @RequestParam(name = "status", required = false) List<CustomerInquiry.Status> statuses,
@@ -49,9 +51,14 @@ public class CustomerInquiryController {
             @RequestParam(name = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime start,
             @RequestParam(name = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
             @RequestParam(name = "isManual", required = false) Boolean isManual,
+            @RequestParam(name = "bookmarkedOnly", required = false) Boolean bookmarkedOnly,
             @RequestParam(name = "limit", defaultValue = "100") int limit) {
+        if (Boolean.TRUE.equals(bookmarkedOnly) && !StringUtils.hasText(remoteUser)) {
+            return ResponseEntity.ok(new InquiryCountResponse(0, false));
+        }
+
         int boundedLimit = Math.max(1, limit);
-        long cappedCount = inquiryService.count(channels, userCode, statuses, keyword, start, end, isManual, boundedLimit + 1);
+        long cappedCount = inquiryService.count(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, remoteUser, boundedLimit + 1);
         boolean hasMore = cappedCount > boundedLimit;
         return ResponseEntity.ok(new InquiryCountResponse(Math.min(cappedCount, boundedLimit), hasMore));
     }
@@ -59,6 +66,7 @@ public class CustomerInquiryController {
     @Operation(summary = "고객 문의 내역 검색 및 조회", description = "채널, 유저 코드, 상태, 검색 키워드, 시작/종료 시간 및 커서를 조합하여 고객 문의 내역 목록을 조회합니다.")
     @GetMapping("")
     public ResponseEntity<SearchCustomerInquiryResponse> search(
+            @RequestHeader(value = "X-Remote-User", required = false) String remoteUser,
             @RequestParam(name = "channel", required = false) List<String> channels,
             @RequestParam(name = "userCode", required = false) String userCode,
             @RequestParam(name = "status", required = false) List<CustomerInquiry.Status> statuses,
@@ -66,10 +74,15 @@ public class CustomerInquiryController {
             @RequestParam(name = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime start,
             @RequestParam(name = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
             @RequestParam(name = "isManual", required = false) Boolean isManual,
+            @RequestParam(name = "bookmarkedOnly", required = false) Boolean bookmarkedOnly,
             @RequestParam(name = "cursor", required = false) UUID cursor,
             @RequestParam(name = "size", defaultValue = "10") int size) {
+        if (Boolean.TRUE.equals(bookmarkedOnly) && !StringUtils.hasText(remoteUser)) {
+            return ResponseEntity.ok(SearchCustomerInquiryResponse.of(new CursorPage<>(List.of(), null, false)));
+        }
+
         CursorPage<CustomerInquiry> result = inquiryService.search(channels,
-                userCode, statuses, keyword, start, end, isManual, cursor, size);
+                userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, remoteUser, cursor, size);
 
         String s3UrlPrefix = externalUrl.endsWith("/") ? 
                 externalUrl + bucketName : 

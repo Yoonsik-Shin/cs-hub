@@ -11,12 +11,12 @@ public interface CustomerInquiryRepositoryCustom {
     CursorPage<CustomerInquiry> searchInquiries(List<String> channels, String userCode,
             List<CustomerInquiry.Status> statuses, String contentKeyword,
             OffsetDateTime startDateTime, OffsetDateTime endDateTime,
-            Boolean isManual, UUID cursor, int size);
+            Boolean isManual, Boolean bookmarkedOnly, String operatorId, UUID cursor, int size);
 
     long countInquiries(List<String> channels, String userCode,
             List<CustomerInquiry.Status> statuses, String contentKeyword,
             OffsetDateTime startDateTime, OffsetDateTime endDateTime,
-            Boolean isManual, int limit);
+            Boolean isManual, Boolean bookmarkedOnly, String operatorId, int limit);
 
     void bulkInsert(List<CustomerInquiry> inquiries);
 }

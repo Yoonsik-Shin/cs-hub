@@ -71,9 +71,11 @@ public class CustomerInquiryService {
             OffsetDateTime start,
             OffsetDateTime end,
             Boolean isManual,
+            Boolean bookmarkedOnly,
+            String operatorId,
             UUID cursor,
             int size) {
-        return repository.searchInquiries(channels, userCode, statuses, keyword, start, end, isManual, cursor, size);
+        return repository.searchInquiries(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, operatorId, cursor, size);
     }
 
     @Transactional(readOnly = true)
@@ -85,8 +87,10 @@ public class CustomerInquiryService {
             OffsetDateTime start,
             OffsetDateTime end,
             Boolean isManual,
+            Boolean bookmarkedOnly,
+            String operatorId,
             int limit) {
-        return repository.countInquiries(channels, userCode, statuses, keyword, start, end, isManual, limit);
+        return repository.countInquiries(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, operatorId, limit);
     }
 
     @Transactional
