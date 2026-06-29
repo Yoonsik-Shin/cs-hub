@@ -1217,7 +1217,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         display: 'flex',
                         flexDirection: 'column',
                         height: '100%',
-                        padding: isHistoryCollapsed ? '12px 0' : '12px 12px',
+                        padding: isHistoryCollapsed ? '12px 0' : '12px 0 12px 16px',
                         overflow: 'hidden',
                         borderLeft: '1px solid var(--border-light)',
                         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease',
@@ -1287,6 +1287,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 className="cs-panel-section-title"
                                 style={{
                                     margin: '0 0 12px 0',
+                                    paddingRight: '16px',
                                     display: 'flex',
                                     justifyContent: 'space-between',
                                     alignItems: 'center',
@@ -1329,7 +1330,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             ) : logError ? (
                                 <div style={{ color: '#f87171', fontSize: '13px', padding: '8px 0', flex: 1 }}>⚠️ {logError}</div>
                             ) : (
-                                <div className="timeline-scroll-area" style={{ flex: 1, overflowY: 'auto', padding: '0 0 0 12px' }}>
+                                <div className="timeline-scroll-area" style={{ flex: 1, overflowY: 'auto', padding: '0 16px 0 12px' }}>
                                     <div className="timeline-container">
                                         {timelineItems.map((log) => (
                                             <div key={log.id} className={`timeline-item ${getActionClass(log.actionType)}`}>
