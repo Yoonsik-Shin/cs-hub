@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Cpu, Info, Calendar, Clock, User, ArrowRight, History,
     FileText, CheckCircle, Inbox, MessageSquare, Pin, RefreshCw, AlertCircle,
-    ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit
+    ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit, ImagePlus, Loader2, X as XIcon
 } from 'lucide-react';
 import type { CustomerInquiry, InquiryWorkLog, OperatorInfo } from '../types/inquiry';
 import { inquiryApi } from '../api/inquiryApi';
@@ -33,6 +33,17 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [memoText, setMemoText] = useState('');
     const [submittingLog, setSubmittingLog] = useState(false);
     const [statusChanging, setStatusChanging] = useState(false);
+    const [isEditingAnswer, setIsEditingAnswer] = useState(false);
+
+    // Scroll ref for timeline
+    const timelineEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = (behavior: 'smooth' | 'auto' = 'auto') => {
+        if (timelineEndRef.current) {
+            timelineEndRef.current.scrollIntoView({ behavior });
+        }
+    };
+
 
     // Confirmation Modal state
     const [modal, setModal] = useState<{
@@ -60,6 +71,11 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         deviceInfo?: string;
         content?: string;
     }>({});
+
+    // Image editing state
+    const [editImageUrls, setEditImageUrls] = useState<string[]>([]);
+    const [newImageFiles, setNewImageFiles] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
+    const imageInputRef = useRef<HTMLInputElement>(null);
 
     const currentOperator = operator ?? {
         id: 'unknown',
@@ -145,17 +161,17 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
 
     const getChannelInfo = (channel: string) => {
         const normalized = channel.toUpperCase();
-        if (normalized.includes('KAKAO')) {
-            return { className: 'kakao', label: '카카오톡' };
-        }
         if (normalized.includes('NAVER_CAFE') || normalized.includes('CAFE')) {
             return { className: 'naver_cafe', label: '네이버 카페' };
         }
         if (normalized.includes('EMAIL')) {
             return { className: 'email', label: '이메일' };
         }
-        if (normalized.includes('MANUAL')) {
-            return { className: 'manual', label: '수동 생성' };
+        if (normalized.includes('GOOGLE_SHEET') || normalized.includes('SHEET')) {
+            return { className: 'google_sheet', label: '구글 시트' };
+        }
+        if (normalized.includes('PHONE')) {
+            return { className: 'phone', label: '전화 접수' };
         }
         return { className: 'manual', label: channel };
     };
@@ -179,7 +195,15 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         setAnswerText('');
         setMemoText('');
         setIsEditing(false); // Reset edit state when ticket changes
+        setIsEditingAnswer(false);
     }, [inquiry.id, fetchWorkLogs]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            scrollToBottom('auto');
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [workLogs]);
 
     const handleRegisterWorkLogClick = (e: React.FormEvent) => {
         e.preventDefault();
@@ -227,6 +251,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
 
             setAnswerText('');
             setMemoText('');
+            setIsEditingAnswer(false);
             await fetchWorkLogs();
             setModal({ isOpen: false, type: 'REGISTER_LOG' });
         } catch (err: any) {
@@ -270,13 +295,60 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         setEditOsVersion(inquiry.deviceInfo?.osVersion || '');
         setReasons({});
         setEditError(null);
+        setEditImageUrls(inquiry.imageUrls || []);
+        setNewImageFiles([]);
         setIsEditing(true);
+    };
+
+    const handleAddEditImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            const arr = Array.from(e.target.files);
+
+            if (editImageUrls.length + newImageFiles.length + arr.length > 10) {
+                setEditError('이미지는 최대 10개까지 첨부할 수 있습니다.');
+                return;
+            }
+
+            const valid = arr.filter(f => {
+                if (!allowed.includes(f.type)) { setEditError(`지원하지 않는 파일 형식입니다: ${f.name}`); return false; }
+                if (f.size > maxSize) { setEditError(`파일 크기가 10MB를 초과합니다: ${f.name}`); return false; }
+                return true;
+            });
+
+            if (valid.length === 0) return;
+
+            const newPending = valid.map(file => ({
+                id: `${Date.now()}-${Math.random()}`,
+                file,
+                previewUrl: URL.createObjectURL(file),
+            }));
+
+            setNewImageFiles(prev => [...prev, ...newPending]);
+            setEditError(null);
+        }
+    };
+
+    const handleRemoveExistingImage = (url: string) => {
+        setEditImageUrls(prev => prev.filter(u => u !== url));
+    };
+
+    const handleRemoveNewImage = (id: string) => {
+        setNewImageFiles(prev => {
+            const img = prev.find(i => i.id === id);
+            if (img) URL.revokeObjectURL(img.previewUrl);
+            return prev.filter(i => i.id !== id);
+        });
     };
 
     const handleCancelEdit = () => {
         setIsEditing(false);
         setEditError(null);
         setReasons({});
+        // Revoke new image previews
+        newImageFiles.forEach(img => URL.revokeObjectURL(img.previewUrl));
+        setNewImageFiles([]);
     };
 
     const executeEditFields = async () => {
@@ -298,11 +370,16 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         // Check User Code
         const currentUserCode = inquiry.userCode || '';
         if (editUserCode.trim() !== currentUserCode) {
+            const trimmed = editUserCode.trim();
+            if (trimmed !== '' && !/^[0-9]{12}$/.test(trimmed)) {
+                setEditError('유저 코드는 숫자 12자리여야 합니다.');
+                return;
+            }
             if (!reasons.userCode || !reasons.userCode.trim()) {
                 setEditError('유저 코드 수정 사유를 입력해주세요.');
                 return;
             }
-            changes.userCode = editUserCode.trim() || null;
+            changes.userCode = trimmed || null;
             reqReasons.userCode = reasons.userCode.trim();
             hasChanges = true;
         }
@@ -336,7 +413,12 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             hasChanges = true;
         }
 
-        if (!hasChanges) {
+        // Check imageUrls changes
+        const originalUrls = inquiry.imageUrls || [];
+        const removedUrls = originalUrls.filter(u => !editImageUrls.includes(u));
+        const imagesChanged = removedUrls.length > 0 || newImageFiles.length > 0;
+
+        if (!hasChanges && !imagesChanged) {
             setIsEditing(false);
             return;
         }
@@ -344,17 +426,38 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         setSubmittingLog(true);
         setEditError(null);
         try {
+            // Upload new images first
+            let finalImageUrls = [...editImageUrls];
+            if (newImageFiles.length > 0) {
+                const timestamp = Date.now();
+                const fileRequests = newImageFiles.map((img, idx) => ({
+                    objectName: `inquiries/${inquiry.id}/${timestamp}_${idx}_${img.file.name.replace(/\s+/g, '_')}`,
+                    contentType: img.file.type || 'image/jpeg',
+                }));
+                const presignedList = await inquiryApi.getPresignedUrls(fileRequests);
+                for (let i = 0; i < newImageFiles.length; i++) {
+                    await inquiryApi.uploadToMinIO(presignedList[i].uploadUrl, newImageFiles[i].file);
+                    finalImageUrls.push(presignedList[i].downloadUrl);
+                }
+            }
+
             await inquiryApi.updateInquiryFields(inquiry.id, {
                 operatorInfo: currentOperator,
                 ...changes,
+                imageUrls: imagesChanged ? finalImageUrls : undefined,
                 reasons: reqReasons
             });
+
+            // Clean up new image previews
+            newImageFiles.forEach(img => URL.revokeObjectURL(img.previewUrl));
+            setNewImageFiles([]);
 
             if (onUpdateInquiry) {
                 onUpdateInquiry(inquiry.id, {
                     channel: editChannel,
                     userCode: editUserCode.trim() || null,
                     content: editContent,
+                    imageUrls: finalImageUrls,
                     deviceInfo: deviceChanged ? {
                         appVersion: editAppVersion.trim() || undefined,
                         model: editModel.trim() || undefined,
@@ -421,10 +524,10 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 onChange={(e) => setEditChannel(e.target.value)}
                                 style={{ padding: '4px 8px', fontSize: '12px', height: '28px', border: '1px solid var(--border-light)', borderRadius: '6px' }}
                             >
-                                <option value="KAKAO">카카오톡 (KAKAO)</option>
-                                <option value="NAVER_CAFE">네이버 카페 (NAVER_CAFE)</option>
                                 <option value="EMAIL">이메일 (EMAIL)</option>
-                                <option value="MANUAL">수동 생성 (MANUAL)</option>
+                                <option value="PHONE">전화 (PHONE)</option>
+                                <option value="GOOGLE_SHEET">구글 시트 (GOOGLE_SHEET)</option>
+                                <option value="NAVER_CAFE">네이버 카페 (NAVER_CAFE)</option>
                             </select>
                             {hasChannelChanged && (
                                 <input
@@ -452,15 +555,23 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                 <td>
                     {isEditing ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <input
-                                type="text"
-                                id="edit-usercode"
-                                className="text-input"
-                                value={editUserCode}
-                                onChange={(e) => setEditUserCode(e.target.value)}
-                                placeholder="유저 코드 입력"
-                                style={{ padding: '4px 8px', fontSize: '12px', height: '28px' }}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <input
+                                    type="text"
+                                    id="edit-usercode"
+                                    className="text-input"
+                                    value={editUserCode}
+                                    onChange={(e) => {
+                                        const onlyNums = e.target.value.replace(/[^0-9]/g, '');
+                                        setEditUserCode(onlyNums.slice(0, 12));
+                                    }}
+                                    placeholder="유저 코드 입력"
+                                    style={{ padding: '4px 8px', fontSize: '12px', height: '28px', flex: 1 }}
+                                />
+                                <span style={{ fontSize: '11px', fontWeight: '500', color: editUserCode.length === 12 ? 'var(--accent-indigo)' : 'var(--text-muted)', flexShrink: 0 }}>
+                                    ({editUserCode.length}/12)
+                                </span>
+                            </div>
                             {hasUserCodeChanged && (
                                 <input
                                     type="text"
@@ -486,6 +597,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             const isNaverCafe = inquiry.channel.toUpperCase().includes('NAVER_CAFE') || meta.metadataType === 'NAVER_CAFE';
             const isGoogleSheet = inquiry.channel.toUpperCase().includes('GOOGLE_SHEET') || meta.metadataType === 'GOOGLE_SHEET';
             const isEmail = inquiry.channel.toUpperCase().includes('EMAIL') || meta.metadataType === 'EMAIL';
+            const isPhone = inquiry.channel.toUpperCase().includes('PHONE') || meta.metadataType === 'PHONE';
 
             if (isNaverCafe) {
                 if (meta.cafeId) metadataRows.push(<tr key="cafeId"><th>카페 ID</th><td style={{ wordBreak: 'break-all' }}>{meta.cafeId}</td></tr>);
@@ -532,6 +644,19 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                 if (messageId) metadataRows.push(<tr key="messageId"><th>메시지 ID</th><td style={{ wordBreak: 'break-all', fontSize: '11px', fontFamily: 'monospace' }}>{messageId}</td></tr>);
                 if (uid) metadataRows.push(<tr key="uid"><th>IMAP UID</th><td style={{ wordBreak: 'break-all' }}>{uid}</td></tr>);
                 if (meta.date) metadataRows.push(<tr key="date"><th>작성 일시</th><td style={{ wordBreak: 'break-all' }}>{meta.date}</td></tr>);
+            } else if (isPhone) {
+                if (meta.phoneNumber) metadataRows.push(<tr key="phoneNumber"><th>전화번호</th><td style={{ wordBreak: 'break-all' }}>{meta.phoneNumber}</td></tr>);
+                if (meta.memo) metadataRows.push(<tr key="memo"><th>상담 메모</th><td style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{meta.memo}</td></tr>);
+                if (meta.customFields && typeof meta.customFields === 'object') {
+                    Object.entries(meta.customFields).forEach(([key, val]) => {
+                        metadataRows.push(
+                            <tr key={`custom_${key}`}>
+                                <th>{key}</th>
+                                <td style={{ wordBreak: 'break-all' }}>{String(val)}</td>
+                            </tr>
+                        );
+                    });
+                }
             } else {
                 Object.entries(meta).forEach(([key, val]) => {
                     if (key === 'metadataType' || key === 'imageUrls' || key === 'articleUrl') return;
@@ -653,6 +778,16 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     };
 
     const channelInfo = getChannelInfo(inquiry.channel);
+    const latestAnswerLog = workLogs.find(log => log.answer && log.answer.trim() !== '');
+
+    const getDisplayImageUrl = (url: string) => {
+        if (!url) return '';
+        if (url.includes('/attachments/')) {
+            const parts = url.split('/attachments/');
+            return `${window.location.origin}/attachments/${parts[1]}`;
+        }
+        return url;
+    };
 
     // Construct combined timeline items (ascending order: oldest first, newest last)
     const timelineItems: any[] = [];
@@ -708,6 +843,22 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                     >
                         {channelInfo.label}
                     </span>
+                    {inquiry.isManual && (
+                        <span
+                            className="channel-badge manual"
+                            style={{
+                                border: '1px solid #f59e0b',
+                                color: '#d97706',
+                                background: '#fef3c7',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                padding: '2px 6px',
+                                borderRadius: '4px'
+                            }}
+                        >
+                            수동 등록
+                        </span>
+                    )}
                     <span className="detail-modal-title" style={{ color: '#ffffff', fontSize: '20px', fontWeight: '700' }}>
                         {inquiry.userCode || '비회원 (익명)'} 님의 문의 상세
                     </span>
@@ -773,9 +924,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 gap: '8px'
                             }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <FileText size={16} style={{ color: 'var(--accent-indigo)' }} />
-                                <span>문의 참조 정보</span>
+                                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>문의 참조 정보</span>
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 {isEditing ? (
@@ -791,10 +942,11 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                         <button
                                             type="button"
                                             className="btn-primary"
-                                            style={{ padding: '0 14px', fontSize: '12.5px', fontWeight: '600', borderRadius: '8px', cursor: 'pointer', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                            style={{ padding: '0 14px', fontSize: '12.5px', fontWeight: '600', borderRadius: '8px', cursor: 'pointer', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                                             onClick={executeEditFields}
                                             disabled={submittingLog}
                                         >
+                                            {submittingLog && <Loader2 size={12} style={{ animation: 'spin-anim 1s linear infinite' }} />}
                                             저장
                                         </button>
                                     </>
@@ -812,112 +964,235 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         </div>
 
                         {/* Scrollable Body */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px', minHeight: 0 }}>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0 }}>
                             {editError && (
                                 <div style={{ color: '#f87171', fontSize: '13px', padding: '8px 12px', background: 'rgba(248, 113, 113, 0.1)', borderRadius: '8px', border: '1px solid rgba(248, 113, 113, 0.2)', marginBottom: '4px' }}>
                                     ⚠️ {editError}
                                 </div>
                             )}
 
-                            {/* Flat Customer Message Block */}
-                            <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0 }}>
-                                <div className="detail-query-box-title">고객 접수 내용</div>
-                                {isEditing ? (
-                                    <div style={{ marginTop: '8px' }}>
-                                        <textarea
-                                            id="edit-content"
-                                            className="form-textarea"
-                                            value={editContent}
-                                            onChange={(e) => setEditContent(e.target.value)}
-                                            placeholder="문의 내용을 입력하세요"
-                                            style={{
-                                                width: '100%',
-                                                minHeight: '100px',
-                                                height: '100px',
-                                                padding: '8px 12px',
-                                                fontSize: '13px',
-                                                border: '1px solid var(--border-light)',
-                                                borderRadius: '8px',
-                                                resize: 'none',
-                                                background: '#ffffff',
-                                                fontFamily: 'inherit'
-                                            }}
-                                        />
-                                        {editContent !== inquiry.content && (
-                                            <input
-                                                type="text"
-                                                className="text-input"
-                                                placeholder="문의 내용 수정 사유를 입력하세요 (필수)"
-                                                value={reasons.content || ''}
-                                                onChange={(e) => setReasons({ ...reasons, content: e.target.value })}
-                                                style={{ marginTop: '6px', fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '6px 10px', height: '28px' }}
-                                                required
-                                            />
-                                        )}
+                            {((inquiry.imageUrls && inquiry.imageUrls.length > 0) || isEditing) ? (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'stretch' }}>
+                                    {/* Left Side: 고객 접수 내용 */}
+                                    <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                        <span className="detail-title">
+                                            <FileText size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                            고객 접수 내용
+                                        </span>
+                                        <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0, flex: 1, display: 'flex', flexDirection: 'column', height: 'auto' }}>
+                                            {isEditing ? (
+                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                                    <textarea
+                                                        id="edit-content"
+                                                        className="form-textarea"
+                                                        value={editContent}
+                                                        onChange={(e) => setEditContent(e.target.value)}
+                                                        placeholder="문의 내용을 입력하세요"
+                                                        style={{
+                                                            width: '100%',
+                                                            flex: 1,
+                                                            minHeight: '120px',
+                                                            padding: '8px 12px',
+                                                            fontSize: '13px',
+                                                            border: '1px solid var(--border-light)',
+                                                            borderRadius: '8px',
+                                                            resize: 'none',
+                                                            background: '#ffffff',
+                                                            fontFamily: 'inherit'
+                                                        }}
+                                                    />
+                                                    {editContent !== inquiry.content && (
+                                                        <input
+                                                            type="text"
+                                                            className="text-input"
+                                                            placeholder="문의 내용 수정 사유를 입력하세요 (필수)"
+                                                            value={reasons.content || ''}
+                                                            onChange={(e) => setReasons({ ...reasons, content: e.target.value })}
+                                                            style={{ marginTop: '6px', fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '6px 10px', height: '28px' }}
+                                                            required
+                                                        />
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="detail-query-text" style={{ flex: 1, whiteSpace: 'pre-wrap', borderRadius: '12px', border: '1px solid var(--border-light)', borderLeftWidth: '4px' }}>
+                                                    {inquiry.content || '(내용 없음)'}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                ) : (
-                                    <div className="detail-query-text">
-                                        {inquiry.content || '(내용 없음)'}
-                                    </div>
-                                )}
-                            </div>
 
-                            {/* Attachment Images */}
-                            {inquiry.imageUrls && inquiry.imageUrls.length > 0 && (
-                                <div className="detail-section" style={{ gap: '8px', flexShrink: 0 }}>
+                                    {/* Right Side: 첨부 이미지 */}
+                                    <div className="detail-section" style={{ gap: '8px', flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                        <span className="detail-title">
+                                            <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                            첨부 이미지 {isEditing && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(최대 10개)</span>}
+                                        </span>
+                                        <div
+                                            className="detail-query-images"
+                                            style={{
+                                                padding: '12px',
+                                                background: 'var(--bg-tertiary)',
+                                                borderRadius: '12px',
+                                                border: '1px solid var(--border-light)',
+                                                display: 'flex',
+                                                gap: '10px',
+                                                flexWrap: 'wrap',
+                                                alignItems: 'flex-start',
+                                                alignContent: 'flex-start',
+                                                flex: 1,
+                                                overflowY: 'auto',
+                                                minHeight: '120px'
+                                            }}
+                                        >
+                                            {isEditing ? (
+                                                <>
+                                                    {/* Existing Images in editing state */}
+                                                    {editImageUrls.map((url: string, index: number) => (
+                                                        <div key={`exist-${index}`} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                                                            <img src={getDisplayImageUrl(url)} alt={`exist-media-${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveExistingImage(url)}
+                                                                style={{
+                                                                    position: 'absolute', top: '2px', right: '2px', width: '18px', height: '18px', borderRadius: '50%',
+                                                                    background: 'rgba(15,23,42,0.8)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                                }}
+                                                            >
+                                                                <XIcon size={10} style={{ color: '#fff' }} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+
+                                                    {/* New image files selected during editing */}
+                                                    {newImageFiles.map((img) => (
+                                                        <div key={img.id} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                                                            <img src={img.previewUrl} alt={img.file.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveNewImage(img.id)}
+                                                                style={{
+                                                                    position: 'absolute', top: '2px', right: '2px', width: '18px', height: '18px', borderRadius: '50%',
+                                                                    background: 'rgba(15,23,42,0.8)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                                }}
+                                                            >
+                                                                <XIcon size={10} style={{ color: '#fff' }} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+
+                                                    {/* Add more button */}
+                                                    {editImageUrls.length + newImageFiles.length < 10 && (
+                                                        <div
+                                                            onClick={() => imageInputRef.current?.click()}
+                                                            style={{
+                                                                width: '80px', height: '80px', borderRadius: '8px', border: '2px dashed #cbd5e1',
+                                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                                cursor: 'pointer', background: '#ffffff', gap: '3px', transition: 'all 0.15s'
+                                                            }}
+                                                            onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--accent-indigo)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.borderColor = '#cbd5e1'}
+                                                        >
+                                                            <ImagePlus size={18} style={{ color: '#94a3b8' }} />
+                                                            <span style={{ fontSize: '9.5px', color: '#94a3b8', fontWeight: 600 }}>추가</span>
+                                                        </div>
+                                                    )}
+                                                    <input
+                                                        ref={imageInputRef}
+                                                        type="file"
+                                                        accept="image/jpeg,image/png,image/gif,image/webp"
+                                                        multiple
+                                                        onChange={handleAddEditImages}
+                                                        style={{ display: 'none' }}
+                                                    />
+                                                </>
+                                            ) : (
+                                                inquiry.imageUrls?.map((url: string, index: number) => (
+                                                    <a
+                                                        key={index}
+                                                        href={getDisplayImageUrl(url)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={{ display: 'block' }}
+                                                    >
+                                                        <img
+                                                            src={getDisplayImageUrl(url)}
+                                                            alt={`inquiry-media-${index}`}
+                                                            style={{
+                                                                width: '80px',
+                                                                height: '80px',
+                                                                objectFit: 'cover',
+                                                                borderRadius: '8px',
+                                                                border: '1px solid var(--border-light)',
+                                                                cursor: 'pointer',
+                                                                transition: 'all 0.2s ease-in-out'
+                                                            }}
+                                                            onMouseOver={(e) => {
+                                                                e.currentTarget.style.transform = 'scale(1.05)';
+                                                                e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.08)';
+                                                            }}
+                                                            onMouseOut={(e) => {
+                                                                e.currentTarget.style.transform = 'none';
+                                                                e.currentTarget.style.boxShadow = 'none';
+                                                            }}
+                                                        />
+                                                    </a>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Full width message block when there are no images */
+                                <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
                                     <span className="detail-title">
-                                        <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                        첨부 이미지
+                                        <FileText size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                                        고객 접수 내용
                                     </span>
-                                    <div
-                                        className="detail-query-images"
-                                        style={{
-                                            padding: '12px',
-                                            background: 'var(--bg-tertiary)',
-                                            borderRadius: '12px',
-                                            border: '1px solid var(--border-light)',
-                                            display: 'flex',
-                                            gap: '12px',
-                                            flexWrap: 'wrap'
-                                        }}
-                                    >
-                                        {inquiry.imageUrls.map((url: string, index: number) => (
-                                            <a
-                                                key={index}
-                                                href={url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={{ display: 'block' }}
-                                            >
-                                                <img
-                                                    src={url}
-                                                    alt={`inquiry-media-${index}`}
+                                    <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0 }}>
+                                        {isEditing ? (
+                                            <div style={{ marginTop: '8px' }}>
+                                                <textarea
+                                                    id="edit-content"
+                                                    className="form-textarea"
+                                                    value={editContent}
+                                                    onChange={(e) => setEditContent(e.target.value)}
+                                                    placeholder="문의 내용을 입력하세요"
                                                     style={{
-                                                        width: '120px',
-                                                        height: '120px',
-                                                        objectFit: 'cover',
-                                                        borderRadius: '10px',
+                                                        width: '100%',
+                                                        minHeight: '100px',
+                                                        height: '100px',
+                                                        padding: '8px 12px',
+                                                        fontSize: '13px',
                                                         border: '1px solid var(--border-light)',
-                                                        cursor: 'pointer',
-                                                        transition: 'all 0.2s ease-in-out'
-                                                    }}
-                                                    onMouseOver={(e) => {
-                                                        e.currentTarget.style.transform = 'scale(1.03)';
-                                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                                                    }}
-                                                    onMouseOut={(e) => {
-                                                        e.currentTarget.style.transform = 'none';
-                                                        e.currentTarget.style.boxShadow = 'none';
+                                                        borderRadius: '8px',
+                                                        resize: 'none',
+                                                        background: '#ffffff',
+                                                        fontFamily: 'inherit'
                                                     }}
                                                 />
-                                            </a>
-                                        ))}
+                                                {editContent !== inquiry.content && (
+                                                    <input
+                                                        type="text"
+                                                        className="text-input"
+                                                        placeholder="문의 내용 수정 사유를 입력하세요 (필수)"
+                                                        value={reasons.content || ''}
+                                                        onChange={(e) => setReasons({ ...reasons, content: e.target.value })}
+                                                        style={{ marginTop: '6px', fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '6px 10px', height: '28px' }}
+                                                        required
+                                                    />
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="detail-query-text" style={{ whiteSpace: 'pre-wrap', borderRadius: '12px', border: '1px solid var(--border-light)', borderLeftWidth: '4px' }}>
+                                                {inquiry.content || '(내용 없음)'}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
 
                             {/* Metadata Tables */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', flexShrink: 0 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', flexShrink: 0 }}>
                                 <div className="detail-section">
                                     <span className="detail-title">
                                         <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
@@ -991,9 +1266,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.08)'; }}
                             onMouseOut={(e) => { e.currentTarget.style.background = isActionsCollapsed ? 'rgba(99, 102, 241, 0.05)' : 'rgba(99, 102, 241, 0.02)'; }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <CheckCircle size={16} style={{ color: 'var(--accent-indigo)' }} />
-                                <span>실시간 티켓 처리 콘솔</span>
+                                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>실시간 티켓 처리 콘솔</span>
                             </div>
                             <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}>
                                 <span>{isActionsCollapsed ? '펼치기' : '접기'}</span>
@@ -1136,27 +1411,98 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'stretch' }}>
                                         {/* Official Answer Section */}
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label htmlFor={`answer-${inquiry.id}`} className="detail-title" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px', cursor: 'pointer' }}>
-                                                <MessageSquare size={12} style={{ verticalAlign: 'middle' }} />
-                                                공식 답변 등록
-                                            </label>
-                                            <textarea
-                                                id={`answer-${inquiry.id}`}
-                                                className="form-textarea textarea-answer"
-                                                placeholder="고객에게 전달될 공식 답변을 입력하세요..."
-                                                value={answerText}
-                                                onChange={(e) => setAnswerText(e.target.value)}
-                                                style={{
-                                                    minHeight: '100px',
-                                                    height: '100px',
-                                                    padding: '12px',
-                                                    fontSize: '12.5px',
-                                                    borderRadius: '8px',
-                                                    resize: 'none',
-                                                    border: '1px solid var(--border-light)',
-                                                    background: '#ffffff'
-                                                }}
-                                            />
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <label htmlFor={`answer-${inquiry.id}`} className="detail-title" style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', margin: 0 }}>
+                                                    <MessageSquare size={12} style={{ verticalAlign: 'middle' }} />
+                                                    {latestAnswerLog && !isEditingAnswer ? '등록된 공식 답변' : '공식 답변 등록'}
+                                                </label>
+                                                {latestAnswerLog && (
+                                                    isEditingAnswer ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsEditingAnswer(false);
+                                                                setAnswerText('');
+                                                            }}
+                                                            style={{
+                                                                border: 'none',
+                                                                background: 'transparent',
+                                                                color: 'var(--text-muted)',
+                                                                fontSize: '11px',
+                                                                fontWeight: '700',
+                                                                cursor: 'pointer',
+                                                                padding: '2px 6px',
+                                                                borderRadius: '4px',
+                                                                transition: 'background 0.15s'
+                                                            }}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.04)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                        >
+                                                            수정 취소
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsEditingAnswer(true);
+                                                                setAnswerText(latestAnswerLog.answer || '');
+                                                            }}
+                                                            style={{
+                                                                border: 'none',
+                                                                background: 'transparent',
+                                                                color: 'var(--accent-indigo)',
+                                                                fontSize: '11px',
+                                                                fontWeight: '700',
+                                                                cursor: 'pointer',
+                                                                padding: '2px 6px',
+                                                                borderRadius: '4px',
+                                                                transition: 'background 0.15s'
+                                                            }}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(99,102,241,0.06)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                        >
+                                                            수정하기
+                                                        </button>
+                                                    )
+                                                )}
+                                            </div>
+                                            {latestAnswerLog && !isEditingAnswer ? (
+                                                <div
+                                                    style={{
+                                                        minHeight: '100px',
+                                                        height: '100px',
+                                                        padding: '12px',
+                                                        fontSize: '12.5px',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid var(--border-light)',
+                                                        background: 'rgba(99, 102, 241, 0.02)',
+                                                        color: 'var(--text-primary)',
+                                                        overflowY: 'auto',
+                                                        whiteSpace: 'pre-wrap',
+                                                        lineHeight: '1.4'
+                                                    }}
+                                                >
+                                                    {latestAnswerLog.answer}
+                                                </div>
+                                            ) : (
+                                                <textarea
+                                                    id={`answer-${inquiry.id}`}
+                                                    className="form-textarea textarea-answer"
+                                                    placeholder="고객에게 전달될 공식 답변을 입력하세요..."
+                                                    value={answerText}
+                                                    onChange={(e) => setAnswerText(e.target.value)}
+                                                    style={{
+                                                        minHeight: '100px',
+                                                        height: '100px',
+                                                        padding: '12px',
+                                                        fontSize: '12.5px',
+                                                        borderRadius: '8px',
+                                                        resize: 'none',
+                                                        border: '1px solid var(--border-light)',
+                                                        background: '#ffffff'
+                                                    }}
+                                                />
+                                            )}
                                         </div>
 
                                         {/* Private Memo Section */}
@@ -1192,7 +1538,11 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             disabled={submittingLog}
                                             style={{ padding: '0 16px', fontSize: '12.5px', fontWeight: '600', borderRadius: '8px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         >
-                                            {submittingLog ? '등록 중...' : '답변 및 메모 등록'}
+                                            {latestAnswerLog && !isEditingAnswer ? (
+                                                submittingLog ? '메모 등록 중...' : '메모 등록'
+                                            ) : (
+                                                submittingLog ? '등록 중...' : '답변 및 메모 등록'
+                                            )}
                                         </button>
                                     </div>
                                 </form>
@@ -1295,9 +1645,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                     flexShrink: 0
                                 }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <History size={16} style={{ color: '#64748b' }} />
-                                    <span>업무 처리 이력</span>
+                                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>업무 처리 이력</span>
                                 </div>
                                 <button
                                     type="button"
@@ -1419,6 +1769,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             </div>
                                         ))}
                                     </div>
+                                    <div ref={timelineEndRef} />
                                 </div>
                             )}
                         </div>
