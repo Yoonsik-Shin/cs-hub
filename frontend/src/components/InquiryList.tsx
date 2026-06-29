@@ -7,13 +7,15 @@ interface InquiryListProps {
   loading: boolean;
   selectedInquiryId: string | null;
   onSelectInquiry: (id: string) => void;
+  bookmarkedIds?: Set<string>;
 }
 
 export const InquiryList: React.FC<InquiryListProps> = ({ 
   inquiries, 
   loading, 
   selectedInquiryId,
-  onSelectInquiry
+  onSelectInquiry,
+  bookmarkedIds = new Set()
 }) => {
   if (loading) {
     return (
@@ -61,6 +63,7 @@ export const InquiryList: React.FC<InquiryListProps> = ({
             key={inquiry.id} 
             inquiry={inquiry} 
             isSelected={inquiry.id === selectedInquiryId}
+            isBookmarked={bookmarkedIds.has(inquiry.id)}
             onClick={() => onSelectInquiry(inquiry.id)}
           />
         ))}

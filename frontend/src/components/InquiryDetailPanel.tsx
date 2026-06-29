@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
     Cpu, Info, Calendar, Clock, User, ArrowRight, History,
     FileText, CheckCircle, Inbox, MessageSquare, Pin, RefreshCw, AlertCircle,
-    ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit, ImagePlus, Loader2, X as XIcon
+    ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit, ImagePlus, Loader2, Star, X as XIcon
 } from 'lucide-react';
 import type { CustomerInquiry, InquiryWorkLog, OperatorInfo } from '../types/inquiry';
 import { inquiryApi } from '../api/inquiryApi';
@@ -12,9 +12,11 @@ interface InquiryDetailPanelProps {
     inquiry: CustomerInquiry;
     operator: OperatorInfo | null;
     onUpdateInquiry?: (id: string, updatedFields: Partial<CustomerInquiry>) => void;
+    isBookmarked?: boolean;
+    onToggleBookmark?: (id: string) => Promise<void> | void;
 }
 
-export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry, operator, onUpdateInquiry }) => {
+export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry, operator, onUpdateInquiry, isBookmarked = false, onToggleBookmark }) => {
     const [workLogs, setWorkLogs] = useState<InquiryWorkLog[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [logError, setLogError] = useState<string | null>(null);
@@ -34,6 +36,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [submittingLog, setSubmittingLog] = useState(false);
     const [statusChanging, setStatusChanging] = useState(false);
     const [isEditingAnswer, setIsEditingAnswer] = useState(false);
+    const [bookmarkChanging, setBookmarkChanging] = useState(false);
 
     // Scroll ref for timeline
     const timelineEndRef = useRef<HTMLDivElement>(null);
@@ -298,6 +301,16 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         setEditImageUrls(inquiry.imageUrls || []);
         setNewImageFiles([]);
         setIsEditing(true);
+    };
+
+    const handleToggleBookmark = async () => {
+        if (!onToggleBookmark || bookmarkChanging) return;
+        setBookmarkChanging(true);
+        try {
+            await onToggleBookmark(inquiry.id);
+        } finally {
+            setBookmarkChanging(false);
+        }
     };
 
     const handleAddEditImages = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -929,6 +942,31 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>문의 참조 정보</span>
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
+                                {!isEditing && onToggleBookmark && (
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            padding: 0,
+                                            borderRadius: '8px',
+                                            cursor: bookmarkChanging ? 'wait' : 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: isBookmarked ? '#d97706' : 'var(--text-muted)',
+                                            background: isBookmarked ? 'rgba(217, 119, 6, 0.08)' : '#ffffff',
+                                            borderColor: isBookmarked ? 'rgba(217, 119, 6, 0.28)' : 'var(--border-light)'
+                                        }}
+                                        onClick={handleToggleBookmark}
+                                        disabled={bookmarkChanging}
+                                        title={isBookmarked ? '즐겨찾기 해제' : '즐겨찾기 등록'}
+                                        aria-label={isBookmarked ? '즐겨찾기 해제' : '즐겨찾기 등록'}
+                                    >
+                                        <Star size={15} fill={isBookmarked ? 'currentColor' : 'none'} />
+                                    </button>
+                                )}
                                 {isEditing ? (
                                     <>
                                         <button

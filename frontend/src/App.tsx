@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { UnprocessedStatsCard, TodayStatsCard } from './components/StatsCards';
+import { BookmarkedStatsCard, UnprocessedStatsCard, TodayStatsCard } from './components/StatsCards';
 import { FilterBar } from './components/FilterBar';
 import type { FilterValues } from './components/FilterBar';
 import { InquiryList } from './components/InquiryList';
@@ -8,10 +8,13 @@ import { Pagination } from './components/Pagination';
 import { CreateTicketModal } from './components/CreateTicketModal';
 import { inquiryApi } from './api/inquiryApi';
 import type { OperatorInfo } from './api/inquiryApi';
-import type { CustomerInquiry } from './types/inquiry';
-import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import type { CustomFilterEntity, CustomerInquiry } from './types/inquiry';
+import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Filter } from 'lucide-react';
 import { NaverLoginRenewPage } from './components/NaverLoginRenewPage';
 import { InquiryDetailPanel } from './components/InquiryDetailPanel';
+
+const SIDEBAR_EXPANDED_WIDTH = 220;
+const SIDEBAR_COLLAPSED_WIDTH = 64;
 
 export const App: React.FC = () => {
   const isNaverLogin = window.location.pathname === '/naver-login';
@@ -36,6 +39,7 @@ export const App: React.FC = () => {
     startDate: '',
     endDate: '',
     isManual: undefined,
+    bookmarkedOnly: false,
   });
 
   // Pagination states (Cursor Stack for page-like navigation)
@@ -56,13 +60,17 @@ export const App: React.FC = () => {
   const [unprocessedHasMore, setUnprocessedHasMore] = useState(false);
   const [todayCount, setTodayCount] = useState(0);
   const [todayHasMore, setTodayHasMore] = useState(false);
+  const [totalListCount, setTotalListCount] = useState(0);
+  const [totalListHasMore, setTotalListHasMore] = useState(false);
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+  const [customFilters, setCustomFilters] = useState<CustomFilterEntity[]>([]);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNaverRenewModalOpen, setIsNaverRenewModalOpen] = useState(false);
 
   // Resizable & Collapsible columns states
-  const [sidebarWidth, setSidebarWidth] = useState(250);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_EXPANDED_WIDTH);
   const [listWidth, setListWidth] = useState(300);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isListCollapsed, setIsListCollapsed] = useState(false);
@@ -74,6 +82,7 @@ export const App: React.FC = () => {
     'PROFILE',
     'STATS_UNPROCESSED',
     'STATS_TODAY',
+    'BOOKMARKS',
     'SESSION'
   ]);
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
@@ -135,6 +144,16 @@ export const App: React.FC = () => {
             />
           </div>
         );
+      case 'BOOKMARKS':
+        return (
+          <div key="widget-bookmarks" style={wrapperStyle}>
+            <BookmarkedStatsCard
+              count={bookmarkedIds.size}
+              isCollapsed={isCollapsed}
+              onClick={handleBookmarkedStatsClick}
+            />
+          </div>
+        );
       case 'SESSION':
         return (
           <div key="widget-session" style={wrapperStyle}>
@@ -154,7 +173,7 @@ export const App: React.FC = () => {
 
     const onMouseMove = (mouseMoveEvent: MouseEvent) => {
       const deltaX = mouseMoveEvent.clientX - startX;
-      const newWidth = Math.max(200, Math.min(450, startWidth + deltaX));
+      const newWidth = Math.max(200, Math.min(SIDEBAR_EXPANDED_WIDTH, startWidth + deltaX));
       setSidebarWidth(newWidth);
     };
 
@@ -245,6 +264,13 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleSwitchAccount = () => {
+    const currentUserId = currentOperator?.id || '';
+    if (window.confirm("현재 로그인된 Nginx Basic Auth 계정을 변경(로그아웃)하시겠습니까?\n\n[확인]을 누르면 계정 변경을 위한 로그인 창이 다시 표시됩니다.")) {
+      window.location.href = `/api/auth/logout?current=${encodeURIComponent(currentUserId)}`;
+    }
+  };
+
   const renderNaverSessionWidget = () => {
     const getBadgeClass = () => {
       switch (naverSessionStatus) {
@@ -310,13 +336,13 @@ export const App: React.FC = () => {
 
     return (
       <div className="naver-session-widget">
-        <div className={`naver-session-status-badge ${getBadgeClass()}`}>
+        <div className={`naver-session-status-icon ${getBadgeClass()}`} aria-hidden="true">
           <div className="naver-session-dot" />
-          <span>{getStatusText()}</span>
         </div>
 
         <div className="naver-session-info">
           <span className="naver-session-label">네이버 카페 세션</span>
+          <strong className="naver-session-status-text">{getStatusText()}</strong>
           <span className="naver-session-time">
             최근 확인: {formatTime(naverSessionUpdatedAt)}
           </span>
@@ -329,9 +355,9 @@ export const App: React.FC = () => {
             onClick={handleValidateNaverSession}
             disabled={naverSessionStatus === 'CHECKING'}
             title="네이버 세션을 실시간으로 직접 확인합니다"
+            aria-label="네이버 세션 실시간 검사"
           >
             <RefreshCw size={12} className={naverSessionStatus === 'CHECKING' ? 'spin' : ''} />
-            실시간 검사
           </button>
 
           {(naverSessionStatus === 'EXPIRED' || naverSessionStatus === 'MISSING' || naverSessionStatus === 'ERROR') && (
@@ -340,9 +366,9 @@ export const App: React.FC = () => {
               className="btn-session-action renew"
               onClick={() => setIsNaverRenewModalOpen(true)}
               title="네이버 세션을 새로 로그인하여 갱신합니다"
+              aria-label="네이버 세션 갱신"
             >
               <ExternalLink size={12} />
-              세션 갱신
             </button>
           )}
         </div>
@@ -373,6 +399,7 @@ export const App: React.FC = () => {
         start: startISO,
         end: endISO,
         isManual: queryFilters.isManual,
+        bookmarkedOnly: queryFilters.bookmarkedOnly || undefined,
         cursor: cursorVal || undefined,
         size: 10,
       });
@@ -380,6 +407,20 @@ export const App: React.FC = () => {
       setInquiries(res.content);
       setHasNext(res.hasNext);
       setNextCursor(res.nextCursor);
+
+      // Fetch matching inquiries count with 100 limit
+      const countRes = await inquiryApi.countInquiries({
+        userCode: queryFilters.userCode.trim() || undefined,
+        status: queryFilters.statuses.length > 0 ? queryFilters.statuses : undefined,
+        channel: queryFilters.channels.length > 0 ? queryFilters.channels : undefined,
+        start: startISO,
+        end: endISO,
+        isManual: queryFilters.isManual,
+        bookmarkedOnly: queryFilters.bookmarkedOnly || undefined,
+        limit: 100
+      });
+      setTotalListCount(countRes.count);
+      setTotalListHasMore(countRes.hasMore);
     } catch (err: any) {
       console.error(err);
       setError('데이터를 불러오는 중 문제가 발생했습니다. 백엔드 서버 연결 상태를 확인해 주세요.');
@@ -387,6 +428,26 @@ export const App: React.FC = () => {
       setLoading(false);
     }
   }, [queryFilters]);
+
+  const fetchBookmarks = useCallback(async () => {
+    try {
+      const ids = await inquiryApi.getBookmarks();
+      setBookmarkedIds(new Set(ids));
+    } catch (err) {
+      console.error('Failed to fetch bookmarks:', err);
+      setBookmarkedIds(new Set());
+    }
+  }, []);
+
+  const fetchCustomFilters = useCallback(async () => {
+    try {
+      const filters = await inquiryApi.getCustomFilters();
+      setCustomFilters(filters);
+    } catch (err) {
+      console.error('Failed to fetch custom filters:', err);
+      setCustomFilters([]);
+    }
+  }, []);
 
   // Load inquiries when filters change or page index changes
   useEffect(() => {
@@ -411,12 +472,16 @@ export const App: React.FC = () => {
   // 앱 마운트 시 현재 로그인 계정 정보 조회 (Nginx X-Remote-User 기반)
   useEffect(() => {
     inquiryApi.getMe()
-      .then(setCurrentOperator)
+      .then((operator) => {
+        setCurrentOperator(operator);
+        fetchBookmarks();
+        fetchCustomFilters();
+      })
       .catch((err) => {
         console.warn('관리자 계정 정보를 불러오지 못했습니다 (fallback 사용):', err);
         setCurrentOperator({ id: 'unknown', nickname: '알 수 없음', email: '' });
       });
-  }, []);
+  }, [fetchBookmarks, fetchCustomFilters]);
 
   // Load stats and Naver session status periodically and on mount
   useEffect(() => {
@@ -485,6 +550,7 @@ export const App: React.FC = () => {
       startDate: '',
       endDate: '',
       isManual: undefined,
+      bookmarkedOnly: false,
     });
   };
 
@@ -497,7 +563,132 @@ export const App: React.FC = () => {
       startDate: today,
       endDate: today,
       isManual: undefined,
+      bookmarkedOnly: false,
     });
+  };
+
+  const handleBookmarkedStatsClick = () => {
+    setQueryFilters({
+      userCode: '',
+      statuses: [],
+      channels: [],
+      startDate: '',
+      endDate: '',
+      isManual: undefined,
+      bookmarkedOnly: true,
+    });
+  };
+
+  const handleToggleBookmark = async (inquiryId: string) => {
+    const wasBookmarked = bookmarkedIds.has(inquiryId);
+    setBookmarkedIds((prev) => {
+      const next = new Set(prev);
+      if (wasBookmarked) {
+        next.delete(inquiryId);
+      } else {
+        next.add(inquiryId);
+      }
+      return next;
+    });
+
+    try {
+      if (wasBookmarked) {
+        await inquiryApi.removeBookmark(inquiryId);
+      } else {
+        await inquiryApi.addBookmark(inquiryId);
+      }
+      if (queryFilters.bookmarkedOnly && wasBookmarked) {
+        fetchPage(null);
+      }
+    } catch (err: any) {
+      setBookmarkedIds((prev) => {
+        const next = new Set(prev);
+        if (wasBookmarked) {
+          next.add(inquiryId);
+        } else {
+          next.delete(inquiryId);
+        }
+        return next;
+      });
+      alert('즐겨찾기 변경에 실패했습니다: ' + err.message);
+    }
+  };
+
+  const handleSaveCustomFilter = async (name: string, values: FilterValues) => {
+    await inquiryApi.saveCustomFilter(name, values);
+    await fetchCustomFilters();
+  };
+
+  const handleDeleteCustomFilter = async (id: number) => {
+    await inquiryApi.deleteCustomFilter(id);
+    await fetchCustomFilters();
+  };
+
+  const filterDataToValues = (filter: CustomFilterEntity): FilterValues => {
+    const data = filter.filterData || {};
+    return {
+      userCode: data.userCode || '',
+      statuses: data.statuses || [],
+      channels: data.channels || [],
+      startDate: data.startDate || '',
+      endDate: data.endDate || '',
+      isManual: data.isManual,
+      bookmarkedOnly: Boolean(data.bookmarkedOnly),
+    };
+  };
+
+  const handleCustomFilterShortcutClick = (filter: CustomFilterEntity) => {
+    setQueryFilters(filterDataToValues(filter));
+  };
+
+  const getCustomFilterSummary = (filter: CustomFilterEntity) => {
+    const values = filterDataToValues(filter);
+    const parts: string[] = [];
+    if (values.statuses.length > 0) parts.push(values.statuses.join(', '));
+    if (values.channels.length > 0) parts.push(values.channels.join(', '));
+    if (values.userCode) parts.push(values.userCode);
+    if (values.bookmarkedOnly) parts.push('즐겨찾기');
+    if (values.isManual !== undefined) parts.push(values.isManual ? '수동' : '자동');
+    if (values.startDate || values.endDate) parts.push(`${values.startDate || '전체'}~${values.endDate || '전체'}`);
+    return parts.length > 0 ? parts.join(' · ') : '전체 조건';
+  };
+
+  const renderCustomFilterShortcut = (filter: CustomFilterEntity, isCollapsed: boolean) => {
+    const summary = getCustomFilterSummary(filter);
+
+    if (isCollapsed) {
+      return (
+        <button
+          key={`custom-filter-${filter.id}`}
+          type="button"
+          className="collapsed-tooltip custom-filter-compact"
+          data-tooltip={`${filter.name} - ${summary}`}
+          aria-label={`${filter.name} 필터 적용`}
+          onClick={() => handleCustomFilterShortcutClick(filter)}
+        >
+          <Filter size={16} />
+        </button>
+      );
+    }
+
+    return (
+      <button
+        key={`custom-filter-${filter.id}`}
+        type="button"
+        className="custom-filter-shortcut"
+        onClick={() => handleCustomFilterShortcutClick(filter)}
+        title={summary}
+      >
+        <div className="custom-filter-shortcut-icon">
+          <Filter size={16} />
+        </div>
+        <div className="custom-filter-shortcut-info">
+          <span className="custom-filter-shortcut-label">저장 필터</span>
+          <strong className="custom-filter-shortcut-name">{filter.name}</strong>
+          <span className="custom-filter-shortcut-summary">{summary}</span>
+        </div>
+      </button>
+    );
   };
 
   const selectedInquiry = inquiries.find(inq => inq.id === selectedInquiryId);
@@ -508,16 +699,18 @@ export const App: React.FC = () => {
     const operatorEmail = currentOperator?.email || '';
     const isFallbackOperator = currentOperator?.id === 'unknown';
     const title = currentOperator
-      ? `현재 로그인: ${operatorName} (${operatorId})`
+      ? `현재 로그인: ${operatorName} (${operatorId})\n[클릭하면 로그아웃/계정 변경]`
       : '현재 로그인 계정 확인 중';
 
     if (isSidebarCollapsed) {
       return (
         <button
           type="button"
+          onClick={handleSwitchAccount}
           className={`collapsed-tooltip operator-compact ${isFallbackOperator ? 'unknown' : ''}`}
           data-tooltip={title}
           aria-label={title}
+          style={{ cursor: 'pointer' }}
         >
           <User size={17} />
         </button>
@@ -525,16 +718,43 @@ export const App: React.FC = () => {
     }
 
     return (
-      <div className={`operator-widget ${isFallbackOperator ? 'unknown' : ''}`} title={title}>
+      <button 
+        type="button"
+        className={`operator-widget ${isFallbackOperator ? 'unknown' : ''}`} 
+        title={title}
+        onClick={handleSwitchAccount}
+        style={{ 
+          border: '1px solid rgba(79, 70, 229, 0.16)',
+          borderRadius: '8px',
+          background: 'rgba(79, 70, 229, 0.04)',
+          width: '100%',
+          textAlign: 'left',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '10px 12px',
+          transition: 'all 0.2s'
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.background = 'rgba(79, 70, 229, 0.08)';
+          e.currentTarget.style.borderColor = 'rgba(79, 70, 229, 0.35)';
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.background = 'rgba(79, 70, 229, 0.04)';
+          e.currentTarget.style.borderColor = 'rgba(79, 70, 229, 0.16)';
+        }}
+      >
         <div className="operator-avatar">
           <User size={16} />
         </div>
         <div className="operator-info">
-          <span className="operator-label">현재 로그인</span>
+          <span className="operator-label">현재 로그인 (변경하려면 클릭)</span>
           <strong className="operator-name">{operatorName}</strong>
           <span className="operator-meta">{operatorEmail || operatorId}</span>
         </div>
-      </div>
+      </button>
     );
   };
 
@@ -545,8 +765,9 @@ export const App: React.FC = () => {
       <aside
         className="dashboard-sidebar"
         style={{
-          width: isSidebarCollapsed ? '64px' : `${sidebarWidth}px`,
-          minWidth: isSidebarCollapsed ? '64px' : undefined,
+          width: isSidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH}px` : `${sidebarWidth}px`,
+          minWidth: isSidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH}px` : undefined,
+          maxWidth: isSidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH}px` : `${SIDEBAR_EXPANDED_WIDTH}px`,
           padding: isSidebarCollapsed ? '20px 0' : undefined,
           alignItems: isSidebarCollapsed ? 'center' : undefined,
           overflow: isSidebarCollapsed ? 'visible' : 'hidden',
@@ -601,6 +822,15 @@ export const App: React.FC = () => {
                 }}
               >
                 {renderWidget(type, true)}
+              </div>
+            ))}
+
+            {customFilters.map((filter) => (
+              <div
+                key={`collapsed-custom-filter-${filter.id}`}
+                style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '2px 0' }}
+              >
+                {renderCustomFilterShortcut(filter, true)}
               </div>
             ))}
 
@@ -659,6 +889,13 @@ export const App: React.FC = () => {
                   {renderWidget(type, false)}
                 </div>
               ))}
+
+              {customFilters.length > 0 && (
+                <div className="custom-filter-shortcut-list">
+                  <div className="custom-filter-shortcut-heading">저장 필터</div>
+                  {customFilters.map((filter) => renderCustomFilterShortcut(filter, false))}
+                </div>
+              )}
             </div>
 
             {/* CS 티켓 수동 생성 — 하단 고정 */}
@@ -737,35 +974,65 @@ export const App: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '12px',
+                fontSize: totalListHasMore ? '10px' : '11px',
                 fontWeight: '700',
                 flexShrink: 0
               }}
-              title={`로드된 문의: ${inquiries.length}건`}
+              title={`필터된 문의 수: ${totalListHasMore ? '100개 이상' : `${totalListCount}개`}`}
             >
-              {inquiries.length}
+              {totalListHasMore ? `${totalListCount}+` : totalListCount}
             </div>
           </div>
 
         ) : (
           /* ── Expanded List Column ── */
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', gap: '12px', overflow: 'hidden' }}>
-            {/* Filter Bar Component with Bottom Border */}
-            <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', flexShrink: 0, width: '100%', position: 'relative', paddingRight: '24px' }}>
+            {/* Header Row: Title & Count & Collapse button */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, width: '100%', padding: '0 4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>문의 목록</span>
+                <span style={{ 
+                  background: 'rgba(99, 102, 241, 0.08)', 
+                  color: 'var(--accent-indigo)', 
+                  padding: '2px 8px', 
+                  borderRadius: '12px', 
+                  fontSize: '11px', 
+                  fontWeight: '700' 
+                }}>
+                  {totalListHasMore ? `${totalListCount}+` : totalListCount}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsListCollapsed(true)}
-                className="panel-toggle-btn"
                 title="목록 접기"
-                style={{ position: 'absolute', top: '-2px', right: '0px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', zIndex: 10 }}
+                style={{ 
+                  background: 'transparent', 
+                  border: 'none', 
+                  color: 'var(--text-muted)', 
+                  cursor: 'pointer', 
+                  padding: '4px', 
+                  borderRadius: '4px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  transition: 'all 0.2s' 
+                }}
                 onMouseOver={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
                 onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
               >
                 <ChevronLeft size={16} />
               </button>
+            </div>
+
+            {/* Filter Bar Component Container */}
+            <div style={{ flexShrink: 0, width: '100%', padding: '0 4px' }}>
               <FilterBar
                 initialValues={queryFilters}
                 onSearch={setQueryFilters}
+                customFilters={customFilters}
+                onSaveCustomFilter={handleSaveCustomFilter}
+                onDeleteCustomFilter={handleDeleteCustomFilter}
               />
             </div>
 
@@ -794,6 +1061,7 @@ export const App: React.FC = () => {
                 loading={loading}
                 selectedInquiryId={selectedInquiryId}
                 onSelectInquiry={setSelectedInquiryId}
+                bookmarkedIds={bookmarkedIds}
               />
             </div>
 
@@ -830,6 +1098,8 @@ export const App: React.FC = () => {
             inquiry={selectedInquiry}
             operator={currentOperator}
             onUpdateInquiry={handleUpdateInquiry}
+            isBookmarked={bookmarkedIds.has(selectedInquiry.id)}
+            onToggleBookmark={handleToggleBookmark}
           />
         ) : (
           <div

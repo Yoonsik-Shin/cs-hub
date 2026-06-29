@@ -78,6 +78,23 @@ export interface SearchInquiriesParams {
   start?: string; // ISO 8601 string
   end?: string;   // ISO 8601 string
   isManual?: boolean;
+  bookmarkedOnly?: boolean;
   cursor?: string; // UUID string
   size?: number;
+}
+
+export interface CustomFilterEntity {
+  id: number;
+  operatorId: string;
+  name: string;
+  filterData: Partial<SearchInquiriesParams> & {
+    userCode?: string;
+    statuses?: InquiryStatus[];
+    channels?: string[];
+    startDate?: string;
+    endDate?: string;
+    isManual?: boolean;
+    bookmarkedOnly?: boolean;
+  };
+  createdAt: string;
 }

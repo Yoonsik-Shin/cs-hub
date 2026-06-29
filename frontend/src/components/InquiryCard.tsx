@@ -1,14 +1,15 @@
 import React from 'react';
-import { BookOpen, Pencil, Circle, RotateCcw, Check, CalendarDays, Mail, Phone } from 'lucide-react';
+import { BookOpen, Pencil, Circle, RotateCcw, Check, CalendarDays, Mail, Phone, Star } from 'lucide-react';
 import type { CustomerInquiry } from '../types/inquiry';
 
 interface InquiryCardProps {
   inquiry: CustomerInquiry;
   isSelected?: boolean;
+  isBookmarked?: boolean;
   onClick?: () => void;
 }
 
-export const InquiryCard: React.FC<InquiryCardProps> = ({ inquiry, isSelected, onClick }) => {
+export const InquiryCard: React.FC<InquiryCardProps> = ({ inquiry, isSelected, isBookmarked = false, onClick }) => {
   const formatDate = (dateStr: string) => {
     try {
       const date = new Date(dateStr);
@@ -84,6 +85,15 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({ inquiry, isSelected, o
               수동
             </span>
           )}
+          {isBookmarked && (
+            <span
+              className="bookmark-badge"
+              title="즐겨찾기한 문의입니다"
+              aria-label="즐겨찾기"
+            >
+              <Star size={10} fill="currentColor" />
+            </span>
+          )}
         </div>
         <span className={`status-badge ${statusClass}`}>
           {statusInfo.icon}
@@ -109,4 +119,3 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({ inquiry, isSelected, o
     </div>
   );
 };
-

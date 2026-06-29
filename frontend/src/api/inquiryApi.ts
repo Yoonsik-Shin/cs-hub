@@ -1,4 +1,4 @@
-import type { SearchInquiriesParams, SearchInquiriesResponse, InquiryWorkLog } from '../types/inquiry';
+import type { SearchInquiriesParams, SearchInquiriesResponse, InquiryWorkLog, CustomFilterEntity } from '../types/inquiry';
 
 /**
  * Helper to build query parameters string from object, omitting undefined/null values
@@ -229,6 +229,98 @@ export const inquiryApi = {
     }
 
     return response.json();
+  },
+
+  async getBookmarks(): Promise<string[]> {
+    const response = await fetch('/api/internal/v1/bookmarks', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(`Failed to fetch bookmarks: ${response.status} ${errorMsg}`);
+    }
+
+    return response.json();
+  },
+
+  async addBookmark(inquiryId: string): Promise<void> {
+    const response = await fetch(`/api/internal/v1/bookmarks/${inquiryId}`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(`Failed to add bookmark: ${response.status} ${errorMsg}`);
+    }
+  },
+
+  async removeBookmark(inquiryId: string): Promise<void> {
+    const response = await fetch(`/api/internal/v1/bookmarks/${inquiryId}`, {
+      method: 'DELETE',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(`Failed to remove bookmark: ${response.status} ${errorMsg}`);
+    }
+  },
+
+  async getCustomFilters(): Promise<CustomFilterEntity[]> {
+    const response = await fetch('/api/internal/v1/custom-filters', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(`Failed to fetch custom filters: ${response.status} ${errorMsg}`);
+    }
+
+    return response.json();
+  },
+
+  async saveCustomFilter(name: string, filterData: Record<string, any>): Promise<CustomFilterEntity> {
+    const response = await fetch('/api/internal/v1/custom-filters', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ name, filterData }),
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(`Failed to save custom filter: ${response.status} ${errorMsg}`);
+    }
+
+    return response.json();
+  },
+
+  async deleteCustomFilter(id: number): Promise<void> {
+    const response = await fetch(`/api/internal/v1/custom-filters/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(`Failed to delete custom filter: ${response.status} ${errorMsg}`);
+    }
   },
 
   /**
