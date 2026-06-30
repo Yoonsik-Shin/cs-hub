@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, RotateCcw, Filter, ChevronDown, ChevronUp, Save, Bookmark, Trash2, Plus, X, Edit2, Check } from 'lucide-react';
+import { Search, RotateCcw, Filter, ChevronDown, ChevronUp, Save, Trash2, Plus, X, Edit2, Check } from 'lucide-react';
 import type { CustomFilterEntity, InquiryStatus } from '../types/inquiry';
 
 export interface FilterValues {
@@ -575,9 +575,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         transition: 'all 0.2s',
         boxSizing: 'border-box'
       }}>
-        {/* Bookmark Icon only (no text label to save space) */}
-        <Bookmark size={13} style={{ color: isEditingFilter ? '#16a34a' : 'var(--accent-indigo)', flexShrink: 0 }} />
-
         {showNameInput ? (
           <>
             <input
