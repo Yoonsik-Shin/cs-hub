@@ -459,19 +459,22 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>필터 검색</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {hasActiveFilters && (
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={handleReset}
+                onClick={(e) => {
+                  e.stopPropagation(); // Only block propagation on reset click to avoid expanding the bar
+                  handleReset();
+                }}
                 style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: '3px',
                   padding: '3px 8px',
                   borderRadius: '6px',
-                  height: '26px',
+                  height: '24px',
                   cursor: 'pointer',
                   fontSize: '11px',
                   border: '1px solid var(--border-light)',
@@ -484,27 +487,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 초기화
               </button>
             )}
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setIsCollapsed(false)}
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '4px',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                height: '26px',
-                cursor: 'pointer',
-                fontSize: '11px',
-                border: '1px solid var(--border-light)',
-                background: '#ffffff',
-                fontWeight: 600
-              }}
-            >
-              필터 설정
-              <ChevronDown size={12} />
-            </button>
+            <ChevronDown size={14} style={{ color: 'var(--text-secondary)', transition: 'transform 0.2s', flexShrink: 0 }} />
           </div>
         </div>
 
