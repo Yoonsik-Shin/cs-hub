@@ -153,8 +153,8 @@ body.modal-open {
 }
 
 .dashboard-sidebar {
-  width: 220px;
-  max-width: 220px;
+  width: 280px;
+  max-width: 300px;
   height: 100%;
   background-color: var(--bg-secondary);
   border-right: 1px solid var(--border-light);
@@ -472,11 +472,11 @@ body.modal-open {
 .custom-filter-shortcut {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
   border: 1px solid rgba(79, 70, 229, 0.14);
-  border-radius: 8px;
   background: #ffffff;
   color: inherit;
   font: inherit;
@@ -484,17 +484,18 @@ body.modal-open {
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+  box-sizing: border-box;
 }
 
 .custom-filter-shortcut:hover {
-  background: rgba(79, 70, 229, 0.04);
+  background: rgba(79, 70, 229, 0.03);
   border-color: rgba(79, 70, 229, 0.32);
   box-shadow: var(--shadow-md);
 }
 
 .custom-filter-shortcut-icon {
-  width: 32px;
-  height: 32px;
+  width: 42px;
+  height: 42px;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -503,6 +504,13 @@ body.modal-open {
   color: var(--accent-indigo);
   background: rgba(79, 70, 229, 0.08);
   border: 1px solid rgba(79, 70, 229, 0.14);
+  transition: all var(--transition-fast);
+}
+
+.custom-filter-shortcut:hover .custom-filter-shortcut-icon {
+  background: rgba(79, 70, 229, 0.12);
+  border-color: rgba(79, 70, 229, 0.25);
+  transform: scale(1.03);
 }
 
 .custom-filter-shortcut-info {
@@ -510,19 +518,13 @@ body.modal-open {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.custom-filter-shortcut-label {
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.2;
+  flex: 1;
 }
 
 .custom-filter-shortcut-name {
   color: var(--text-primary);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -538,27 +540,81 @@ body.modal-open {
   text-overflow: ellipsis;
 }
 
+.custom-filter-shortcut-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--accent-indigo);
+  background: rgba(79, 70, 229, 0.06);
+  padding: 4px 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(79, 70, 229, 0.12);
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.custom-filter-shortcut:hover .custom-filter-shortcut-badge {
+  background: var(--accent-indigo);
+  color: #ffffff;
+  border-color: transparent;
+}
+
 .dashboard-sidebar .naver-session-widget {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  min-height: 68px;
-  padding: 12px 14px;
+  min-height: 56px;
+  padding: 10px 10px;
   border-radius: 12px;
+}
+
+.dashboard-sidebar .naver-session-status-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.naver-session-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.naver-session-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.naver-session-status-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.naver-session-time {
+  font-size: 9px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dashboard-sidebar .naver-session-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   width: auto;
 }
 
 .dashboard-sidebar .btn-session-action {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   justify-content: center;
   flex-shrink: 0;

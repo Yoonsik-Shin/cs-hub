@@ -9,11 +9,11 @@ import { CreateTicketModal } from './components/CreateTicketModal';
 import { inquiryApi } from './api/inquiryApi';
 import type { OperatorInfo } from './api/inquiryApi';
 import type { CustomFilterEntity, CustomerInquiry } from './types/inquiry';
-import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Filter } from 'lucide-react';
+import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark } from 'lucide-react';
 import { NaverLoginRenewPage } from './components/NaverLoginRenewPage';
 import { InquiryDetailPanel } from './components/InquiryDetailPanel';
 
-const SIDEBAR_EXPANDED_WIDTH = 220;
+const SIDEBAR_EXPANDED_WIDTH = 300;
 const SIDEBAR_COLLAPSED_WIDTH = 64;
 
 export const App: React.FC = () => {
@@ -30,6 +30,7 @@ export const App: React.FC = () => {
   const [naverSessionStatus, setNaverSessionStatus] = useState<'ACTIVE' | 'EXPIRED' | 'MISSING' | 'CHECKING' | 'ERROR'>('CHECKING');
   const [naverSessionUpdatedAt, setNaverSessionUpdatedAt] = useState<string | null>(null);
   const [verifyingSession, setVerifyingSession] = useState(false);
+  const [isNaverRenewModalOpen, setIsNaverRenewModalOpen] = useState(false);
 
   // Query Filter states
   const [queryFilters, setQueryFilters] = useState<FilterValues>({
@@ -64,105 +65,98 @@ export const App: React.FC = () => {
   const [totalListHasMore, setTotalListHasMore] = useState(false);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
   const [customFilters, setCustomFilters] = useState<CustomFilterEntity[]>([]);
-
-  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isNaverRenewModalOpen, setIsNaverRenewModalOpen] = useState(false);
 
   // Resizable & Collapsible columns states
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_EXPANDED_WIDTH);
+  const [sidebarWidth, setSidebarWidth] = useState(280);
   const [listWidth, setListWidth] = useState(300);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isListCollapsed, setIsListCollapsed] = useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingList, setIsResizingList] = useState(false);
 
-  // Drag and Drop (DND) states for Sidebar widgets
-  const [widgetOrder, setWidgetOrder] = useState<string[]>([
-    'PROFILE',
-    'STATS_UNPROCESSED',
-    'STATS_TODAY',
-    'BOOKMARKS',
-    'SESSION'
-  ]);
-  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+  // Nested Sidebar Widget Groups DND
+  interface WidgetGroup {
+    id: 'account_session_group' | 'filter_group';
+    name: string;
+    items: string[];
+  }
 
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedItemIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(index));
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedItemIndex === null || draggedItemIndex === index) return;
-    const newOrder = [...widgetOrder];
-    const draggedItem = newOrder[draggedItemIndex];
-    newOrder.splice(draggedItemIndex, 1);
-    newOrder.splice(index, 0, draggedItem);
-    setDraggedItemIndex(index);
-    setWidgetOrder(newOrder);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItemIndex(null);
-  };
-
-  const renderWidget = (type: string, isCollapsed: boolean) => {
-    const wrapperStyle: React.CSSProperties = {
-      width: '100%',
-      display: 'flex',
-      justifyContent: isCollapsed ? 'center' : 'stretch'
-    };
-
-    switch (type) {
-      case 'PROFILE':
-        return (
-          <div key="widget-profile" style={wrapperStyle}>
-            {renderOperatorWidget()}
-          </div>
-        );
-      case 'STATS_UNPROCESSED':
-        return (
-          <div key="widget-unprocessed" style={wrapperStyle}>
-            <UnprocessedStatsCard
-              count={unprocessedCount}
-              hasMore={unprocessedHasMore}
-              isCollapsed={isCollapsed}
-              onClick={handleUnprocessedStatsClick}
-            />
-          </div>
-        );
-      case 'STATS_TODAY':
-        return (
-          <div key="widget-today" style={wrapperStyle}>
-            <TodayStatsCard
-              count={todayCount}
-              hasMore={todayHasMore}
-              isCollapsed={isCollapsed}
-              onClick={handleTodayStatsClick}
-            />
-          </div>
-        );
-      case 'BOOKMARKS':
-        return (
-          <div key="widget-bookmarks" style={wrapperStyle}>
-            <BookmarkedStatsCard
-              count={bookmarkedIds.size}
-              isCollapsed={isCollapsed}
-              onClick={handleBookmarkedStatsClick}
-            />
-          </div>
-        );
-      case 'SESSION':
-        return (
-          <div key="widget-session" style={wrapperStyle}>
-            {renderNaverSessionWidget()}
-          </div>
-        );
-      default:
-        return null;
+  const [groups, setGroups] = useState<WidgetGroup[]>(() => {
+    const saved = localStorage.getItem('admin_cs_sidebar_groups_v3');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
     }
+    return [
+      {
+        id: 'account_session_group',
+        name: '계정 및 연동 정보',
+        items: ['PROFILE', 'SESSION']
+      },
+      {
+        id: 'filter_group',
+        name: '필터 목록',
+        items: ['STATS_UNPROCESSED', 'STATS_TODAY', 'BOOKMARKS', 'CUSTOM_FILTERS']
+      }
+    ];
+  });
+
+  const [draggedGroupIndex, setDraggedGroupIndex] = useState<number | null>(null);
+  const [draggedItemInfo, setDraggedItemInfo] = useState<{ groupId: string; itemIndex: number } | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('admin_cs_sidebar_groups_v3', JSON.stringify(groups));
+  }, [groups]);
+
+  const onDragStartGroup = (e: React.DragEvent, index: number) => {
+    setDraggedGroupIndex(index);
+    setDraggedItemInfo(null);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const onDragOverGroup = (_e: React.DragEvent, targetIndex: number) => {
+    if (draggedGroupIndex === null || draggedGroupIndex === targetIndex) return;
+    const next = [...groups];
+    const [moved] = next.splice(draggedGroupIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    setDraggedGroupIndex(targetIndex);
+    setGroups(next);
+  };
+
+  const onDragEndGroup = () => {
+    setDraggedGroupIndex(null);
+  };
+
+  const onDragStartItem = (e: React.DragEvent, groupId: string, itemIndex: number) => {
+    setDraggedItemInfo({ groupId, itemIndex });
+    setDraggedGroupIndex(null);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const onDragOverItem = (_e: React.DragEvent, targetGroupId: string, targetItemIndex: number) => {
+    if (draggedItemInfo === null) return;
+    if (draggedItemInfo.groupId !== targetGroupId) return; // restrict same-group DND
+    if (draggedItemInfo.itemIndex === targetItemIndex) return;
+
+    const next = groups.map(g => {
+      if (g.id === targetGroupId) {
+        const nextItems = [...g.items];
+        const [moved] = nextItems.splice(draggedItemInfo.itemIndex, 1);
+        nextItems.splice(targetItemIndex, 0, moved);
+        return { ...g, items: nextItems };
+      }
+      return g;
+    });
+    setGroups(next);
+    setDraggedItemInfo({ groupId: targetGroupId, itemIndex: targetItemIndex });
+  };
+
+  const onDragEndItem = () => {
+    setDraggedItemInfo(null);
   };
 
   const startResizingSidebar = (mouseDownEvent: React.MouseEvent) => {
@@ -666,7 +660,7 @@ export const App: React.FC = () => {
           aria-label={`${filter.name} 필터 적용`}
           onClick={() => handleCustomFilterShortcutClick(filter)}
         >
-          <Filter size={16} />
+          <Bookmark size={16} />
         </button>
       );
     }
@@ -678,17 +672,112 @@ export const App: React.FC = () => {
         className="custom-filter-shortcut"
         onClick={() => handleCustomFilterShortcutClick(filter)}
         title={summary}
+        style={{ width: '100%' }}
       >
         <div className="custom-filter-shortcut-icon">
-          <Filter size={16} />
+          <Bookmark size={20} />
         </div>
         <div className="custom-filter-shortcut-info">
-          <span className="custom-filter-shortcut-label">저장 필터</span>
-          <strong className="custom-filter-shortcut-name">{filter.name}</strong>
+          <span className="custom-filter-shortcut-name">{filter.name}</span>
           <span className="custom-filter-shortcut-summary">{summary}</span>
         </div>
+        <div className="custom-filter-shortcut-badge">저장됨</div>
       </button>
     );
+  };
+
+  const renderGroupItem = (item: string) => {
+    switch (item) {
+      case 'PROFILE':
+        return renderOperatorWidget();
+      case 'SESSION':
+        return renderNaverSessionWidget();
+      case 'STATS_UNPROCESSED':
+        return (
+          <UnprocessedStatsCard
+            count={unprocessedCount}
+            hasMore={unprocessedHasMore}
+            isCollapsed={false}
+            onClick={handleUnprocessedStatsClick}
+          />
+        );
+      case 'STATS_TODAY':
+        return (
+          <TodayStatsCard
+            count={todayCount}
+            hasMore={todayHasMore}
+            isCollapsed={false}
+            onClick={handleTodayStatsClick}
+          />
+        );
+      case 'BOOKMARKS':
+        return (
+          <BookmarkedStatsCard
+            count={bookmarkedIds.size}
+            isCollapsed={false}
+            onClick={handleBookmarkedStatsClick}
+          />
+        );
+      case 'CUSTOM_FILTERS':
+        return (
+          <div className="custom-filter-shortcut-list" style={{ marginTop: '2px' }}>
+            {customFilters.length === 0 ? (
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', padding: '10px 12px', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px dashed var(--border-light)' }}>
+                저장된 필터가 없습니다.
+              </div>
+            ) : (
+              customFilters.map((filter) => renderCustomFilterShortcut(filter, false))
+            )}
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderCollapsedGroupItem = (item: string) => {
+    switch (item) {
+      case 'PROFILE':
+        return renderOperatorWidget();
+      case 'SESSION':
+        return renderNaverSessionWidget();
+      case 'STATS_UNPROCESSED':
+        return (
+          <UnprocessedStatsCard
+            count={unprocessedCount}
+            hasMore={unprocessedHasMore}
+            isCollapsed={true}
+            onClick={handleUnprocessedStatsClick}
+          />
+        );
+      case 'STATS_TODAY':
+        return (
+          <TodayStatsCard
+            count={todayCount}
+            hasMore={todayHasMore}
+            isCollapsed={true}
+            onClick={handleTodayStatsClick}
+          />
+        );
+      case 'BOOKMARKS':
+        return (
+          <BookmarkedStatsCard
+            count={bookmarkedIds.size}
+            isCollapsed={true}
+            onClick={handleBookmarkedStatsClick}
+          />
+        );
+      case 'CUSTOM_FILTERS':
+        return (
+          customFilters.map((filter) => (
+            <div key={`collapsed-custom-${filter.id}`} style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '2px 0' }}>
+              {renderCustomFilterShortcut(filter, true)}
+            </div>
+          ))
+        );
+      default:
+        return null;
+    }
   };
 
   const selectedInquiry = inquiries.find(inq => inq.id === selectedInquiryId);
@@ -804,34 +893,19 @@ export const App: React.FC = () => {
               <ChevronRight size={18} />
             </button>
 
-            {widgetOrder.map((type, idx) => (
-              <div
-                key={type}
-                draggable
-                onDragStart={(e) => handleDragStart(e, idx)}
-                onDragOver={(e) => handleDragOver(e, idx)}
-                onDragEnd={handleDragEnd}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  opacity: draggedItemIndex === idx ? 0.4 : 1,
-                  cursor: 'grab',
-                  transition: 'opacity 0.2s',
-                  padding: '2px 0',
-                }}
-              >
-                {renderWidget(type, true)}
-              </div>
-            ))}
-
-            {customFilters.map((filter) => (
-              <div
-                key={`collapsed-custom-filter-${filter.id}`}
-                style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '2px 0' }}
-              >
-                {renderCustomFilterShortcut(filter, true)}
-              </div>
+            {groups.map((group, groupIdx) => (
+              <React.Fragment key={`collapsed-group-${group.id}`}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', width: '100%' }}>
+                  {group.items.map((item) => (
+                    <React.Fragment key={`collapsed-${item}`}>
+                      {renderCollapsedGroupItem(item)}
+                    </React.Fragment>
+                  ))}
+                </div>
+                {groupIdx === 0 && (
+                  <div style={{ height: '1px', background: 'var(--border-light)', margin: '8px 0', width: '24px', flexShrink: 0 }} />
+                )}
+              </React.Fragment>
             ))}
 
             {/* Compact Create Button */}
@@ -867,35 +941,97 @@ export const App: React.FC = () => {
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', flex: 1, minHeight: 0, overflowY: 'auto' }}>
-              {widgetOrder.map((type, idx) => (
+            {/* Scrollable middle area */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              
+              {groups.map((group, groupIdx) => (
                 <div
-                  key={type}
+                  key={group.id}
                   draggable
-                  onDragStart={(e) => handleDragStart(e, idx)}
-                  onDragOver={(e) => handleDragOver(e, idx)}
-                  onDragEnd={handleDragEnd}
+                  onDragStart={(e) => onDragStartGroup(e, groupIdx)}
+                  onDragOver={(e) => { e.preventDefault(); onDragOverGroup(e, groupIdx); }}
+                  onDragEnd={onDragEndGroup}
                   style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
                     width: '100%',
-                    opacity: draggedItemIndex === idx ? 0.4 : 1,
-                    cursor: 'grab',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
-                    borderRadius: '16px',
+                    opacity: draggedGroupIndex === groupIdx ? 0.4 : 1,
+                    transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s',
+                    padding: '4px',
+                    border: '1px dashed transparent',
+                    borderRadius: '8px',
                   }}
-                  onDragEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)'; }}
-                  onDragLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
-                  onDrop={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+                  onDragEnter={(e) => {
+                    if (draggedGroupIndex !== null && draggedGroupIndex !== groupIdx) {
+                      e.currentTarget.style.borderColor = 'var(--accent-indigo)';
+                      e.currentTarget.style.background = 'rgba(99, 102, 241, 0.02)';
+                    }
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'transparent';
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                  onDrop={(e) => {
+                    e.currentTarget.style.borderColor = 'transparent';
+                    e.currentTarget.style.background = 'transparent';
+                  }}
                 >
-                  {renderWidget(type, false)}
+                  {/* Group Header (acts as handle / title) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)', fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.4px', padding: '0 2px', cursor: 'grab', userSelect: 'none' }}>
+                    {group.id === 'account_session_group' ? <User size={11} /> : <Bookmark size={11} />}
+                    {group.name}
+                  </div>
+
+                  {/* Group Items */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                    {group.items.map((item, itemIdx) => {
+                      const isItemDragged = draggedItemInfo?.groupId === group.id && draggedItemInfo?.itemIndex === itemIdx;
+                      return (
+                        <div
+                          key={item}
+                          draggable
+                          onDragStart={(e) => {
+                            e.stopPropagation(); // Prevent group dragging
+                            onDragStartItem(e, group.id, itemIdx);
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onDragOverItem(e, group.id, itemIdx);
+                          }}
+                          onDragEnd={onDragEndItem}
+                          style={{
+                            width: '100%',
+                            opacity: isItemDragged ? 0.4 : 1,
+                            cursor: 'grab',
+                            transition: 'transform 0.15s',
+                          }}
+                          onDragEnter={(e) => {
+                            if (draggedItemInfo && draggedItemInfo.groupId === group.id && draggedItemInfo.itemIndex !== itemIdx) {
+                              e.currentTarget.style.transform = 'scale(1.02)';
+                            }
+                          }}
+                          onDragLeave={(e) => {
+                            e.currentTarget.style.transform = 'none';
+                          }}
+                          onDrop={(e) => {
+                            e.currentTarget.style.transform = 'none';
+                          }}
+                        >
+                          {renderGroupItem(item)}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Divider line between groups */}
+                  {groupIdx === 0 && (
+                    <div style={{ height: '1px', background: 'var(--border-light)', margin: '12px 0 4px 0', width: '100%', flexShrink: 0 }} />
+                  )}
                 </div>
               ))}
 
-              {customFilters.length > 0 && (
-                <div className="custom-filter-shortcut-list">
-                  <div className="custom-filter-shortcut-heading">저장 필터</div>
-                  {customFilters.map((filter) => renderCustomFilterShortcut(filter, false))}
-                </div>
-              )}
             </div>
 
             {/* CS 티켓 수동 생성 — 하단 고정 */}

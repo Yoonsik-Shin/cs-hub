@@ -87,7 +87,7 @@ services:
       - S3_SECRET_KEY=${MINIO_SECRET_KEY:-minioadminpassword}
       - S3_BUCKET=${MINIO_BUCKET:-kakao-webhook-logs}
       - S3_REGION=us-east-1
-      - S3_EXTERNAL_URL=http://localhost:8888/attachments
+      - S3_EXTERNAL_URL=${S3_EXTERNAL_URL:-http://localhost:8888/attachments}
     volumes:
       - webhook_logs:/app/logs/webhooks
     depends_on:
