@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import {
     Cpu, Info, Calendar, Clock, User, ArrowRight, History,
     FileText, CheckCircle, Inbox, MessageSquare, Pin, RefreshCw, AlertCircle,
-    ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit, ImagePlus, Loader2, Star, X as XIcon
+    ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit, ImagePlus, Loader2, Star, X as XIcon,
+    Image, ZoomIn, ZoomOut
 } from 'lucide-react';
 import type { CustomerInquiry, InquiryWorkLog, OperatorInfo } from '../types/inquiry';
 import { inquiryApi } from '../api/inquiryApi';
@@ -79,6 +80,70 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [editImageUrls, setEditImageUrls] = useState<string[]>([]);
     const [newImageFiles, setNewImageFiles] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
     const imageInputRef = useRef<HTMLInputElement>(null);
+
+    // Image preview state
+    const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
+    const [lastActiveImageUrl, setLastActiveImageUrl] = useState<string | null>(null);
+    const [isViewportHovered, setIsViewportHovered] = useState(false);
+
+    // Zoom and pan state
+    const [zoomScale, setZoomScale] = useState(1);
+    const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
+    const [isPanning, setIsPanning] = useState(false);
+    const panStartRef = useRef({ x: 0, y: 0 });
+
+    useEffect(() => {
+        if (activeImageUrl) {
+            setLastActiveImageUrl(activeImageUrl);
+        }
+    }, [activeImageUrl]);
+
+    useEffect(() => {
+        setZoomScale(1);
+        setPanPosition({ x: 0, y: 0 });
+    }, [activeImageUrl]);
+
+    const handleZoomIn = () => {
+        setZoomScale(prev => Math.min(prev + 0.25, 3));
+    };
+
+    const handleZoomOut = () => {
+        setZoomScale(prev => {
+            const next = Math.max(prev - 0.25, 1);
+            if (next === 1) {
+                setPanPosition({ x: 0, y: 0 });
+            }
+            return next;
+        });
+    };
+
+    const handleZoomReset = () => {
+        setZoomScale(1);
+        setPanPosition({ x: 0, y: 0 });
+    };
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (zoomScale <= 1) return;
+        e.preventDefault();
+        setIsPanning(true);
+        panStartRef.current = {
+            x: e.clientX - panPosition.x,
+            y: e.clientY - panPosition.y
+        };
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isPanning || zoomScale <= 1) return;
+        e.preventDefault();
+        setPanPosition({
+            x: e.clientX - panStartRef.current.x,
+            y: e.clientY - panStartRef.current.y
+        });
+    };
+
+    const handleMouseUpOrLeave = () => {
+        setIsPanning(false);
+    };
 
     const currentOperator = operator ?? {
         id: 'unknown',
@@ -199,6 +264,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         setMemoText('');
         setIsEditing(false); // Reset edit state when ticket changes
         setIsEditingAnswer(false);
+        setActiveImageUrl(null);
+        setLastActiveImageUrl(null);
     }, [inquiry.id, fetchWorkLogs]);
 
     useEffect(() => {
@@ -207,6 +274,12 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         }, 100);
         return () => clearTimeout(timer);
     }, [workLogs]);
+
+    useEffect(() => {
+        if (isEditing) {
+            setActiveImageUrl(null);
+        }
+    }, [isEditing]);
 
     const handleRegisterWorkLogClick = (e: React.FormEvent) => {
         e.preventDefault();
@@ -908,21 +981,31 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         gap: '10px'
                     }}
                 >
-                    {/* Top: Ticket Reference (As a distinct card) */}
-                    <div
-                        className="cs-card"
-                        style={{
-                            flex: 1,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            background: '#ffffff',
-                            border: '1px solid var(--border-light)',
-                            borderRadius: '12px',
-                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-                            overflow: 'hidden',
-                            minHeight: 0
-                        }}
-                    >
+                    {/* Top Area: Reference + Preview (Row container) */}
+                    <div style={{
+                        flex: 1,
+                        display: 'flex',
+                        gap: activeImageUrl ? '12px' : '0px',
+                        minHeight: 0,
+                        width: '100%',
+                        transition: 'gap 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }}>
+                        {/* Left Side: Ticket Reference */}
+                        <div
+                            className="cs-card"
+                            style={{
+                                flex: activeImageUrl ? 1.25 : 1,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                background: '#ffffff',
+                                border: '1px solid var(--border-light)',
+                                borderRadius: '12px',
+                                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                                overflow: 'hidden',
+                                minHeight: 0,
+                                transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                            }}
+                        >
                         {/* Fixed Header */}
                         <div
                             className="cs-panel-section-title"
@@ -1010,14 +1093,29 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             )}
 
                             {((inquiry.imageUrls && inquiry.imageUrls.length > 0) || isEditing) ? (
-                                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'stretch' }}>
+                                <div style={{
+                                    display: 'flex',
+                                    gap: activeImageUrl ? '0px' : '20px',
+                                    alignItems: 'stretch',
+                                    width: '100%',
+                                    transition: 'gap 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                                }}>
                                     {/* Left Side: 고객 접수 내용 */}
-                                    <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                    <div
+                                        className="detail-section"
+                                        style={{
+                                            gap: '8px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            flex: activeImageUrl ? 1 : 1.2,
+                                            transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                                        }}
+                                    >
                                         <span className="detail-title">
                                             <FileText size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
                                             고객 접수 내용
                                         </span>
-                                        <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0, flex: 1, display: 'flex', flexDirection: 'column', height: 'auto' }}>
+                                        <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0, flex: isEditing ? 1 : 'none', display: 'flex', flexDirection: 'column', height: 'auto' }}>
                                             {isEditing ? (
                                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                                                     <textarea
@@ -1052,7 +1150,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                                     )}
                                                 </div>
                                             ) : (
-                                                <div className="detail-query-text" style={{ flex: 1, whiteSpace: 'pre-wrap', borderRadius: '12px', border: '1px solid var(--border-light)', borderLeftWidth: '4px' }}>
+                                                <div className="detail-query-text" style={{ flex: 1, whiteSpace: 'pre-wrap', borderRadius: '12px', border: '1px solid var(--border-light)', borderLeftWidth: '4px', minHeight: '120px' }}>
                                                     {inquiry.content || '(내용 없음)'}
                                                 </div>
                                             )}
@@ -1060,7 +1158,22 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                     </div>
 
                                     {/* Right Side: 첨부 이미지 */}
-                                    <div className="detail-section" style={{ gap: '8px', flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                    <div
+                                        className="detail-section"
+                                        style={{
+                                            gap: '8px',
+                                            flexShrink: 0,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            flex: activeImageUrl ? 0 : 1,
+                                            maxWidth: activeImageUrl ? '0px' : '100%',
+                                            maxHeight: activeImageUrl ? '0px' : 'none',
+                                            opacity: activeImageUrl ? 0 : 1,
+                                            overflow: 'hidden',
+                                            pointerEvents: activeImageUrl ? 'none' : 'auto',
+                                            transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                        }}
+                                    >
                                         <span className="detail-title">
                                             <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
                                             첨부 이미지 {isEditing && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(최대 10개)</span>}
@@ -1144,37 +1257,49 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                                     />
                                                 </>
                                             ) : (
-                                                inquiry.imageUrls?.map((url: string, index: number) => (
-                                                    <a
-                                                        key={index}
-                                                        href={getDisplayImageUrl(url)}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        style={{ display: 'block' }}
-                                                    >
-                                                        <img
-                                                            src={getDisplayImageUrl(url)}
-                                                            alt={`inquiry-media-${index}`}
-                                                            style={{
-                                                                width: '80px',
-                                                                height: '80px',
-                                                                objectFit: 'cover',
-                                                                borderRadius: '8px',
-                                                                border: '1px solid var(--border-light)',
-                                                                cursor: 'pointer',
-                                                                transition: 'all 0.2s ease-in-out'
+                                                inquiry.imageUrls?.map((url: string, index: number) => {
+                                                    const isActive = activeImageUrl === url;
+                                                    return (
+                                                        <a
+                                                            key={index}
+                                                            href={getDisplayImageUrl(url)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            style={{ display: 'block' }}
+                                                            onClick={(e) => {
+                                                                if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                                                                    e.preventDefault();
+                                                                    setActiveImageUrl(isActive ? null : url);
+                                                                }
                                                             }}
-                                                            onMouseOver={(e) => {
-                                                                e.currentTarget.style.transform = 'scale(1.05)';
-                                                                e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.08)';
-                                                            }}
-                                                            onMouseOut={(e) => {
-                                                                e.currentTarget.style.transform = 'none';
-                                                                e.currentTarget.style.boxShadow = 'none';
-                                                            }}
-                                                        />
-                                                    </a>
-                                                ))
+                                                        >
+                                                            <img
+                                                                src={getDisplayImageUrl(url)}
+                                                                alt={`inquiry-media-${index}`}
+                                                                style={{
+                                                                    width: '80px',
+                                                                    height: '80px',
+                                                                    objectFit: 'cover',
+                                                                    borderRadius: '8px',
+                                                                    border: isActive ? '2px solid var(--accent-indigo)' : '1px solid var(--border-light)',
+                                                                    cursor: 'pointer',
+                                                                    transition: 'all 0.2s ease-in-out',
+                                                                    opacity: isActive ? 1 : 0.85
+                                                                }}
+                                                                onMouseOver={(e) => {
+                                                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                                                    e.currentTarget.style.opacity = '1';
+                                                                    e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.08)';
+                                                                }}
+                                                                onMouseOut={(e) => {
+                                                                    e.currentTarget.style.transform = 'none';
+                                                                    e.currentTarget.style.opacity = isActive ? '1' : '0.85';
+                                                                    e.currentTarget.style.boxShadow = 'none';
+                                                                }}
+                                                            />
+                                                        </a>
+                                                    );
+                                                })
                                             )}
                                         </div>
                                     </div>
@@ -1230,7 +1355,13 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             )}
 
                             {/* Metadata Tables */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', flexShrink: 0 }}>
+                            <div style={{
+                                display: activeImageUrl ? 'flex' : 'grid',
+                                flexDirection: activeImageUrl ? 'column' : undefined,
+                                gridTemplateColumns: activeImageUrl ? undefined : '1.2fr 1fr',
+                                gap: '20px',
+                                flexShrink: 0
+                            }}>
                                 <div className="detail-section">
                                     <span className="detail-title">
                                         <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
@@ -1265,6 +1396,344 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             </div>
                         </div>
                     </div>
+
+                    {/* Right Side: Image Preview Card */}
+                    {(() => {
+                        const displayUrl = activeImageUrl || lastActiveImageUrl || inquiry.imageUrls?.[0] || '';
+                        if (!displayUrl) return null;
+
+                        const currentIndex = inquiry.imageUrls?.indexOf(displayUrl) ?? -1;
+                        const hasPrev = currentIndex > 0;
+                        const hasNext = inquiry.imageUrls && currentIndex < inquiry.imageUrls.length - 1;
+
+                        const showPrev = (e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            if (hasPrev && inquiry.imageUrls) {
+                                setActiveImageUrl(inquiry.imageUrls[currentIndex - 1]);
+                            }
+                        };
+
+                        const showNext = (e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            if (hasNext && inquiry.imageUrls) {
+                                setActiveImageUrl(inquiry.imageUrls[currentIndex + 1]);
+                            }
+                        };
+
+                        const isOpen = !!activeImageUrl;
+
+                        return (
+                            <div
+                                className="cs-card"
+                                style={{
+                                    flex: isOpen ? 1 : 0,
+                                    maxWidth: isOpen ? '800px' : '0px',
+                                    minWidth: isOpen ? '280px' : '0px',
+                                    opacity: isOpen ? 1 : 0,
+                                    pointerEvents: isOpen ? 'auto' : 'none',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    background: '#ffffff',
+                                    border: isOpen ? '1px solid var(--border-light)' : '0px solid transparent',
+                                    borderRadius: '12px',
+                                    boxShadow: isOpen ? '0 4px 16px rgba(0, 0, 0, 0.12)' : 'none',
+                                    overflow: 'hidden',
+                                    minHeight: 0,
+                                    transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), border 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                                }}
+                            >
+                                {/* Header bar / Toolbar */}
+                                <div
+                                    className="cs-panel-section-title"
+                                    style={{
+                                        margin: 0,
+                                        padding: '10px 16px',
+                                        borderBottom: '1px solid var(--border-light)',
+                                        background: 'rgba(99, 102, 241, 0.02)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '8px',
+                                        whiteSpace: 'nowrap'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <Image size={16} style={{ color: 'var(--accent-indigo)' }} />
+                                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                            첨부 이미지 미리보기 ({currentIndex + 1} / {inquiry.imageUrls?.length})
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        {/* Zoom Controls */}
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            background: '#ffffff',
+                                            border: '1px solid var(--border-light)',
+                                            borderRadius: '6px',
+                                            padding: '2px 4px',
+                                            marginRight: '4px',
+                                            gap: '4px'
+                                        }}>
+                                            <button
+                                                type="button"
+                                                onClick={handleZoomOut}
+                                                disabled={zoomScale <= 1}
+                                                style={{
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    cursor: zoomScale <= 1 ? 'default' : 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    color: zoomScale <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                                    padding: '3px'
+                                                }}
+                                                title="축소"
+                                            >
+                                                <ZoomOut size={14} />
+                                            </button>
+                                            <span style={{ fontSize: '11px', fontWeight: 600, minWidth: '36px', textAlign: 'center', color: 'var(--text-primary)' }}>
+                                                {Math.round(zoomScale * 100)}%
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={handleZoomIn}
+                                                disabled={zoomScale >= 3}
+                                                style={{
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    cursor: zoomScale >= 3 ? 'default' : 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    color: zoomScale >= 3 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                                    padding: '3px'
+                                                }}
+                                                title="확대"
+                                            >
+                                                <ZoomIn size={14} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleZoomReset}
+                                                disabled={zoomScale === 1}
+                                                style={{
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    cursor: zoomScale === 1 ? 'default' : 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    color: zoomScale === 1 ? 'var(--text-muted)' : 'var(--accent-indigo)',
+                                                    padding: '3px',
+                                                    borderLeft: '1px solid var(--border-light)',
+                                                    paddingLeft: '6px',
+                                                    marginLeft: '2px',
+                                                    opacity: zoomScale === 1 ? 0.3 : 1,
+                                                    transition: 'all 0.15s ease-in-out'
+                                                }}
+                                                title="초기화"
+                                            >
+                                                <RefreshCw size={12} />
+                                            </button>
+                                        </div>
+
+                                        <a
+                                            href={getDisplayImageUrl(displayUrl)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="btn-secondary"
+                                            style={{
+                                                fontSize: '11px',
+                                                color: 'var(--accent-indigo)',
+                                                textDecoration: 'none',
+                                                fontWeight: 600,
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                height: '28px',
+                                                padding: '0 10px',
+                                                borderRadius: '6px',
+                                                border: '1px solid var(--border-light)',
+                                                background: '#ffffff'
+                                            }}
+                                        >
+                                            새 탭에서 열기
+                                        </a>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveImageUrl(null)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                padding: '2px',
+                                                color: 'var(--text-muted)'
+                                            }}
+                                        >
+                                            <XIcon size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Image and Arrows Area */}
+                                <div
+                                    onMouseEnter={() => setIsViewportHovered(true)}
+                                    onMouseDown={handleMouseDown}
+                                    onMouseMove={handleMouseMove}
+                                    onMouseUp={handleMouseUpOrLeave}
+                                    onMouseLeave={() => {
+                                        setIsViewportHovered(false);
+                                        handleMouseUpOrLeave();
+                                    }}
+                                    style={{
+                                        position: 'relative',
+                                        flex: 1,
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        background: '#f8fafc',
+                                        padding: '20px',
+                                        minHeight: 0,
+                                        overflow: 'hidden'
+                                    }}
+                                >
+                                    {/* Left Arrow */}
+                                    {hasPrev && (
+                                        <button
+                                            type="button"
+                                            onClick={showPrev}
+                                            style={{
+                                                position: 'absolute',
+                                                left: '16px',
+                                                zIndex: 10,
+                                                width: '36px',
+                                                height: '36px',
+                                                borderRadius: '50%',
+                                                background: 'rgba(255,255,255,0.9)',
+                                                border: '1px solid var(--border-light)',
+                                                boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: 'var(--text-primary)',
+                                                opacity: isViewportHovered ? 1 : 0,
+                                                pointerEvents: isViewportHovered ? 'auto' : 'none',
+                                                transition: 'all 0.2s ease-in-out'
+                                            }}
+                                            onMouseOver={(e) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.transform = 'scale(1.05)'; }}
+                                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.9)'; e.currentTarget.style.transform = 'scale(1)'; }}
+                                        >
+                                            <ChevronLeft size={20} />
+                                        </button>
+                                    )}
+
+                                    {/* Image */}
+                                    <img
+                                        src={getDisplayImageUrl(displayUrl)}
+                                        alt="active-preview"
+                                        style={{
+                                            maxWidth: '100%',
+                                            maxHeight: '100%',
+                                            objectFit: 'contain',
+                                            borderRadius: '6px',
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                                            transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`,
+                                            transformOrigin: 'center center',
+                                            cursor: zoomScale > 1 ? (isPanning ? 'grabbing' : 'grab') : 'default',
+                                            transition: isPanning ? 'none' : 'transform 0.15s ease-out',
+                                            userSelect: 'none'
+                                        }}
+                                        onDragStart={(e) => e.preventDefault()}
+                                    />
+
+                                    {/* Right Arrow */}
+                                    {hasNext && (
+                                        <button
+                                            type="button"
+                                            onClick={showNext}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '16px',
+                                                zIndex: 10,
+                                                width: '36px',
+                                                height: '36px',
+                                                borderRadius: '50%',
+                                                background: 'rgba(255,255,255,0.9)',
+                                                border: '1px solid var(--border-light)',
+                                                boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: 'var(--text-primary)',
+                                                opacity: isViewportHovered ? 1 : 0,
+                                                pointerEvents: isViewportHovered ? 'auto' : 'none',
+                                                transition: 'all 0.2s ease-in-out'
+                                            }}
+                                            onMouseOver={(e) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.transform = 'scale(1.05)'; }}
+                                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.9)'; e.currentTarget.style.transform = 'scale(1)'; }}
+                                        >
+                                            <ChevronRight size={20} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Bottom Thumbnail Strip */}
+                                <div style={{
+                                    display: 'flex',
+                                    gap: '8px',
+                                    width: '100%',
+                                    padding: '12px 16px',
+                                    background: 'var(--bg-secondary)',
+                                    borderTop: '1px solid var(--border-light)',
+                                    overflowX: 'auto',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    {inquiry.imageUrls?.map((url: string, index: number) => {
+                                        const isActive = activeImageUrl === url;
+                                        return (
+                                            <button
+                                                key={`preview-thumb-${index}`}
+                                                type="button"
+                                                onClick={() => setActiveImageUrl(url)}
+                                                style={{
+                                                    width: '50px',
+                                                    height: '50px',
+                                                    padding: 0,
+                                                    borderRadius: '6px',
+                                                    border: isActive ? '2px solid var(--accent-indigo)' : '1px solid var(--border-light)',
+                                                    overflow: 'hidden',
+                                                    cursor: 'pointer',
+                                                    background: '#ffffff',
+                                                    flexShrink: 0,
+                                                    transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                                                    boxShadow: isActive ? '0 2px 6px rgba(99,102,241,0.2)' : 'none',
+                                                    transition: 'all 0.2s ease-in-out'
+                                                }}
+                                            >
+                                                <img
+                                                    src={getDisplayImageUrl(url)}
+                                                    alt={`thumb-${index}`}
+                                                    style={{
+                                                        width: '100%',
+                                                        height: '100%',
+                                                        objectFit: 'cover'
+                                                    }}
+                                                />
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
 
                     {/* Bottom: Support Actions Console */}
                     <div
