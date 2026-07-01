@@ -9,6 +9,8 @@ import com.ttam.cs.feature.inquiry.api.http.dto.request.DataIntegrationPayload;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.RegisterWorkLogRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryFieldsRequest;
+import com.ttam.cs.feature.inquiry.api.http.dto.request.BatchUpdateInquiryStatusRequest;
+import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
 import com.ttam.cs.feature.inquiry.api.http.dto.response.InquiryWorkLogResponse;
 import com.ttam.cs.feature.inquiry.domain.service.InquiryUniqueKeyGenerator;
 import com.ttam.cs.feature.inquiry.domain.FieldModification;
@@ -31,6 +33,7 @@ import com.ttam.cs.infra.storage.StorageService;
 @Service
 @RequiredArgsConstructor
 public class CustomerInquiryService {
+    private static final int MAX_BATCH_UPDATE_COUNT = 100;
 
     private final CustomerInquiryRepository repository;
     private final InquiryWorkLogRepository workLogRepository;
@@ -173,6 +176,76 @@ public class CustomerInquiryService {
         );
 
         workLogRepository.save(workLog);
+    }
+
+    @Transactional
+    public void updateStatuses(List<UUID> inquiryIds, CustomerInquiry.Status newStatus, OperatorInfo operatorInfo) {
+        if (inquiryIds == null || inquiryIds.isEmpty()) {
+            throw new IllegalArgumentException("변경할 문의를 선택해 주세요.");
+        }
+        if (inquiryIds.size() > MAX_BATCH_UPDATE_COUNT) {
+            throw new IllegalArgumentException("한 번에 최대 " + MAX_BATCH_UPDATE_COUNT + "개까지 처리할 수 있습니다.");
+        }
+
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+        for (UUID inquiryId : inquiryIds) {
+            CustomerInquiry inquiry = repository.findById(inquiryId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 문의입니다: " + inquiryId));
+
+            CustomerInquiry.Status previousStatus = inquiry.getStatus();
+            if (previousStatus == newStatus) {
+                continue;
+            }
+
+            inquiry.updateStatus(newStatus, now);
+            repository.save(inquiry);
+
+            InquiryWorkLog workLog = InquiryWorkLog.create(
+                    inquiryId,
+                    InquiryWorkLog.ActionType.STATUS_CHANGED,
+                    null,
+                    null,
+                    operatorInfo,
+                    previousStatus,
+                    newStatus
+            );
+
+            workLogRepository.save(workLog);
+        }
+    }
+
+    @Transactional
+    public void updateStatuses(BatchUpdateInquiryStatusRequest request, OperatorInfo operatorInfo, String operatorId) {
+        if (request.mode() == BatchUpdateInquiryStatusRequest.TargetMode.IDS) {
+            updateStatuses(request.inquiryIds(), request.status(), operatorInfo);
+            return;
+        }
+
+        BatchUpdateInquiryStatusRequest.FilterCriteria filters = request.filters();
+        if (filters == null) {
+            throw new IllegalArgumentException("검색 결과 전체 선택에는 필터 조건이 필요합니다.");
+        }
+
+        List<UUID> ids = repository.findInquiryIds(
+                filters.channel(),
+                filters.userCode(),
+                filters.status(),
+                filters.keyword(),
+                filters.start(),
+                filters.end(),
+                filters.isManual(),
+                filters.bookmarkedOnly(),
+                operatorId,
+                request.excludedInquiryIds(),
+                MAX_BATCH_UPDATE_COUNT
+        );
+
+        if (ids.isEmpty()) {
+            throw new IllegalArgumentException("변경할 문의를 선택해 주세요.");
+        }
+
+        updateStatuses(ids, request.status(), operatorInfo);
     }
 
     @Transactional

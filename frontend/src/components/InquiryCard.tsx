@@ -7,9 +7,20 @@ interface InquiryCardProps {
   isSelected?: boolean;
   isBookmarked?: boolean;
   onClick?: () => void;
+  showCheckbox?: boolean;
+  isChecked?: boolean;
+  onCheckboxChange?: (id: string, checked: boolean) => void;
 }
 
-export const InquiryCard: React.FC<InquiryCardProps> = ({ inquiry, isSelected, isBookmarked = false, onClick }) => {
+export const InquiryCard: React.FC<InquiryCardProps> = ({ 
+  inquiry, 
+  isSelected, 
+  isBookmarked = false, 
+  onClick,
+  showCheckbox = false,
+  isChecked = false,
+  onCheckboxChange
+}) => {
   const formatDate = (dateStr: string) => {
     try {
       const date = new Date(dateStr);
@@ -61,12 +72,43 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({ inquiry, isSelected, i
 
   return (
     <div
-      className={`inquiry-card ${statusClass}${isSelected ? ' selected' : ''}`}
+      className={`inquiry-card ${statusClass}${isSelected ? ' selected' : ''}${isChecked ? ' has-checked' : ''}`}
       onClick={onClick}
+      style={showCheckbox ? { display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'flex-start' } : undefined}
     >
+      {(showCheckbox || isChecked) && (
+        <div 
+          className="card-checkbox-container"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCheckboxChange?.(inquiry.id, !isChecked);
+          }}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            alignSelf: 'stretch',
+            flexShrink: 0 
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onChange={() => {}} // handled by outer click handler
+            className="card-checkbox"
+            style={{ 
+              width: '16px', 
+              height: '16px', 
+              cursor: 'pointer',
+              accentColor: 'var(--accent-indigo)'
+            }}
+          />
+        </div>
+      )}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
       {/* Row 1: Channel badge ← → Status badge */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, flexWrap: 'wrap' }}>
           <span className={`channel-badge ${channelInfo.className}`}>
             {channelInfo.icon}
             {channelInfo.label}
@@ -95,14 +137,14 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({ inquiry, isSelected, i
             </span>
           )}
         </div>
-        <span className={`status-badge ${statusClass}`}>
+        <span className={`status-badge ${statusClass}`} style={{ flexShrink: 0 }}>
           {statusInfo.icon}
           {statusInfo.label}
         </span>
       </div>
 
       {/* Row 2: User code ← → Timestamp */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
         <span className="user-code" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
           {inquiry.userCode || '비회원 (익명)'}
         </span>
@@ -115,6 +157,7 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({ inquiry, isSelected, i
       {/* Row 3: Content preview */}
       <div className="inquiry-content">
         {inquiry.content || '(내용 없음)'}
+      </div>
       </div>
     </div>
   );

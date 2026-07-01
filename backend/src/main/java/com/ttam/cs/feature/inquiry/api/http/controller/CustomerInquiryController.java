@@ -12,6 +12,10 @@ import com.ttam.cs.feature.inquiry.api.http.dto.request.RegisterWorkLogRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryFieldsRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryRequest;
+import com.ttam.cs.feature.inquiry.api.http.dto.request.BatchUpdateInquiryStatusRequest;
+import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
+import com.ttam.cs.feature.auth.domain.AdminUser;
+import com.ttam.cs.infra.config.AdminUserProperties;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -33,6 +37,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class CustomerInquiryController {
 
     private final CustomerInquiryService inquiryService;
+    private final AdminUserProperties adminUserProperties;
 
     @org.springframework.beans.factory.annotation.Value("${s3.external-url}")
     private String externalUrl;
@@ -146,6 +151,19 @@ public class CustomerInquiryController {
             inquiryService.updateInquiryFields(id, fieldsRequest, ipAddress);
         }
 
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "고객 문의 일괄 상태 수정", description = "여러 고객 문의의 진행 상태를 일괄 수정하고 각각 이력을 남깁니다.")
+    @PatchMapping("/batch/status")
+    public ResponseEntity<Void> updateStatuses(
+            @RequestHeader(value = "X-Remote-User", required = false) String remoteUser,
+            @RequestBody @Valid BatchUpdateInquiryStatusRequest request) {
+
+        AdminUser adminUser = adminUserProperties.resolve(remoteUser);
+        OperatorInfo operatorInfo = new OperatorInfo(adminUser.id(), adminUser.nickname(), adminUser.email());
+
+        inquiryService.updateStatuses(request, operatorInfo, remoteUser);
         return ResponseEntity.ok().build();
     }
 

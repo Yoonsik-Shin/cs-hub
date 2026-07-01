@@ -18,5 +18,11 @@ public interface CustomerInquiryRepositoryCustom {
             OffsetDateTime startDateTime, OffsetDateTime endDateTime,
             Boolean isManual, Boolean bookmarkedOnly, String operatorId, int limit);
 
+    List<UUID> findInquiryIds(List<String> channels, String userCode,
+            List<CustomerInquiry.Status> statuses, String contentKeyword,
+            OffsetDateTime startDateTime, OffsetDateTime endDateTime,
+            Boolean isManual, Boolean bookmarkedOnly, String operatorId,
+            List<UUID> excludedIds, int limit);
+
     void bulkInsert(List<CustomerInquiry> inquiries);
 }

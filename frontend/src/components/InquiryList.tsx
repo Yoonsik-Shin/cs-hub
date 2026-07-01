@@ -8,6 +8,9 @@ interface InquiryListProps {
   selectedInquiryId: string | null;
   onSelectInquiry: (id: string) => void;
   bookmarkedIds?: Set<string>;
+  selectedInquiryIds?: Set<string>;
+  onToggleSelectInquiry?: (id: string, checked: boolean) => void;
+  isBatchSelectionMode?: boolean;
 }
 
 export const InquiryList: React.FC<InquiryListProps> = ({ 
@@ -15,7 +18,10 @@ export const InquiryList: React.FC<InquiryListProps> = ({
   loading, 
   selectedInquiryId,
   onSelectInquiry,
-  bookmarkedIds = new Set()
+  bookmarkedIds = new Set(),
+  selectedInquiryIds = new Set(),
+  onToggleSelectInquiry,
+  isBatchSelectionMode = false
 }) => {
   if (loading) {
     return (
@@ -57,7 +63,7 @@ export const InquiryList: React.FC<InquiryListProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div className="inquiry-list">
+      <div className={`inquiry-list${isBatchSelectionMode ? ' selection-active' : ''}`}>
         {inquiries.map((inquiry) => (
           <InquiryCard 
             key={inquiry.id} 
@@ -65,6 +71,9 @@ export const InquiryList: React.FC<InquiryListProps> = ({
             isSelected={inquiry.id === selectedInquiryId}
             isBookmarked={bookmarkedIds.has(inquiry.id)}
             onClick={() => onSelectInquiry(inquiry.id)}
+            showCheckbox={isBatchSelectionMode}
+            isChecked={selectedInquiryIds.has(inquiry.id)}
+            onCheckboxChange={onToggleSelectInquiry}
           />
         ))}
       </div>

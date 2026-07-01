@@ -7,14 +7,16 @@ import { InquiryList } from './components/InquiryList';
 import { Pagination } from './components/Pagination';
 import { CreateTicketModal } from './components/CreateTicketModal';
 import { inquiryApi } from './api/inquiryApi';
-import type { OperatorInfo } from './api/inquiryApi';
-import type { CustomFilterEntity, CustomerInquiry } from './types/inquiry';
-import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark } from 'lucide-react';
+import type { BatchUpdateInquiryStatusTarget, OperatorInfo } from './api/inquiryApi';
+import type { CustomFilterEntity, CustomerInquiry, InquiryStatus } from './types/inquiry';
+import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark, X, ListChecks } from 'lucide-react';
 import { NaverLoginRenewPage } from './components/NaverLoginRenewPage';
 import { InquiryDetailPanel } from './components/InquiryDetailPanel';
 
 const SIDEBAR_EXPANDED_WIDTH = 300;
 const SIDEBAR_COLLAPSED_WIDTH = 64;
+const MAX_FILTER_BATCH_COUNT = 100;
+type BatchSelectionScope = 'PAGE' | 'FILTER';
 
 export const App: React.FC = () => {
   const isNaverLogin = window.location.pathname === '/naver-login';
@@ -55,6 +57,24 @@ export const App: React.FC = () => {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Batch selection states
+  const [isBatchSelectionMode, setIsBatchSelectionMode] = useState(false);
+  const [batchSelectionScope, setBatchSelectionScope] = useState<BatchSelectionScope>('PAGE');
+  const [selectedInquiryIds, setSelectedInquiryIds] = useState<Set<string>>(new Set());
+  const [excludedInquiryIds, setExcludedInquiryIds] = useState<Set<string>>(new Set());
+  const [batchNotice, setBatchNotice] = useState<string | null>(null);
+  const [batchModal, setBatchModal] = useState<{
+    isOpen: boolean;
+    targetStatus: InquiryStatus | null;
+    isSubmitting: boolean;
+    error: string | null;
+  }>({
+    isOpen: false,
+    targetStatus: null,
+    isSubmitting: false,
+    error: null
+  });
 
   // Stats states
   const [unprocessedCount, setUnprocessedCount] = useState(0);
@@ -370,31 +390,40 @@ export const App: React.FC = () => {
     );
   };
 
+  const buildCurrentSearchParams = useCallback((cursorVal?: string | null) => {
+    const startISO = queryFilters.startDate
+      ? new Date(`${queryFilters.startDate}T00:00:00`).toISOString()
+      : undefined;
+    const endISO = queryFilters.endDate
+      ? new Date(`${queryFilters.endDate}T23:59:59`).toISOString()
+      : undefined;
+
+    return {
+      userCode: queryFilters.userCode.trim() || undefined,
+      status: queryFilters.statuses.length > 0 ? queryFilters.statuses : undefined,
+      channel: queryFilters.channels.length > 0 ? queryFilters.channels : undefined,
+      start: startISO,
+      end: endISO,
+      isManual: queryFilters.isManual,
+      bookmarkedOnly: queryFilters.bookmarkedOnly || undefined,
+      cursor: cursorVal || undefined,
+    };
+  }, [queryFilters]);
+
   // Fetch inquiries for the current page and filter conditions
   const fetchPage = useCallback(async (cursorVal: string | null) => {
     setLoading(true);
     setError(null);
+    setSelectedInquiryIds(new Set()); // Reset selection on page/filter change
+    setExcludedInquiryIds(new Set());
+    setBatchSelectionScope('PAGE');
+    setBatchNotice(null);
+    setIsBatchSelectionMode(false);
     try {
-      // Format start and end date if set
-      let startISO: string | undefined = undefined;
-      let endISO: string | undefined = undefined;
-
-      if (queryFilters.startDate) {
-        startISO = new Date(`${queryFilters.startDate}T00:00:00`).toISOString();
-      }
-      if (queryFilters.endDate) {
-        endISO = new Date(`${queryFilters.endDate}T23:59:59`).toISOString();
-      }
+      const searchParams = buildCurrentSearchParams(cursorVal);
 
       const res = await inquiryApi.searchInquiries({
-        userCode: queryFilters.userCode.trim() || undefined,
-        status: queryFilters.statuses.length > 0 ? queryFilters.statuses : undefined,
-        channel: queryFilters.channels.length > 0 ? queryFilters.channels : undefined,
-        start: startISO,
-        end: endISO,
-        isManual: queryFilters.isManual,
-        bookmarkedOnly: queryFilters.bookmarkedOnly || undefined,
-        cursor: cursorVal || undefined,
+        ...searchParams,
         size: 10,
       });
 
@@ -404,14 +433,8 @@ export const App: React.FC = () => {
 
       // Fetch matching inquiries count with 100 limit
       const countRes = await inquiryApi.countInquiries({
-        userCode: queryFilters.userCode.trim() || undefined,
-        status: queryFilters.statuses.length > 0 ? queryFilters.statuses : undefined,
-        channel: queryFilters.channels.length > 0 ? queryFilters.channels : undefined,
-        start: startISO,
-        end: endISO,
-        isManual: queryFilters.isManual,
-        bookmarkedOnly: queryFilters.bookmarkedOnly || undefined,
-        limit: 100
+        ...buildCurrentSearchParams(null),
+        limit: MAX_FILTER_BATCH_COUNT
       });
       setTotalListCount(countRes.count);
       setTotalListHasMore(countRes.hasMore);
@@ -421,7 +444,7 @@ export const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [queryFilters]);
+  }, [buildCurrentSearchParams]);
 
   const fetchBookmarks = useCallback(async () => {
     try {
@@ -511,6 +534,149 @@ export const App: React.FC = () => {
     );
     fetchStats();
   }, [fetchStats]);
+
+  // Batch Selection Handlers
+  const handleStartBatchSelection = useCallback(() => {
+    setIsBatchSelectionMode(true);
+    setBatchNotice(null);
+  }, []);
+
+  const handleCancelBatchSelection = useCallback(() => {
+    setSelectedInquiryIds(new Set());
+    setExcludedInquiryIds(new Set());
+    setBatchSelectionScope('PAGE');
+    setBatchNotice(null);
+    setIsBatchSelectionMode(false);
+  }, []);
+
+  const handleToggleSelectInquiry = useCallback((id: string, checked: boolean) => {
+    setBatchNotice(null);
+    if (batchSelectionScope === 'FILTER') {
+      setExcludedInquiryIds((prev) => {
+        const next = new Set(prev);
+        if (checked) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+      return;
+    }
+
+    setSelectedInquiryIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }, [batchSelectionScope]);
+
+  const handleToggleSelectAll = () => {
+    const allPageIds = inquiries.map((inq) => inq.id);
+    const allSelected = batchSelectionScope === 'FILTER'
+      ? allPageIds.length > 0 && allPageIds.every((id) => !excludedInquiryIds.has(id))
+      : allPageIds.length > 0 && allPageIds.every((id) => selectedInquiryIds.has(id));
+
+    setBatchNotice(null);
+
+    if (batchSelectionScope === 'FILTER') {
+      setExcludedInquiryIds((prev) => {
+        const next = new Set(prev);
+        if (allSelected) {
+          allPageIds.forEach((id) => next.add(id));
+        } else {
+          allPageIds.forEach((id) => next.delete(id));
+        }
+        return next;
+      });
+      return;
+    }
+
+    setSelectedInquiryIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        allPageIds.forEach((id) => next.delete(id));
+      } else {
+        allPageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleSelectFilteredResults = () => {
+    if (totalListCount === 0) {
+      setBatchNotice('선택할 검색 결과가 없습니다.');
+      return;
+    }
+
+    setBatchSelectionScope('FILTER');
+    setSelectedInquiryIds(new Set());
+    setExcludedInquiryIds(new Set());
+    setBatchNotice(totalListHasMore
+      ? `검색 결과가 ${MAX_FILTER_BATCH_COUNT}개를 초과해 이번 작업에서는 최대 ${MAX_FILTER_BATCH_COUNT}개만 처리합니다. 완료 후 다시 실행하면 다음 묶음을 처리할 수 있습니다.`
+      : `검색 결과 ${totalListCount}개가 선택되었습니다.`);
+  };
+
+  const handleExecuteBatchStatusUpdate = async () => {
+    const selectedBatchCount = batchSelectionScope === 'FILTER'
+      ? Math.max(totalListCount - excludedInquiryIds.size, 0)
+      : selectedInquiryIds.size;
+    if (selectedBatchCount === 0 || !batchModal.targetStatus) return;
+
+    setBatchModal((prev) => ({ ...prev, isSubmitting: true, error: null }));
+    try {
+      const target: BatchUpdateInquiryStatusTarget = batchSelectionScope === 'FILTER'
+        ? {
+            mode: 'FILTER',
+            filters: buildCurrentSearchParams(null),
+            excludedInquiryIds: Array.from(excludedInquiryIds),
+          }
+        : {
+            mode: 'IDS',
+            inquiryIds: Array.from(selectedInquiryIds),
+          };
+      await inquiryApi.updateInquiryStatuses(target, batchModal.targetStatus);
+
+      // Successfully updated! Refresh current page
+      const currentCursorVal = cursorStack[currentPage - 1] || null;
+      await fetchPage(currentCursorVal);
+
+      // Refresh Stats
+      await fetchStats();
+
+      // Update detail view if selected inquiry was updated
+      if (
+        selectedInquiryId &&
+        (batchSelectionScope === 'FILTER' ? !excludedInquiryIds.has(selectedInquiryId) : selectedInquiryIds.has(selectedInquiryId))
+      ) {
+        handleUpdateInquiry(selectedInquiryId, { status: batchModal.targetStatus });
+      }
+
+      // Reset modal and selection
+      setBatchModal({
+        isOpen: false,
+        targetStatus: null,
+        isSubmitting: false,
+        error: null
+      });
+      setSelectedInquiryIds(new Set());
+      setExcludedInquiryIds(new Set());
+      setBatchSelectionScope('PAGE');
+      setBatchNotice(null);
+      setIsBatchSelectionMode(false);
+    } catch (err: any) {
+      console.error(err);
+      setBatchModal((prev) => ({
+        ...prev,
+        isSubmitting: false,
+        error: '상태 일괄 변경 중 오류가 발생했습니다: ' + err.message
+      }));
+    }
+  };
 
   const handleCreateTicket = async (ticketData: { channel: string; userCode: string; content: string; channelMetadata?: any; imageUrls?: string[] }) => {
     try {
@@ -781,6 +947,18 @@ export const App: React.FC = () => {
   };
 
   const selectedInquiry = inquiries.find(inq => inq.id === selectedInquiryId);
+  const effectiveVisibleSelectedIds = batchSelectionScope === 'FILTER'
+    ? new Set(inquiries.filter((inquiry) => !excludedInquiryIds.has(inquiry.id)).map((inquiry) => inquiry.id))
+    : selectedInquiryIds;
+  const selectedBatchCount = batchSelectionScope === 'FILTER'
+    ? Math.max(totalListCount - excludedInquiryIds.size, 0)
+    : selectedInquiryIds.size;
+  const allVisibleSelected = inquiries.length > 0 && inquiries.every((inquiry) => effectiveVisibleSelectedIds.has(inquiry.id));
+  const someVisibleSelected = inquiries.some((inquiry) => effectiveVisibleSelectedIds.has(inquiry.id));
+  const canSelectFilteredResults = totalListCount > 0;
+  const filteredSelectionLimitText = totalListHasMore
+    ? `검색 결과 중 ${MAX_FILTER_BATCH_COUNT}개 선택`
+    : `검색 결과 전체 ${totalListCount}개 선택`;
 
   const renderOperatorWidget = () => {
     const operatorName = currentOperator?.nickname || '계정 확인 중';
@@ -1064,7 +1242,8 @@ export const App: React.FC = () => {
           padding: isListCollapsed ? '20px 0' : '20px 8px 8px 8px',
           alignItems: isListCollapsed ? 'center' : undefined,
           overflow: 'hidden',
-          transition: 'width 0.2s ease'
+          transition: 'width 0.2s ease',
+          position: 'relative'
         }}
       >
         {isListCollapsed ? (
@@ -1125,8 +1304,8 @@ export const App: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', gap: '12px', overflow: 'hidden' }}>
             {/* Header Row: Title & Count & Collapse button */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, width: '100%', padding: '0 4px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>문의 목록</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>문의 목록</span>
                 <span style={{ 
                   background: 'rgba(99, 102, 241, 0.08)', 
                   color: 'var(--accent-indigo)', 
@@ -1138,28 +1317,119 @@ export const App: React.FC = () => {
                   {totalListHasMore ? `${totalListCount}+` : totalListCount}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsListCollapsed(true)}
-                title="목록 접기"
-                style={{ 
-                  background: 'transparent', 
-                  border: 'none', 
-                  color: 'var(--text-muted)', 
-                  cursor: 'pointer', 
-                  padding: '4px', 
-                  borderRadius: '4px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  transition: 'all 0.2s' 
-                }}
-                onMouseOver={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
-              >
-                <ChevronLeft size={16} />
-              </button>
+              <div className="list-header-actions">
+                {inquiries.length > 0 && !loading && (
+                  <button
+                    type="button"
+                    className={`batch-mode-btn${isBatchSelectionMode ? ' active' : ''}`}
+                    onClick={isBatchSelectionMode ? handleCancelBatchSelection : handleStartBatchSelection}
+                    title={isBatchSelectionMode ? '배치 선택 종료' : '여러 문의를 선택해 상태를 일괄 변경'}
+                  >
+                    <ListChecks size={14} />
+                    <span>{isBatchSelectionMode ? '선택 종료' : '배치 처리'}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsListCollapsed(true)}
+                  title="목록 접기"
+                  style={{ 
+                    background: 'transparent', 
+                    border: 'none', 
+                    color: 'var(--text-muted)', 
+                    cursor: 'pointer', 
+                    padding: '4px', 
+                    borderRadius: '4px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    transition: 'all 0.2s',
+                    flexShrink: 0
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+              </div>
             </div>
+
+            {false && isBatchSelectionMode && inquiries.length > 0 && !loading && (
+              <div className="batch-workspace-panel">
+              <div className="batch-selection-strip">
+                <label className="batch-select-page">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) {
+                        el.indeterminate = someVisibleSelected && !allVisibleSelected;
+                      }
+                    }}
+                    onChange={handleToggleSelectAll}
+                    className="card-checkbox"
+                  />
+                  <span>현재 페이지 선택</span>
+                </label>
+                <button
+                  type="button"
+                  className={`batch-select-filtered${batchSelectionScope === 'FILTER' ? ' active' : ''}`}
+                  onClick={handleSelectFilteredResults}
+                  disabled={!canSelectFilteredResults}
+                  title={totalListHasMore ? `한 번에 최대 ${MAX_FILTER_BATCH_COUNT}개까지 처리할 수 있습니다.` : undefined}
+                >
+                  {filteredSelectionLimitText}
+                </button>
+                <span className="batch-selection-summary">
+                  {selectedBatchCount}개 선택됨
+                </span>
+              </div>
+                {batchNotice && (
+                  <div className={`batch-notice${batchSelectionScope === 'FILTER' ? ' active' : ''}`}>
+                    {batchNotice}
+                  </div>
+                )}
+                <div className="batch-action-panel">
+                  <div className="batch-panel-summary">
+                    <span className="batch-info-count">{selectedBatchCount}</span>
+                    <span>{batchSelectionScope === 'FILTER' ? '검색 결과 선택됨' : '개 선택됨'}</span>
+                  </div>
+                  <div className="batch-actions-section">
+                    <button
+                      type="button"
+                      className="batch-action-btn open-status"
+                      disabled={selectedBatchCount === 0}
+                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null })}
+                    >
+                      미처리
+                    </button>
+                    <button
+                      type="button"
+                      className="batch-action-btn inprogress-status"
+                      disabled={selectedBatchCount === 0}
+                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null })}
+                    >
+                      진행중
+                    </button>
+                    <button
+                      type="button"
+                      className="batch-action-btn resolved-status"
+                      disabled={selectedBatchCount === 0}
+                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null })}
+                    >
+                      완료
+                    </button>
+                    <button
+                      type="button"
+                      className="batch-cancel-btn"
+                      onClick={handleCancelBatchSelection}
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Filter Bar Component Container */}
             <div style={{ flexShrink: 0, width: '100%', padding: '0 4px' }}>
@@ -1173,6 +1443,80 @@ export const App: React.FC = () => {
             </div>
 
             {/* Scrollable list area — flex:1 so it fills remaining height */}
+            {isBatchSelectionMode && inquiries.length > 0 && !loading && (
+              <div className="batch-workspace-panel">
+                <div className="batch-selection-strip">
+                  <span className="batch-scope-label">범위</span>
+                  <label className="batch-select-page">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      ref={(el) => {
+                        if (el) {
+                          el.indeterminate = someVisibleSelected && !allVisibleSelected;
+                        }
+                      }}
+                      onChange={handleToggleSelectAll}
+                      className="card-checkbox"
+                    />
+                    <span>현재 페이지</span>
+                  </label>
+                  <button
+                    type="button"
+                    className={`batch-select-filtered${batchSelectionScope === 'FILTER' ? ' active' : ''}${!canSelectFilteredResults ? ' unavailable' : ''}`}
+                    onClick={handleSelectFilteredResults}
+                    aria-disabled={!canSelectFilteredResults}
+                    title={totalListHasMore ? `${MAX_FILTER_BATCH_COUNT}개씩 순차 처리합니다.` : undefined}
+                  >
+                    {totalListHasMore ? `결과 ${MAX_FILTER_BATCH_COUNT}개씩` : '전체 결과'}
+                  </button>
+                  <span className="batch-selection-summary">
+                    {selectedBatchCount}개 선택됨
+                  </span>
+                </div>
+
+                {batchNotice && (
+                  <div className={`batch-notice${batchSelectionScope === 'FILTER' ? ' active' : ''}`}>
+                    {batchNotice}
+                  </div>
+                )}
+
+                <div className="batch-action-panel">
+                  <button
+                    type="button"
+                    className="batch-action-btn open-status"
+                    disabled={selectedBatchCount === 0}
+                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null })}
+                  >
+                    미처리
+                  </button>
+                  <button
+                    type="button"
+                    className="batch-action-btn inprogress-status"
+                    disabled={selectedBatchCount === 0}
+                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null })}
+                  >
+                    진행중
+                  </button>
+                  <button
+                    type="button"
+                    className="batch-action-btn resolved-status"
+                    disabled={selectedBatchCount === 0}
+                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null })}
+                  >
+                    완료
+                  </button>
+                  <button
+                    type="button"
+                    className="batch-cancel-btn"
+                    onClick={handleCancelBatchSelection}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="inquiry-scroll-area" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', padding: '6px 4px 6px 4px', minHeight: 0, width: '100%' }}>
               {/* Error Message */}
               {error && (
@@ -1198,8 +1542,50 @@ export const App: React.FC = () => {
                 selectedInquiryId={selectedInquiryId}
                 onSelectInquiry={setSelectedInquiryId}
                 bookmarkedIds={bookmarkedIds}
+                selectedInquiryIds={effectiveVisibleSelectedIds}
+                onToggleSelectInquiry={handleToggleSelectInquiry}
+                isBatchSelectionMode={isBatchSelectionMode}
               />
             </div>
+
+            {false && isBatchSelectionMode && selectedBatchCount > 0 && (
+              <div className="batch-action-panel">
+                <div className="batch-panel-summary">
+                  <span className="batch-info-count">{selectedBatchCount}</span>
+                  <span>{batchSelectionScope === 'FILTER' ? '검색 결과 선택됨' : '개 선택됨'}</span>
+                </div>
+                <div className="batch-actions-section">
+                  <button
+                    type="button"
+                    className="batch-action-btn open-status"
+                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null })}
+                  >
+                    미처리
+                  </button>
+                  <button
+                    type="button"
+                    className="batch-action-btn inprogress-status"
+                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null })}
+                  >
+                    진행중
+                  </button>
+                  <button
+                    type="button"
+                    className="batch-action-btn resolved-status"
+                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null })}
+                  >
+                    완료
+                  </button>
+                  <button
+                    type="button"
+                    className="batch-cancel-btn"
+                    onClick={handleCancelBatchSelection}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Pagination Controls — always at the bottom, never scrolls */}
             {inquiries.length > 0 && !loading && (
@@ -1213,6 +1599,7 @@ export const App: React.FC = () => {
                 />
               </div>
             )}
+
           </div>
         )}
       </main>
@@ -1292,6 +1679,84 @@ export const App: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateTicket}
       />
+
+      {/* Batch Status Confirmation Modal */}
+      {batchModal.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '480px', padding: '24px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">일괄 상태 변경</h3>
+              <button 
+                type="button" 
+                className="close-btn" 
+                onClick={() => setBatchModal({ isOpen: false, targetStatus: null, isSubmitting: false, error: null })}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              선택한 <strong style={{ color: 'var(--accent-indigo)' }}>{selectedBatchCount}개</strong>의 문의 상태를 
+              {' '}
+              <strong style={{ 
+                color: batchModal.targetStatus === 'OPEN' ? 'var(--status-open)' : 
+                       batchModal.targetStatus === 'IN_PROGRESS' ? 'var(--status-inprogress)' : 
+                       'var(--status-resolved)' 
+              }}>
+                {batchModal.targetStatus === 'OPEN' ? '미처리' : 
+                 batchModal.targetStatus === 'IN_PROGRESS' ? '진행중' : 
+                 '완료'}
+              </strong>
+               상태로 일괄 변경하시겠습니까?
+            </div>
+            {batchModal.error && (
+              <div style={{ color: '#ef4444', fontSize: '13px', background: 'rgba(239, 68, 68, 0.08)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                ⚠️ {batchModal.error}
+              </div>
+            )}
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+              <button
+                type="button"
+                className="secondary-btn"
+                disabled={batchModal.isSubmitting}
+                onClick={() => setBatchModal({ isOpen: false, targetStatus: null, isSubmitting: false, error: null })}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-medium)',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '13px'
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="primary-btn"
+                disabled={batchModal.isSubmitting}
+                onClick={handleExecuteBatchStatusUpdate}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'var(--accent-indigo)',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {batchModal.isSubmitting ? '변경 중...' : '확인'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Naver Session Renew Modal */}
       {isNaverRenewModalOpen && createPortal(

@@ -81,6 +81,30 @@ class CustomerInquiryServiceTest {
     }
 
     @Test
+    void testUpdateStatuses_Success() {
+        // Given
+        UUID inquiryId2 = UUID.randomUUID();
+        CustomerInquiry inquiry2 = mock(CustomerInquiry.class);
+        lenient().when(inquiry2.getId()).thenReturn(inquiryId2);
+        lenient().when(inquiry2.getStatus()).thenReturn(CustomerInquiry.Status.OPEN);
+
+        when(repository.findById(inquiryId)).thenReturn(Optional.of(inquiry));
+        when(repository.findById(inquiryId2)).thenReturn(Optional.of(inquiry2));
+
+        List<UUID> ids = List.of(inquiryId, inquiryId2);
+
+        // When
+        service.updateStatuses(ids, CustomerInquiry.Status.IN_PROGRESS, operatorInfo);
+
+        // Then
+        verify(inquiry, times(1)).updateStatus(eq(CustomerInquiry.Status.IN_PROGRESS), any());
+        verify(inquiry2, times(1)).updateStatus(eq(CustomerInquiry.Status.IN_PROGRESS), any());
+        verify(repository, times(1)).save(inquiry);
+        verify(repository, times(1)).save(inquiry2);
+        verify(workLogRepository, times(2)).save(any(InquiryWorkLog.class));
+    }
+
+    @Test
     void testUpdateInquiryFields_Success() {
         // Given
         when(repository.findById(inquiryId)).thenReturn(Optional.of(inquiry));
@@ -95,6 +119,7 @@ class CustomerInquiryServiceTest {
                 "user_new",
                 new DeviceInfo("1.1.0", "iPhone", "17.1"),
                 "New content",
+                null, // imageUrls
                 Map.of(
                         "channel", "Correcting channel",
                         "userCode", "Updated user code",
@@ -127,6 +152,7 @@ class CustomerInquiryServiceTest {
                 null,
                 null,
                 null,
+                null, // imageUrls
                 Map.of() // missing reason for channel
         );
 

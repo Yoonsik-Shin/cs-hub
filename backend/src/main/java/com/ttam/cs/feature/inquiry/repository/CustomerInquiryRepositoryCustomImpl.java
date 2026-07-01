@@ -108,8 +108,49 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
         return ids.size();
     }
 
+    @Override
+    public List<UUID> findInquiryIds(
+            List<String> channels,
+            String userCode,
+            List<CustomerInquiry.Status> statuses,
+            String contentKeyword,
+            OffsetDateTime startDateTime,
+            OffsetDateTime endDateTime,
+            Boolean isManual,
+            Boolean bookmarkedOnly,
+            String operatorId,
+            List<UUID> excludedIds,
+            int limit) {
+        if (Boolean.TRUE.equals(bookmarkedOnly) && !StringUtils.hasText(operatorId)) {
+            return List.of();
+        }
+
+        QCustomerInquiry customerInquiry = QCustomerInquiry.customerInquiry;
+        Integer boundedLimit = Math.max(1, limit);
+
+        return queryFactory
+                .select(customerInquiry.id)
+                .from(customerInquiry)
+                .where(
+                        channelIn(channels),
+                        userCodeEq(userCode),
+                        statusIn(statuses),
+                        contentContains(contentKeyword),
+                        timestampBetween(startDateTime, endDateTime),
+                        isManualEq(isManual),
+                        bookmarkedByOperator(bookmarkedOnly, operatorId),
+                        idNotIn(excludedIds))
+                .limit(boundedLimit)
+                .orderBy(customerInquiry.id.desc())
+                .fetch();
+    }
+
     private BooleanExpression cursorLessThan(UUID cursor) {
         return cursor != null ? QCustomerInquiry.customerInquiry.id.lt(cursor) : null;
+    }
+
+    private BooleanExpression idNotIn(List<UUID> excludedIds) {
+        return excludedIds == null || excludedIds.isEmpty() ? null : QCustomerInquiry.customerInquiry.id.notIn(excludedIds);
     }
 
     private BooleanExpression channelIn(List<String> channels) {

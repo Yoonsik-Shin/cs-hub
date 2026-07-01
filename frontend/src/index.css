@@ -154,6 +154,7 @@ body.modal-open {
 
 .dashboard-sidebar {
   width: 280px;
+  min-width: 0;
   max-width: 300px;
   height: 100%;
   background-color: var(--bg-secondary);
@@ -166,6 +167,10 @@ body.modal-open {
   overflow-x: hidden;
   overflow-y: auto;
   transition: width 0.2s ease, padding 0.2s ease;
+}
+
+.dashboard-sidebar * {
+  min-width: 0;
 }
 
 .sidebar-header {
@@ -232,19 +237,47 @@ body.modal-open {
 .dashboard-sidebar .stats-card {
   padding: 12px 14px;
   border-radius: 12px;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .dashboard-sidebar .stats-icon-wrapper {
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
-  font-size: 20px;
+  font-size: 18px;
   flex-shrink: 0;
 }
 
 .dashboard-sidebar .stats-value {
-  font-size: 24px;
+  font-size: 22px;
+}
+
+.dashboard-sidebar .stats-info {
+  min-width: 0;
+}
+
+.dashboard-sidebar .stats-label,
+.dashboard-sidebar .stats-value,
+.dashboard-sidebar .sidebar-header h1,
+.dashboard-sidebar .sidebar-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-sidebar .filter-group {
+  flex: 1 1 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.dashboard-sidebar .date-range-inputs {
+  flex-wrap: wrap;
+}
+
+.dashboard-sidebar .date-range-inputs .date-input {
+  min-width: 0;
+  flex: 1 1 74px;
 }
 
 .collapsed-tooltip {
@@ -519,6 +552,23 @@ body.modal-open {
   flex-direction: column;
   gap: 2px;
   flex: 1;
+}
+
+.dashboard-sidebar .custom-filter-shortcut {
+  gap: 8px;
+  padding: 10px;
+}
+
+.dashboard-sidebar .custom-filter-shortcut-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.dashboard-sidebar .custom-filter-shortcut-badge {
+  max-width: 62px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .custom-filter-shortcut-name {
@@ -974,6 +1024,157 @@ body.modal-open {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.list-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.batch-mode-btn {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  background: #ffffff;
+  color: var(--accent-indigo);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.batch-mode-btn:hover,
+.batch-mode-btn.active {
+  border-color: rgba(79, 70, 229, 0.32);
+  background: rgba(79, 70, 229, 0.08);
+}
+
+.batch-mode-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.batch-workspace-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: calc(100% - 8px);
+  margin: 0 4px;
+  padding: 9px 10px;
+  border: 1px solid rgba(79, 70, 229, 0.20);
+  border-left: 3px solid var(--accent-indigo);
+  border-radius: 8px;
+  background: #f8faff;
+  box-shadow: none;
+  flex-shrink: 0;
+}
+
+.batch-selection-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.batch-scope-label {
+  flex-shrink: 0;
+  color: var(--accent-indigo);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.batch-select-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  border-radius: 6px;
+  background: #ffffff;
+  flex-shrink: 0;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.batch-select-filtered {
+  min-width: 0;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(79, 70, 229, 0.22);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--accent-indigo);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.batch-select-filtered.active {
+  background: var(--accent-indigo);
+  border-color: var(--accent-indigo);
+  color: #ffffff;
+}
+
+.batch-select-filtered.unavailable {
+  color: var(--text-muted);
+  background: rgba(100, 116, 139, 0.06);
+}
+
+.batch-selection-summary {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.08);
+}
+
+.batch-notice {
+  width: 100%;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(217, 119, 6, 0.18);
+  background: rgba(217, 119, 6, 0.06);
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.batch-notice.active {
+  border-color: rgba(79, 70, 229, 0.18);
+  background: rgba(79, 70, 229, 0.06);
+  color: var(--accent-indigo);
 }
 
 /* ══════════════════════════════════════════
@@ -2583,10 +2784,239 @@ body.modal-open {
 .inquiry-scroll-area {
   scrollbar-width: none;
   -ms-overflow-style: none;
-  mask-image: linear-gradient(to bottom, transparent 0%, black 14px, black calc(100% - 14px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 14px, black calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 14px, black 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 14px, black 100%);
 }
 
 .inquiry-scroll-area::-webkit-scrollbar {
   display: none;
+}
+
+/* ──────────────────────────────────────────
+   Batch Status Update Features Styles
+   ────────────────────────────────────────── */
+
+/* Card Checkbox Container */
+.card-checkbox-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 20px;
+  flex-shrink: 0;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+  margin-top: 4px;
+}
+
+.inquiry-card.has-checked {
+  background: rgba(79, 70, 229, 0.02) !important;
+  border-color: rgba(79, 70, 229, 0.2) !important;
+}
+
+/* Custom Checkbox Style */
+.card-checkbox {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border-medium);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  accent-color: var(--accent-indigo);
+}
+
+.card-checkbox:checked {
+  border-color: var(--accent-indigo);
+  background-color: var(--accent-indigo);
+}
+
+.batch-action-panel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: slideUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  flex-shrink: 0;
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.batch-panel-summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.batch-info-count {
+  background: var(--accent-indigo);
+  color: #ffffff;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.batch-actions-section {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.batch-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 27px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.batch-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.batch-action-btn.open-status {
+  color: #f43f5e;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  background: rgba(244, 63, 94, 0.08);
+}
+.batch-action-btn.open-status:hover {
+  background: rgba(244, 63, 94, 0.15);
+  color: #ffffff;
+  background-color: #f43f5e;
+}
+
+.batch-action-btn.inprogress-status {
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.08);
+}
+.batch-action-btn.inprogress-status:hover {
+  background: rgba(99, 102, 241, 0.15);
+  color: #ffffff;
+  background-color: #6366f1;
+}
+
+.batch-action-btn.resolved-status {
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.08);
+}
+.batch-action-btn.resolved-status:hover {
+  background: rgba(148, 163, 184, 0.15);
+  color: #ffffff;
+  background-color: #94a3b8;
+}
+
+.batch-cancel-btn {
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.batch-cancel-btn:hover {
+  color: var(--text-primary);
+  background: rgba(15, 23, 42, 0.05);
+}
+
+@media (max-width: 1180px) {
+  .batch-workspace-panel {
+    padding: 8px;
+  }
+
+  .batch-selection-strip {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .batch-scope-label {
+    flex: 1 1 100%;
+  }
+
+  .batch-select-page {
+    flex: 1 1 calc(50% - 3px);
+    justify-content: center;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .batch-select-filtered {
+    flex: 1 1 calc(50% - 3px);
+    text-align: center;
+  }
+
+  .batch-selection-summary {
+    flex: 1 1 100%;
+    margin-left: 0;
+    text-align: center;
+  }
+
+  .batch-action-panel {
+    align-items: stretch;
+  }
+
+  .batch-panel-summary,
+  .batch-actions-section {
+    width: 100%;
+  }
+
+  .batch-actions-section {
+    justify-content: stretch;
+  }
+
+  .batch-action-btn {
+    flex: 1 1 calc(33.333% - 6px);
+    justify-content: center;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .batch-cancel-btn {
+    flex: 1 1 100%;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+  }
 }

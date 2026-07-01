@@ -1,4 +1,15 @@
-import type { SearchInquiriesParams, SearchInquiriesResponse, InquiryWorkLog, CustomFilterEntity } from '../types/inquiry';
+import type { SearchInquiriesParams, SearchInquiriesResponse, InquiryWorkLog, CustomFilterEntity, InquiryStatus } from '../types/inquiry';
+
+export type BatchUpdateInquiryStatusTarget =
+  | {
+      mode: 'IDS';
+      inquiryIds: string[];
+    }
+  | {
+      mode: 'FILTER';
+      filters: SearchInquiriesParams;
+      excludedInquiryIds: string[];
+    };
 
 /**
  * Helper to build query parameters string from object, omitting undefined/null values
@@ -182,6 +193,28 @@ export const inquiryApi = {
     if (!response.ok) {
       const errorMsg = await response.text();
       throw new Error(`Failed to update status: ${response.status} ${errorMsg}`);
+    }
+  },
+
+  /**
+   * Batch change the status of multiple inquiry tickets
+   */
+  async updateInquiryStatuses(target: BatchUpdateInquiryStatusTarget, status: InquiryStatus): Promise<void> {
+    const response = await fetch('/api/internal/v1/inquiries/batch/status', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        ...target,
+        status,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(`Failed to update status in batch: ${response.status} ${errorMsg}`);
     }
   },
 
