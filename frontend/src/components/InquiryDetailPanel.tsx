@@ -1115,7 +1115,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             <FileText size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
                                             고객 접수 내용
                                         </span>
-                                        <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0, flex: isEditing ? 1 : 'none', display: 'flex', flexDirection: 'column', height: 'auto' }}>
+                                        <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0, flex: 1, display: 'flex', flexDirection: 'column', height: 'auto' }}>
                                             {isEditing ? (
                                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                                                     <textarea
