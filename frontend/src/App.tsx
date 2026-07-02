@@ -1009,7 +1009,8 @@ export const App: React.FC = () => {
           maxWidth: isSidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH}px` : `${SIDEBAR_EXPANDED_WIDTH}px`,
           padding: isSidebarCollapsed ? '20px 0' : undefined,
           alignItems: isSidebarCollapsed ? 'center' : undefined,
-          overflow: isSidebarCollapsed ? 'visible' : 'hidden',
+          overflowX: isSidebarCollapsed ? 'visible' : 'hidden',
+          overflowY: isSidebarCollapsed ? 'visible' : 'auto',
           transition: 'width 0.2s ease',
           gap: isSidebarCollapsed ? '8px' : undefined
         }}
