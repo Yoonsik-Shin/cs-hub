@@ -21,6 +21,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [workLogs, setWorkLogs] = useState<InquiryWorkLog[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [logError, setLogError] = useState<string | null>(null);
+    const [replies, setReplies] = useState<CustomerInquiry[]>([]);
+    const [loadingReplies, setLoadingReplies] = useState(false);
 
     // Resizable columns states
     const [leftWidth, setLeftWidth] = useState(75); // Left Pane % (default 75)
@@ -52,13 +54,15 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     // Confirmation Modal state
     const [modal, setModal] = useState<{
         isOpen: boolean;
-        type: 'STATUS_CHANGE' | 'REGISTER_LOG' | 'EDIT_FIELDS';
+        type: 'STATUS_CHANGE' | 'REGISTER_LOG' | 'EDIT_FIELDS' | 'BOOKMARK';
         targetStatus?: string;
         selectedStatus?: string;
     }>({
         isOpen: false,
         type: 'STATUS_CHANGE',
     });
+
+    const [statusChangeReason, setStatusChangeReason] = useState('');
 
     const [editChannel, setEditChannel] = useState(inquiry.channel);
     const [editUserCode, setEditUserCode] = useState(inquiry.userCode || '');
@@ -210,6 +214,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             case 'INITIAL_SUBMISSION': return '최초 접수';
             case 'PENDING_ACTION': return '처리 대기';
             case 'FIELD_MODIFIED': return '정보 수정';
+            case 'BOOKMARK_ADDED': return '즐겨찾기 등록';
+            case 'BOOKMARK_REMOVED': return '즐겨찾기 해제';
+            case 'CUSTOMER_REPLY': return '고객 회신';
             default: return actionType;
         }
     };
@@ -223,6 +230,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             case 'INITIAL_SUBMISSION': return 'initial';
             case 'PENDING_ACTION': return 'pending';
             case 'FIELD_MODIFIED': return 'modify';
+            case 'BOOKMARK_ADDED':
+            case 'BOOKMARK_REMOVED': return 'bookmark-action';
+            case 'CUSTOMER_REPLY': return 'customer-reply';
             default: return '';
         }
     };
@@ -258,22 +268,35 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         }
     }, [inquiry.id]);
 
+    const fetchReplies = useCallback(async () => {
+        setLoadingReplies(true);
+        try {
+            const childInquiries = await inquiryApi.getReplies(inquiry.id);
+            setReplies(childInquiries);
+        } catch (e) {
+            console.error('Failed to fetch replies:', e);
+        } finally {
+            setLoadingReplies(false);
+        }
+    }, [inquiry.id]);
+
     useEffect(() => {
         fetchWorkLogs();
+        fetchReplies();
         setAnswerText('');
         setMemoText('');
         setIsEditing(false); // Reset edit state when ticket changes
         setIsEditingAnswer(false);
         setActiveImageUrl(null);
         setLastActiveImageUrl(null);
-    }, [inquiry.id, fetchWorkLogs]);
+    }, [inquiry.id, fetchWorkLogs, fetchReplies]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
             scrollToBottom('auto');
         }, 100);
         return () => clearTimeout(timer);
-    }, [workLogs]);
+    }, [workLogs, replies]);
 
     useEffect(() => {
         if (isEditing) {
@@ -298,6 +321,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const handleStatusChangeClick = (newStatus: string) => {
         if (newStatus === inquiry.status) return;
         setLogError(null);
+        setStatusChangeReason('');
         setModal({
             isOpen: true,
             type: 'STATUS_CHANGE',
@@ -316,9 +340,15 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             });
 
             if (modal.selectedStatus && modal.selectedStatus !== inquiry.status) {
+                const changeReason = memoText.trim().length >= 5
+                    ? memoText.trim()
+                    : (answerText.trim().length >= 5
+                        ? answerText.trim()
+                        : '답변/메모 등록에 따른 상태 변경');
                 await inquiryApi.updateInquiryStatus(inquiry.id, {
                     operatorInfo: currentOperator,
-                    status: modal.selectedStatus
+                    status: modal.selectedStatus,
+                    reason: changeReason
                 });
                 if (onUpdateInquiry) {
                     onUpdateInquiry(inquiry.id, { status: modal.selectedStatus as any });
@@ -341,19 +371,25 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const executeStatusChange = async () => {
         const targetStatus = modal.targetStatus;
         if (!targetStatus) return;
+        if (statusChangeReason.trim().length < 5) {
+            setLogError('상태 변경 사유는 최소 5자 이상이어야 합니다.');
+            return;
+        }
 
         setStatusChanging(true);
         setLogError(null);
         try {
             await inquiryApi.updateInquiryStatus(inquiry.id, {
                 operatorInfo: currentOperator,
-                status: targetStatus
+                status: targetStatus,
+                reason: statusChangeReason.trim()
             });
             await fetchWorkLogs();
             if (onUpdateInquiry) {
                 onUpdateInquiry(inquiry.id, { status: targetStatus as any });
             }
             setModal({ isOpen: false, type: 'STATUS_CHANGE' });
+            setStatusChangeReason('');
         } catch (err: any) {
             console.error(err);
             setLogError('상태 변경에 실패했습니다: ' + err.message);
@@ -376,11 +412,21 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         setIsEditing(true);
     };
 
-    const handleToggleBookmark = async () => {
+    const handleToggleBookmark = () => {
+        if (!onToggleBookmark || bookmarkChanging) return;
+        setModal({
+            isOpen: true,
+            type: 'BOOKMARK'
+        });
+    };
+
+    const executeToggleBookmark = async () => {
         if (!onToggleBookmark || bookmarkChanging) return;
         setBookmarkChanging(true);
+        setModal(prev => ({ ...prev, isOpen: false }));
         try {
             await onToggleBookmark(inquiry.id);
+            fetchWorkLogs();
         } finally {
             setBookmarkChanging(false);
         }
@@ -894,11 +940,32 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         currentStatus: 'OPEN'
     });
 
-    // 2. Work logs added in ascending order (reversed from API's descending order)
-    timelineItems.push(...[...workLogs].reverse());
+    const replyTimelineItems = replies.map(reply => ({
+        id: reply.id,
+        actionType: 'CUSTOMER_REPLY',
+        createdAt: reply.timestamp,
+        operatorInfo: {
+            id: 'customer',
+            nickname: reply.userCode || '고객(익명)',
+            email: (reply.channelMetadata as any)?.from || ''
+        },
+        memo: reply.content,
+        answer: '',
+        previousStatus: null,
+        currentStatus: null,
+        imageUrls: reply.imageUrls
+    }));
 
-    // 3. Pending Action Placeholder (Appended at the end of the timeline as it represents pending future action)
-    if (workLogs.length === 0 && inquiry.status !== 'RESOLVED') {
+    // 2. Interleave workLogs and replies chronologically
+    const middleItems = [
+        ...workLogs,
+        ...replyTimelineItems
+    ];
+    middleItems.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    timelineItems.push(...middleItems);
+
+    // 3. Pending Action Placeholder
+    if (workLogs.length === 0 && replies.length === 0 && inquiry.status !== 'RESOLVED') {
         timelineItems.push({
             id: 'pending_action',
             actionType: 'PENDING_ACTION',
@@ -2199,6 +2266,10 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                                     {(log.actionType === 'ANSWER_SUBMITTED' || log.actionType === 'ANSWER_AND_MEMO_SUBMITTED') && <MessageSquare size={10} />}
                                                     {log.actionType === 'MEMO_ADDED' && <Pin size={10} />}
                                                     {log.actionType === 'FIELD_MODIFIED' && <Edit size={10} />}
+                                                    {log.actionType === 'CUSTOMER_REPLY' && <Mail size={10} />}
+                                                    {(log.actionType === 'BOOKMARK_ADDED' || log.actionType === 'BOOKMARK_REMOVED') && (
+                                                        <Star size={10} fill={log.actionType === 'BOOKMARK_ADDED' ? 'currentColor' : 'none'} />
+                                                    )}
                                                 </div>
                                                 <div className="timeline-content">
                                                     <div className="timeline-header">
@@ -2258,6 +2329,52 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                                                 </div>
                                                             ))}
                                                         </div>
+                                                    ) : log.actionType === 'CUSTOMER_REPLY' ? (
+                                                        <div className="timeline-detail-box customer-reply" style={{
+                                                            padding: '12px',
+                                                            background: 'rgba(99, 102, 241, 0.04)',
+                                                            border: '1px solid rgba(99, 102, 241, 0.15)',
+                                                            borderRadius: '8px',
+                                                            fontSize: '12.5px',
+                                                            color: 'var(--text-primary)',
+                                                            marginTop: '6px',
+                                                            lineHeight: '1.4'
+                                                        }}>
+                                                            <div style={{ whiteSpace: 'pre-wrap' }}>
+                                                                {log.memo}
+                                                            </div>
+                                                            {log.imageUrls && log.imageUrls.length > 0 && (
+                                                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                                                    {log.imageUrls.map((url: string, idx: number) => (
+                                                                        <a
+                                                                            key={idx}
+                                                                            href={getDisplayImageUrl(url)}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            onClick={(e) => {
+                                                                                if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                                                                                    e.preventDefault();
+                                                                                    setActiveImageUrl(activeImageUrl === url ? null : url);
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            <img
+                                                                                src={getDisplayImageUrl(url)}
+                                                                                alt={`reply-img-${idx}`}
+                                                                                style={{
+                                                                                    width: '60px',
+                                                                                    height: '60px',
+                                                                                    objectFit: 'cover',
+                                                                                    borderRadius: '6px',
+                                                                                    border: '1px solid var(--border-light)',
+                                                                                    cursor: 'pointer'
+                                                                                }}
+                                                                            />
+                                                                        </a>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     ) : (
                                                         <>
                                                             {log.answer && (
@@ -2293,11 +2410,12 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         setModal({ ...modal, isOpen: false });
                     }}
                 >
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
                         <div className="modal-header">
                             <h3 className="modal-title">
                                 {modal.type === 'STATUS_CHANGE' ? '티켓 상태 변경' :
-                                    modal.type === 'EDIT_FIELDS' ? '문의 정보 수정' : '업무 답변 및 메모 등록'}
+                                    modal.type === 'EDIT_FIELDS' ? '문의 정보 수정' :
+                                    modal.type === 'BOOKMARK' ? '즐겨찾기 상태 변경' : '업무 답변 및 메모 등록'}
                             </h3>
                             <button
                                 type="button"
@@ -2312,8 +2430,42 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         </div>
 
                         {modal.type === 'STATUS_CHANGE' ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                                    티켓 상태를 <strong>[{getStatusKorean(modal.targetStatus || '')}]</strong> 상태로 변경하시겠습니까?
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <label htmlFor="status-change-reason" className="detail-title" style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', margin: 0 }}>
+                                            상태 변경 사유 (필수)
+                                        </label>
+                                        <span style={{ fontSize: '11px', color: statusChangeReason.trim().length >= 5 ? 'var(--accent-indigo)' : 'var(--text-muted)', fontWeight: 500 }}>
+                                            ({statusChangeReason.trim().length} / 최소 5자)
+                                        </span>
+                                    </div>
+                                    <textarea
+                                        id="status-change-reason"
+                                        className="form-textarea"
+                                        placeholder="상태를 변경하는 사유를 5자 이상 입력해주세요..."
+                                        value={statusChangeReason}
+                                        onChange={(e) => setStatusChangeReason(e.target.value)}
+                                        style={{
+                                            minHeight: '80px',
+                                            height: '80px',
+                                            padding: '10px 12px',
+                                            fontSize: '12.5px',
+                                            borderRadius: '8px',
+                                            resize: 'none',
+                                            border: '1px solid var(--border-light)',
+                                            background: '#ffffff'
+                                        }}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                        ) : modal.type === 'BOOKMARK' ? (
                             <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                                티켓 상태를 <strong>[{getStatusKorean(modal.targetStatus || '')}]</strong> 상태로 변경하시겠습니까?
+                                이 문의를 즐겨찾기 <strong>{isBookmarked ? '[해제]' : '[등록]'}</strong> 하시겠습니까?
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -2337,6 +2489,12 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             </div>
                         )}
 
+                        {logError && (
+                            <div style={{ color: '#f87171', fontSize: '12px', padding: '0 4px', marginTop: '4px' }}>
+                                ⚠️ {logError}
+                            </div>
+                        )}
+
                         <div className="modal-footer">
                             <button
                                 type="button"
@@ -2348,17 +2506,24 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             <button
                                 type="button"
                                 className="btn-primary"
-                                disabled={submittingLog || statusChanging}
+                                disabled={
+                                    submittingLog ||
+                                    statusChanging ||
+                                    bookmarkChanging ||
+                                    (modal.type === 'STATUS_CHANGE' && statusChangeReason.trim().length < 5)
+                                }
                                 onClick={() => {
                                     if (modal.type === 'STATUS_CHANGE') {
                                         executeStatusChange();
+                                    } else if (modal.type === 'BOOKMARK') {
+                                        executeToggleBookmark();
                                     } else {
                                         executeRegisterWorkLog();
                                     }
                                 }}
                             >
-                                {submittingLog || statusChanging ? '처리 중...' :
-                                    (modal.type === 'STATUS_CHANGE' ? '확인' : '등록')}
+                                {submittingLog || statusChanging || bookmarkChanging ? '처리 중...' :
+                                    (modal.type === 'STATUS_CHANGE' || modal.type === 'BOOKMARK' ? '확인' : '등록')}
                             </button>
                         </div>
                     </div>

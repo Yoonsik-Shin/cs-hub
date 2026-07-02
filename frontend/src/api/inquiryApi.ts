@@ -180,6 +180,7 @@ export const inquiryApi = {
   async updateInquiryStatus(id: string, data: {
     operatorInfo: { id: string; nickname: string; email: string };
     status: string;
+    reason: string;
   }): Promise<void> {
     const response = await fetch(`/api/internal/v1/inquiries/${id}`, {
       method: 'PATCH',
@@ -199,7 +200,7 @@ export const inquiryApi = {
   /**
    * Batch change the status of multiple inquiry tickets
    */
-  async updateInquiryStatuses(target: BatchUpdateInquiryStatusTarget, status: InquiryStatus): Promise<void> {
+  async updateInquiryStatuses(target: BatchUpdateInquiryStatusTarget, status: InquiryStatus, reason: string): Promise<void> {
     const response = await fetch('/api/internal/v1/inquiries/batch/status', {
       method: 'PATCH',
       headers: {
@@ -209,6 +210,7 @@ export const inquiryApi = {
       body: JSON.stringify({
         ...target,
         status,
+        reason,
       }),
     });
 
@@ -259,6 +261,22 @@ export const inquiryApi = {
     if (!response.ok) {
       const errorMsg = await response.text();
       throw new Error(`Failed to fetch work logs: ${response.status} ${errorMsg}`);
+    }
+
+    return response.json();
+  },
+
+  async getReplies(parentId: string): Promise<CustomerInquiry[]> {
+    const response = await fetch(`/api/internal/v1/inquiries/${parentId}/replies`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(`Failed to fetch replies: ${response.status} ${errorMsg}`);
     }
 
     return response.json();

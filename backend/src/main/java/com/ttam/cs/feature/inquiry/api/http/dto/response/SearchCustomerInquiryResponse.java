@@ -18,7 +18,18 @@ public record SearchCustomerInquiryResponse(
 
     public static SearchCustomerInquiryResponse of(CursorPage<CustomerInquiry> page, String s3UrlPrefix) {
         List<Content> mappedContent = page.content().stream()
-                .map(entity -> new Content(entity, s3UrlPrefix))
+                .map(entity -> new Content(entity, s3UrlPrefix, 0))
+                .toList();
+        return new SearchCustomerInquiryResponse(
+                mappedContent,
+                page.nextCursor(),
+                page.hasNext()
+        );
+    }
+
+    public static SearchCustomerInquiryResponse of(CursorPage<CustomerInquiry> page, String s3UrlPrefix, java.util.Map<UUID, Long> replyCounts) {
+        List<Content> mappedContent = page.content().stream()
+                .map(entity -> new Content(entity, s3UrlPrefix, replyCounts.getOrDefault(entity.getId(), 0L).intValue()))
                 .toList();
         return new SearchCustomerInquiryResponse(
                 mappedContent,
@@ -34,6 +45,8 @@ public record SearchCustomerInquiryResponse(
     public record Content(
             UUID id,
             UUID uniqueKey,
+            UUID parentId,
+            Integer replyCount,
             String channel,
             OffsetDateTime timestamp,
             String userCode,
@@ -47,9 +60,15 @@ public record SearchCustomerInquiryResponse(
             OffsetDateTime updatedAt
     ) {
         public Content(CustomerInquiry entity, String s3UrlPrefix) {
+            this(entity, s3UrlPrefix, 0);
+        }
+
+        public Content(CustomerInquiry entity, String s3UrlPrefix, Integer replyCount) {
             this(
                     entity.getId(),
                     entity.getUniqueKey(),
+                    entity.getParentId(),
+                    replyCount,
                     entity.getChannel(),
                     entity.getTimestamp(),
                     entity.getUserCode(),

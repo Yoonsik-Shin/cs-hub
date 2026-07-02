@@ -24,9 +24,23 @@ public record EmailMetadata(
         return null;
     }
 
+    public String getMessageId() {
+        return headers != null ? headers.messageId() : null;
+    }
+
+    public String getInReplyTo() {
+        return headers != null ? headers.inReplyTo() : null;
+    }
+
+    public String getReferences() {
+        return headers != null ? headers.references() : null;
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Headers(
-        @JsonProperty("message-id") String messageId
+        @JsonProperty("message-id") String messageId,
+        @JsonProperty("in-reply-to") String inReplyTo,
+        @JsonProperty("references") String references
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)

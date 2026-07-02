@@ -93,7 +93,10 @@ public class CustomerInquiryController {
                 externalUrl + bucketName : 
                 externalUrl + "/" + bucketName;
 
-        return ResponseEntity.ok(SearchCustomerInquiryResponse.of(result, s3UrlPrefix));
+        List<UUID> parentIds = result.content().stream().map(CustomerInquiry::getId).toList();
+        java.util.Map<UUID, Long> replyCounts = inquiryService.getReplyCounts(parentIds);
+
+        return ResponseEntity.ok(SearchCustomerInquiryResponse.of(result, s3UrlPrefix, replyCounts));
     }
 
     @Operation(summary = "고객 문의 생성", description = "신규 고객 문의 건을 접수 및 생성합니다.")
@@ -124,9 +127,17 @@ public class CustomerInquiryController {
 
         // 1. 상태 변경 건 처리
         if (request.status() != null) {
+            String statusReason = request.reasons() != null ? request.reasons().get("status") : null;
+            if (statusReason == null || statusReason.trim().isEmpty()) {
+                throw new IllegalArgumentException("상태 변경 사유는 필수입니다.");
+            }
+            if (statusReason.trim().length() < 5) {
+                throw new IllegalArgumentException("상태 변경 사유는 최소 5자 이상이어야 합니다.");
+            }
             UpdateInquiryStatusRequest statusRequest = new UpdateInquiryStatusRequest(
                     request.operatorInfo(),
-                    request.status()
+                    request.status(),
+                    statusReason.trim()
             );
             inquiryService.updateStatus(id, statusRequest);
         }
@@ -172,6 +183,19 @@ public class CustomerInquiryController {
     public ResponseEntity<List<InquiryWorkLogResponse>> getWorkLogs(
             @PathVariable("id") UUID id) {
         List<InquiryWorkLogResponse> result = inquiryService.getWorkLogs(id);
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(summary = "이메일 회신(자식 문의) 목록 조회", description = "특정 문의의 모든 자식 문의 목록을 시간 순으로 조회합니다.")
+    @GetMapping("/{id}/replies")
+    public ResponseEntity<List<SearchCustomerInquiryResponse.Content>> getReplies(
+            @PathVariable("id") UUID id) {
+        String s3UrlPrefix = externalUrl.endsWith("/") ? 
+                externalUrl + bucketName : 
+                externalUrl + "/" + bucketName;
+        List<SearchCustomerInquiryResponse.Content> result = inquiryService.getReplies(id).stream()
+                .map(entity -> new SearchCustomerInquiryResponse.Content(entity, s3UrlPrefix))
+                .toList();
         return ResponseEntity.ok(result);
     }
 

@@ -55,6 +55,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
 
         List<CustomerInquiry> result = query
                 .where(
+                        parentIdIsNull(),
                         channelIn(channels),
                         userCodeEq(userCode),
                         statusIn(statuses),
@@ -95,6 +96,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
         Integer boundedLimit = Math.max(1, limit);
         List<UUID> ids = query
                 .where(
+                        parentIdIsNull(),
                         channelIn(channels),
                         userCodeEq(userCode),
                         statusIn(statuses),
@@ -132,6 +134,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                 .select(customerInquiry.id)
                 .from(customerInquiry)
                 .where(
+                        parentIdIsNull(),
                         channelIn(channels),
                         userCodeEq(userCode),
                         statusIn(statuses),
@@ -151,6 +154,10 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
 
     private BooleanExpression idNotIn(List<UUID> excludedIds) {
         return excludedIds == null || excludedIds.isEmpty() ? null : QCustomerInquiry.customerInquiry.id.notIn(excludedIds);
+    }
+
+    private BooleanExpression parentIdIsNull() {
+        return QCustomerInquiry.customerInquiry.parentId.isNull();
     }
 
     private BooleanExpression channelIn(List<String> channels) {
@@ -211,7 +218,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
 
         StringBuilder sql = new StringBuilder(
                 "INSERT INTO customer_inquiries " +
-                        "(id, unique_key, channel, timestamp, user_code, channel_metadata, device_info, status, content, image_urls, is_manual, created_at, updated_at) "
+                        "(id, unique_key, parent_id, channel, timestamp, user_code, channel_metadata, device_info, status, content, image_urls, is_manual, created_at, updated_at) "
                         +
                         "VALUES ");
 
@@ -220,10 +227,11 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         for (CustomerInquiry inquiry : inquiries) {
-            valuesJoiner.add("(?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, ?, ?)");
+            valuesJoiner.add("(?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, ?, ?)");
 
             params.add(inquiry.getId().toString());
             params.add(inquiry.getUniqueKey().toString());
+            params.add(inquiry.getParentId() != null ? inquiry.getParentId().toString() : null);
             params.add(inquiry.getChannel());
             params.add(Timestamp.from(inquiry.getTimestamp().toInstant()));
             params.add(inquiry.getUserCode());

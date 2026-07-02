@@ -8,7 +8,11 @@ import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.RegisterWorkLogRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryFieldsRequest;
+import com.ttam.cs.feature.inquiry.api.http.dto.request.DataIntegrationPayload;
+import com.ttam.cs.feature.inquiry.domain.EmailMetadata;
 import com.ttam.cs.feature.inquiry.domain.DeviceInfo;
+import com.ttam.cs.feature.inquiry.domain.service.InquiryUniqueKeyGenerator;
+import com.ttam.cs.infra.storage.StorageService;
 import java.util.Map;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +37,12 @@ class CustomerInquiryServiceTest {
 
     @Mock
     private InquiryWorkLogRepository workLogRepository;
+
+    @Mock
+    private InquiryUniqueKeyGenerator uniqueKeyGenerator;
+
+    @Mock
+    private StorageService storageService;
 
     @InjectMocks
     private CustomerInquiryService service;
@@ -69,7 +79,7 @@ class CustomerInquiryServiceTest {
     void testUpdateStatus_Success() {
         // Given
         when(repository.findById(inquiryId)).thenReturn(Optional.of(inquiry));
-        UpdateInquiryStatusRequest request = new UpdateInquiryStatusRequest(operatorInfo, CustomerInquiry.Status.IN_PROGRESS);
+        UpdateInquiryStatusRequest request = new UpdateInquiryStatusRequest(operatorInfo, CustomerInquiry.Status.IN_PROGRESS, "테스트 상태 변경 사유");
 
         // When
         service.updateStatus(inquiryId, request);
@@ -94,7 +104,7 @@ class CustomerInquiryServiceTest {
         List<UUID> ids = List.of(inquiryId, inquiryId2);
 
         // When
-        service.updateStatuses(ids, CustomerInquiry.Status.IN_PROGRESS, operatorInfo);
+        service.updateStatuses(ids, CustomerInquiry.Status.IN_PROGRESS, operatorInfo, "테스트 일괄 상태 변경 사유");
 
         // Then
         verify(inquiry, times(1)).updateStatus(eq(CustomerInquiry.Status.IN_PROGRESS), any());
@@ -161,5 +171,47 @@ class CustomerInquiryServiceTest {
                 service.updateInquiryFields(inquiryId, request, "127.0.0.1")
         );
         assertEquals("channel 수정 사유를 입력해주세요.", exception.getMessage());
+    }
+
+    @Test
+    void testIntegrateInquiries_WithEmailInReplyTo_LinksToParentAndReopens() {
+        // Given
+        UUID parentId = UUID.randomUUID();
+        CustomerInquiry parent = mock(CustomerInquiry.class);
+        when(parent.getId()).thenReturn(parentId);
+        when(parent.getStatus()).thenReturn(CustomerInquiry.Status.RESOLVED);
+
+        EmailMetadata.Headers headers = new EmailMetadata.Headers("<msg-123>", "<parent-msg-id>", "");
+        EmailMetadata channelMetadata = new EmailMetadata(
+                "customer@test.com",
+                "cs@test.com",
+                "Re: 문의드립니다",
+                "2026-07-02T00:00:00Z",
+                headers,
+                null
+        );
+
+        DataIntegrationPayload.IntegrationItem item = new DataIntegrationPayload.IntegrationItem(
+                "2026-07-02T12:00:00Z",
+                "user_01",
+                channelMetadata,
+                null,
+                "회신 내용입니다.",
+                List.of()
+        );
+
+        when(repository.findEmailByMessageId("parent-msg-id")).thenReturn(Optional.of(parent));
+        when(repository.findById(parentId)).thenReturn(Optional.of(parent));
+        when(uniqueKeyGenerator.generateUniqueKey(any(), any(), any(), any(), any()))
+                .thenReturn(UUID.randomUUID());
+
+        // When
+        service.integrateInquiries("EMAIL", List.of(item));
+
+        // Then
+        verify(parent, times(1)).updateStatus(eq(CustomerInquiry.Status.OPEN), any());
+        verify(repository, times(1)).save(parent);
+        verify(workLogRepository, times(1)).save(any(InquiryWorkLog.class));
+        verify(repository, times(1)).bulkInsert(anyList());
     }
 }

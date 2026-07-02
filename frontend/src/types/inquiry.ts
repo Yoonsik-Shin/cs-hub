@@ -16,7 +16,7 @@ export interface FieldModification {
 export interface InquiryWorkLog {
   id: string;
   inquiryId: string;
-  actionType: 'ANSWER_SUBMITTED' | 'MEMO_ADDED' | 'ANSWER_AND_MEMO_SUBMITTED' | 'STATUS_CHANGED' | 'FIELD_MODIFIED';
+  actionType: 'ANSWER_SUBMITTED' | 'MEMO_ADDED' | 'ANSWER_AND_MEMO_SUBMITTED' | 'STATUS_CHANGED' | 'FIELD_MODIFIED' | 'BOOKMARK_ADDED' | 'BOOKMARK_REMOVED';
   answer: string | null;
   memo: string | null;
   operatorInfo: OperatorInfo;
@@ -51,6 +51,8 @@ export interface PhoneMetadata {
 
 export interface CustomerInquiry {
   id: string;
+  parentId: string | null;
+  replyCount?: number;
   channel: string;
   timestamp: string;
   userCode: string | null;

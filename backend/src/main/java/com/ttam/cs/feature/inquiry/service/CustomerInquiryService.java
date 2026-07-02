@@ -1,6 +1,8 @@
 package com.ttam.cs.feature.inquiry.service;
 
 import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.EmailMetadata;
+import com.ttam.cs.feature.inquiry.domain.ChannelMetadata;
 import com.ttam.cs.feature.inquiry.domain.InquiryWorkLog;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
@@ -51,7 +53,8 @@ public class CustomerInquiryService {
                     List<String> relativeUrls = imageUrls != null ?
                             imageUrls.stream().map(storageService::extractObjectKey).toList() :
                             List.of();
-                    return CustomerInquiry.create(
+                    
+                    CustomerInquiry inquiry = CustomerInquiry.create(
                             uniqueKeyGenerator,
                             channel,
                             item.timestamp(),
@@ -62,10 +65,102 @@ public class CustomerInquiryService {
                             relativeUrls,
                             false
                     );
+
+                    UUID parentId = findParentInquiryId(channel, item.channelMetadata());
+                    if (parentId != null) {
+                        inquiry.updateParentId(parentId);
+                        repository.findById(parentId).ifPresent(parent -> {
+                            if (parent.getStatus() == CustomerInquiry.Status.RESOLVED) {
+                                CustomerInquiry.Status previousStatus = parent.getStatus();
+                                parent.updateStatus(CustomerInquiry.Status.OPEN, OffsetDateTime.now(ZoneOffset.UTC));
+                                repository.save(parent);
+                                
+                                InquiryWorkLog workLog = InquiryWorkLog.create(
+                                        parent.getId(),
+                                        InquiryWorkLog.ActionType.STATUS_CHANGED,
+                                        null,
+                                        "[시스템] 회신 메일 유입으로 인해 문의가 다시 오픈되었습니다.",
+                                        new OperatorInfo("system", "시스템", ""),
+                                        previousStatus,
+                                        CustomerInquiry.Status.OPEN
+                                );
+                                workLogRepository.save(workLog);
+                            }
+                        });
+                    }
+
+                    return inquiry;
                 })
                 .toList();
 
         repository.bulkInsert(inquiries);
+    }
+
+    private UUID findParentInquiryId(String channel, ChannelMetadata channelMetadata) {
+        if (!"EMAIL".equalsIgnoreCase(channel) || !(channelMetadata instanceof EmailMetadata emailMeta)) {
+            return null;
+        }
+
+        // 1. 헤더 매칭 (In-Reply-To)
+        String inReplyTo = emailMeta.getInReplyTo();
+        if (inReplyTo != null && !inReplyTo.isBlank()) {
+            String cleanId = inReplyTo.replace("<", "").replace(">", "").trim();
+            var parentOpt = repository.findEmailByMessageId(cleanId);
+            if (parentOpt.isPresent()) {
+                UUID rootId = parentOpt.get().getParentId() != null ? parentOpt.get().getParentId() : parentOpt.get().getId();
+                return rootId;
+            }
+        }
+
+        // 2. 헤더 매칭 (References)
+        String references = emailMeta.getReferences();
+        if (references != null && !references.isBlank()) {
+            String[] refIds = references.split("\\s+");
+            for (String refId : refIds) {
+                if (refId.isBlank()) continue;
+                String cleanRefId = refId.replace("<", "").replace(">", "").trim();
+                var parentOpt = repository.findEmailByMessageId(cleanRefId);
+                if (parentOpt.isPresent()) {
+                    UUID rootId = parentOpt.get().getParentId() != null ? parentOpt.get().getParentId() : parentOpt.get().getId();
+                    return rootId;
+                }
+            }
+        }
+
+        // 3. 대체 매칭 (Subject + Sender + Timeframe: 7 days)
+        String subject = emailMeta.subject();
+        String from = emailMeta.from();
+        if (subject != null && !subject.isBlank() && from != null && !from.isBlank()) {
+            String normalizedSubject = subject.replaceAll("^(?i)(re\\s*:\\s*|re\\s*:\\s*|fw\\s*:\\s*|fwd\\s*:\\s*|회신\\s*:\\s*)+", "").trim();
+            String fromEmail = extractEmailAddress(from);
+            if (fromEmail != null && !fromEmail.isBlank()) {
+                OffsetDateTime since = OffsetDateTime.now(ZoneOffset.UTC).minusDays(7);
+                List<CustomerInquiry> candidates = repository.findEmailCandidatesBySender(fromEmail, since);
+                for (CustomerInquiry candidate : candidates) {
+                    if (candidate.getChannelMetadata() instanceof EmailMetadata candMeta) {
+                        String candSubject = candMeta.subject();
+                        if (candSubject != null) {
+                            String candNormSubject = candSubject.replaceAll("^(?i)(re\\s*:\\s*|re\\s*:\\s*|fw\\s*:\\s*|fwd\\s*:\\s*|회신\\s*:\\s*)+", "").trim();
+                            if (candNormSubject.equalsIgnoreCase(normalizedSubject)) {
+                                UUID rootId = candidate.getParentId() != null ? candidate.getParentId() : candidate.getId();
+                                return rootId;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private String extractEmailAddress(String from) {
+        if (from == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("<([^>]+)>").matcher(from);
+        if (m.find()) {
+            return m.group(1).trim();
+        }
+        return from.trim();
     }
 
     @Transactional(readOnly = true)
@@ -175,7 +270,7 @@ public class CustomerInquiryService {
                 inquiryId,
                 InquiryWorkLog.ActionType.STATUS_CHANGED,
                 null,
-                null,
+                request.reason(),
                 request.operatorInfo(),
                 previousStatus,
                 newStatus
@@ -185,7 +280,7 @@ public class CustomerInquiryService {
     }
 
     @Transactional
-    public void updateStatuses(List<UUID> inquiryIds, CustomerInquiry.Status newStatus, OperatorInfo operatorInfo) {
+    public void updateStatuses(List<UUID> inquiryIds, CustomerInquiry.Status newStatus, OperatorInfo operatorInfo, String reason) {
         if (inquiryIds == null || inquiryIds.isEmpty()) {
             throw new IllegalArgumentException("변경할 문의를 선택해 주세요.");
         }
@@ -211,7 +306,7 @@ public class CustomerInquiryService {
                     inquiryId,
                     InquiryWorkLog.ActionType.STATUS_CHANGED,
                     null,
-                    null,
+                    reason,
                     operatorInfo,
                     previousStatus,
                     newStatus
@@ -224,7 +319,7 @@ public class CustomerInquiryService {
     @Transactional
     public void updateStatuses(BatchUpdateInquiryStatusRequest request, OperatorInfo operatorInfo, String operatorId) {
         if (request.mode() == BatchUpdateInquiryStatusRequest.TargetMode.IDS) {
-            updateStatuses(request.inquiryIds(), request.status(), operatorInfo);
+            updateStatuses(request.inquiryIds(), request.status(), operatorInfo, request.reason());
             return;
         }
 
@@ -251,7 +346,7 @@ public class CustomerInquiryService {
             throw new IllegalArgumentException("변경할 문의를 선택해 주세요.");
         }
 
-        updateStatuses(ids, request.status(), operatorInfo);
+        updateStatuses(ids, request.status(), operatorInfo, request.reason());
     }
 
     @Transactional
@@ -363,5 +458,25 @@ public class CustomerInquiryService {
         return workLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId).stream()
                 .map(InquiryWorkLogResponse::new)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerInquiry> getReplies(UUID parentId) {
+        return repository.findByParentIdOrderByTimestampAsc(parentId);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<UUID, Long> getReplyCounts(List<UUID> parentIds) {
+        if (parentIds == null || parentIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Object[]> results = repository.countRepliesByParentIds(parentIds);
+        Map<UUID, Long> countMap = new java.util.HashMap<>();
+        for (Object[] row : results) {
+            if (row[0] != null && row[1] != null) {
+                countMap.put((UUID) row[0], ((Number) row[1]).longValue());
+            }
+        }
+        return countMap;
     }
 }

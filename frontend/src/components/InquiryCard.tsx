@@ -143,6 +143,26 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({
               <Star size={10} fill="currentColor" />
             </span>
           )}
+          {inquiry.replyCount !== undefined && inquiry.replyCount > 0 && (
+            <span
+              className="thread-badge"
+              style={{
+                background: 'rgba(99, 102, 241, 0.12)',
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                color: 'var(--accent-indigo)',
+                fontSize: '10px',
+                fontWeight: '700',
+                padding: '2px 5px',
+                borderRadius: '4px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px'
+              }}
+              title={`회신 메일 ${inquiry.replyCount}개`}
+            >
+              💬 {inquiry.replyCount}
+            </span>
+          )}
         </div>
         <span className={`status-badge ${statusClass}`} style={{ flexShrink: 0 }}>
           {statusInfo.icon}

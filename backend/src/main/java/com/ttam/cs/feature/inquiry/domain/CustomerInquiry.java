@@ -43,6 +43,9 @@ public class CustomerInquiry {
     @Column(name = "unique_key", nullable = false, unique = true)
     private UUID uniqueKey;
 
+    @Column(name = "parent_id")
+    private UUID parentId;
+
     @Column(name = "channel", nullable = false, length = 50)
     private String channel;
 
@@ -206,6 +209,10 @@ public class CustomerInquiry {
 
     public void updateImageUrls(List<String> imageUrls) {
         this.imageUrls = imageUrls != null ? imageUrls : List.of();
+    }
+
+    public void updateParentId(UUID parentId) {
+        this.parentId = parentId;
     }
 
     public void updateTimestamp(OffsetDateTime updatedAt) {
