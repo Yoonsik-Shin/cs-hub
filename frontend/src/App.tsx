@@ -72,11 +72,13 @@ export const App: React.FC = () => {
     targetStatus: InquiryStatus | null;
     isSubmitting: boolean;
     error: string | null;
+    reason: string;
   }>({
     isOpen: false,
     targetStatus: null,
     isSubmitting: false,
-    error: null
+    error: null,
+    reason: ''
   });
 
   // Stats states
@@ -676,6 +678,7 @@ export const App: React.FC = () => {
   const handleExecuteBatchStatusUpdate = async () => {
     const selectedBatchCount = selectedInquiryIds.size;
     if (selectedBatchCount === 0 || !batchModal.targetStatus) return;
+    if (!batchModal.reason || batchModal.reason.trim().length < 5) return;
 
     setBatchModal((prev) => ({ ...prev, isSubmitting: true, error: null }));
     try {
@@ -693,7 +696,7 @@ export const App: React.FC = () => {
             mode: 'IDS',
             inquiryIds: Array.from(selectedInquiryIds),
           };
-      await inquiryApi.updateInquiryStatuses(target, batchModal.targetStatus);
+      await inquiryApi.updateInquiryStatuses(target, batchModal.targetStatus, batchModal.reason.trim());
 
       // Successfully updated! Refresh starting from Page 1 to clear obsolete cache
       await fetchPage(null);
@@ -711,7 +714,8 @@ export const App: React.FC = () => {
         isOpen: false,
         targetStatus: null,
         isSubmitting: false,
-        error: null
+        error: null,
+        reason: ''
       });
       setSelectedInquiryIds(new Set());
       setBatchSelectionScope('PAGE');
@@ -1517,7 +1521,7 @@ export const App: React.FC = () => {
                       type="button"
                       className="batch-status-btn open"
                       disabled={selectedBatchCount === 0}
-                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null })}
+                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null, reason: '' })}
                     >
                       미처리
                     </button>
@@ -1525,7 +1529,7 @@ export const App: React.FC = () => {
                       type="button"
                       className="batch-status-btn in-progress"
                       disabled={selectedBatchCount === 0}
-                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null })}
+                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null, reason: '' })}
                     >
                       진행중
                     </button>
@@ -1533,7 +1537,7 @@ export const App: React.FC = () => {
                       type="button"
                       className="batch-status-btn resolved"
                       disabled={selectedBatchCount === 0}
-                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null })}
+                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null, reason: '' })}
                     >
                       완료
                     </button>
@@ -1582,21 +1586,21 @@ export const App: React.FC = () => {
                   <button
                     type="button"
                     className="batch-action-btn open-status"
-                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null })}
+                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null, reason: '' })}
                   >
                     미처리
                   </button>
                   <button
                     type="button"
                     className="batch-action-btn inprogress-status"
-                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null })}
+                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null, reason: '' })}
                   >
                     진행중
                   </button>
                   <button
                     type="button"
                     className="batch-action-btn resolved-status"
-                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null })}
+                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null, reason: '' })}
                   >
                     완료
                   </button>
@@ -1719,7 +1723,7 @@ export const App: React.FC = () => {
               <button 
                 type="button" 
                 className="close-btn" 
-                onClick={() => setBatchModal({ isOpen: false, targetStatus: null, isSubmitting: false, error: null })}
+                onClick={() => setBatchModal({ isOpen: false, targetStatus: null, isSubmitting: false, error: null, reason: '' })}
               >
                 <X size={20} />
               </button>
@@ -1738,17 +1742,47 @@ export const App: React.FC = () => {
               </strong>
                상태로 일괄 변경하시겠습니까?
             </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label htmlFor="batch-change-reason" style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                  일괄 변경 사유 (필수)
+                </label>
+                <span style={{ fontSize: '11px', color: (batchModal.reason || '').trim().length >= 5 ? 'var(--accent-indigo)' : 'var(--text-muted)', fontWeight: 500 }}>
+                  ({(batchModal.reason || '').trim().length} / 최소 5자)
+                </span>
+              </div>
+              <textarea
+                id="batch-change-reason"
+                className="form-textarea"
+                placeholder="일괄 상태를 변경하는 사유를 5자 이상 입력해주세요..."
+                value={batchModal.reason || ''}
+                onChange={(e) => setBatchModal(prev => ({ ...prev, reason: e.target.value }))}
+                style={{
+                  minHeight: '80px',
+                  height: '80px',
+                  padding: '10px 12px',
+                  fontSize: '12.5px',
+                  borderRadius: '8px',
+                  resize: 'none',
+                  border: '1px solid var(--border-light)',
+                  background: '#ffffff',
+                  width: '100%',
+                  boxSizing: 'border-box'
+                }}
+                required
+              />
+            </div>
             {batchModal.error && (
-              <div style={{ color: '#ef4444', fontSize: '13px', background: 'rgba(239, 68, 68, 0.08)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+              <div style={{ color: '#ef4444', fontSize: '13px', background: 'rgba(239, 68, 68, 0.08)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)', marginTop: '12px' }}>
                 ⚠️ {batchModal.error}
               </div>
             )}
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
               <button
                 type="button"
                 className="secondary-btn"
                 disabled={batchModal.isSubmitting}
-                onClick={() => setBatchModal({ isOpen: false, targetStatus: null, isSubmitting: false, error: null })}
+                onClick={() => setBatchModal({ isOpen: false, targetStatus: null, isSubmitting: false, error: null, reason: '' })}
                 style={{
                   padding: '8px 16px',
                   borderRadius: '8px',
@@ -1765,7 +1799,7 @@ export const App: React.FC = () => {
               <button
                 type="button"
                 className="primary-btn"
-                disabled={batchModal.isSubmitting}
+                disabled={batchModal.isSubmitting || !(batchModal.reason || '').trim() || (batchModal.reason || '').trim().length < 5}
                 onClick={handleExecuteBatchStatusUpdate}
                 style={{
                   padding: '8px 16px',
