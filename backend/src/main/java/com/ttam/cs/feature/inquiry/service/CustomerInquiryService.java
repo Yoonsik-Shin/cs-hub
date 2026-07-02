@@ -48,6 +48,9 @@ public class CustomerInquiryService {
                     if ((imageUrls == null || imageUrls.isEmpty()) && item.channelMetadata() instanceof com.ttam.cs.feature.inquiry.domain.NaverCafeMetadata cafeMeta) {
                         imageUrls = cafeMeta.imageUrls();
                     }
+                    List<String> relativeUrls = imageUrls != null ?
+                            imageUrls.stream().map(storageService::extractObjectKey).toList() :
+                            List.of();
                     return CustomerInquiry.create(
                             uniqueKeyGenerator,
                             channel,
@@ -56,7 +59,7 @@ public class CustomerInquiryService {
                             item.channelMetadata(),
                             item.deviceInfo(),
                             item.content(),
-                            imageUrls,
+                            relativeUrls,
                             false
                     );
                 })
@@ -98,6 +101,9 @@ public class CustomerInquiryService {
 
     @Transactional
     public UUID create(CreateInquiryRequest request) {
+        List<String> relativeUrls = request.imageUrls() != null ?
+                request.imageUrls().stream().map(storageService::extractObjectKey).toList() :
+                List.of();
         CustomerInquiry inquiry = CustomerInquiry.create(
                 uniqueKeyGenerator,
                 request.channel(),
@@ -106,7 +112,7 @@ public class CustomerInquiryService {
                 request.channelMetadata(),
                 request.deviceInfo(),
                 request.content(),
-                request.imageUrls() != null ? request.imageUrls() : List.of(),
+                relativeUrls,
                 true);
         repository.save(inquiry);
         return inquiry.getId();
@@ -313,10 +319,12 @@ public class CustomerInquiryService {
         // Check imageUrls (null = no change; non-null list = explicitly replace)
         if (request.imageUrls() != null) {
             List<String> currentUrls = inquiry.getImageUrls() != null ? inquiry.getImageUrls() : List.of();
-            List<String> newUrls = request.imageUrls();
+            List<String> newRelativeUrls = request.imageUrls().stream()
+                    .map(storageService::extractObjectKey)
+                    .toList();
             // Find removed URLs and delete from MinIO
             List<String> removed = currentUrls.stream()
-                    .filter(url -> !newUrls.contains(url))
+                    .filter(url -> !newRelativeUrls.contains(url))
                     .toList();
             for (String url : removed) {
                 try {
@@ -325,12 +333,12 @@ public class CustomerInquiryService {
                     log.warn("MinIO 이미지 삭제 실패 (계속 진행): {}", url, e);
                 }
             }
-            if (!newUrls.equals(currentUrls)) {
+            if (!newRelativeUrls.equals(currentUrls)) {
                 modifications.add(new FieldModification("imageUrls",
                         String.valueOf(currentUrls.size()) + "개",
-                        String.valueOf(newUrls.size()) + "개",
+                        String.valueOf(newRelativeUrls.size()) + "개",
                         "이미지 첨부 변경"));
-                inquiry.updateImageUrls(newUrls);
+                inquiry.updateImageUrls(newRelativeUrls);
             }
         }
 

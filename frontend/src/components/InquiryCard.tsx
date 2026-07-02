@@ -10,6 +10,7 @@ interface InquiryCardProps {
   showCheckbox?: boolean;
   isChecked?: boolean;
   onCheckboxChange?: (id: string, checked: boolean) => void;
+  index?: number;
 }
 
 export const InquiryCard: React.FC<InquiryCardProps> = ({ 
@@ -19,7 +20,8 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({
   onClick,
   showCheckbox = false,
   isChecked = false,
-  onCheckboxChange
+  onCheckboxChange,
+  index
 }) => {
   const formatDate = (dateStr: string) => {
     try {
@@ -74,8 +76,13 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({
     <div
       className={`inquiry-card ${statusClass}${isSelected ? ' selected' : ''}${isChecked ? ' has-checked' : ''}`}
       onClick={onClick}
-      style={showCheckbox ? { display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'flex-start' } : undefined}
+      style={(showCheckbox || index !== undefined) ? { display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'flex-start' } : undefined}
     >
+      {index !== undefined && (
+        <div className="inquiry-card-index-container">
+          {index}
+        </div>
+      )}
       {(showCheckbox || isChecked) && (
         <div 
           className="card-checkbox-container"

@@ -77,7 +77,26 @@ public class StorageService {
     /**
      * 다운로드 URL에서 오브젝트 키(버킷명 이후의 경로)를 추출합니다.
      */
-    private String extractObjectKey(String objectKeyOrUrl) {
+    public String extractObjectKey(String objectKeyOrUrl) {
+        if (objectKeyOrUrl == null) {
+            return null;
+        }
+
+        // 1. /attachments/{bucket}/ 형태가 포함되어 있으면 그 뒤의 경로 추출
+        String proxyMarker = "/attachments/" + bucketName + "/";
+        int proxyIndex = objectKeyOrUrl.indexOf(proxyMarker);
+        if (proxyIndex != -1) {
+            return objectKeyOrUrl.substring(proxyIndex + proxyMarker.length());
+        }
+
+        // 2. /{bucket}/ 형태가 포함되어 있으면 그 뒤의 경로 추출
+        String directMarker = "/" + bucketName + "/";
+        int directIndex = objectKeyOrUrl.indexOf(directMarker);
+        if (directIndex != -1 && (objectKeyOrUrl.startsWith("http://") || objectKeyOrUrl.startsWith("https://"))) {
+            return objectKeyOrUrl.substring(directIndex + directMarker.length());
+        }
+
+        // 3. prefix와 비교하는 fallback 로직
         String prefix = externalUrl.endsWith("/") ?
                 externalUrl + bucketName + "/" :
                 externalUrl + "/" + bucketName + "/";
@@ -85,6 +104,7 @@ public class StorageService {
         if (objectKeyOrUrl.startsWith(prefix)) {
             return objectKeyOrUrl.substring(prefix.length());
         }
+
         // 이미 objectKey 형태인 경우 그대로 반환
         return objectKeyOrUrl;
     }

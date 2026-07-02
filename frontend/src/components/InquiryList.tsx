@@ -64,10 +64,11 @@ export const InquiryList: React.FC<InquiryListProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div className={`inquiry-list${isBatchSelectionMode ? ' selection-active' : ''}`}>
-        {inquiries.map((inquiry) => (
+        {inquiries.map((inquiry, index) => (
           <InquiryCard 
             key={inquiry.id} 
             inquiry={inquiry} 
+            index={isBatchSelectionMode ? index + 1 : undefined}
             isSelected={inquiry.id === selectedInquiryId}
             isBookmarked={bookmarkedIds.has(inquiry.id)}
             onClick={() => onSelectInquiry(inquiry.id)}
