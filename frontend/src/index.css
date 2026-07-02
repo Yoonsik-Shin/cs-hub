@@ -1733,7 +1733,7 @@ body.modal-open {
 .modal-content {
   background: #ffffff;
   width: 90%;
-  max-width: 900px;
+  max-width: 520px;
   padding: 32px;
   border-radius: 20px;
   display: flex;
@@ -1988,7 +1988,8 @@ body.modal-open {
 .timeline-item.status-change,
 .timeline-item.initial,
 .timeline-item.modify,
-.timeline-item.pending {
+.timeline-item.pending,
+.timeline-item.bookmark-action {
   border: none !important;
   border-left: none !important;
   background: transparent !important;
@@ -2051,6 +2052,12 @@ body.modal-open {
   box-shadow: none;
 }
 
+.timeline-dot.bookmark-action {
+  background: #fffbeb;
+  color: #d97706;
+  box-shadow: 0 0 0 1.5px rgba(217, 119, 6, 0.25);
+}
+
 .timeline-content {
   font-size: 13px;
   color: var(--text-primary);
@@ -2104,6 +2111,11 @@ body.modal-open {
 .timeline-action.modify {
   color: var(--accent-violet);
   background: rgba(124, 58, 237, 0.12);
+}
+
+.timeline-action.bookmark-action {
+  color: #b45309;
+  background: rgba(217, 119, 6, 0.1);
 }
 
 .timeline-operator {

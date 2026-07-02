@@ -32,7 +32,9 @@ public class InquiryWorkLog {
         MEMO_ADDED,
         ANSWER_AND_MEMO_SUBMITTED,
         STATUS_CHANGED,
-        FIELD_MODIFIED
+        FIELD_MODIFIED,
+        BOOKMARK_ADDED,
+        BOOKMARK_REMOVED
     }
 
     @Enumerated(EnumType.STRING)
