@@ -11,6 +11,7 @@ interface InquiryListProps {
   selectedInquiryIds?: Set<string>;
   onToggleSelectInquiry?: (id: string, checked: boolean) => void;
   isBatchSelectionMode?: boolean;
+  indexOffset?: number;
 }
 
 export const InquiryList: React.FC<InquiryListProps> = ({ 
@@ -21,7 +22,8 @@ export const InquiryList: React.FC<InquiryListProps> = ({
   bookmarkedIds = new Set(),
   selectedInquiryIds = new Set(),
   onToggleSelectInquiry,
-  isBatchSelectionMode = false
+  isBatchSelectionMode = false,
+  indexOffset = 0
 }) => {
   if (loading) {
     return (
@@ -68,7 +70,7 @@ export const InquiryList: React.FC<InquiryListProps> = ({
           <InquiryCard 
             key={inquiry.id} 
             inquiry={inquiry} 
-            index={isBatchSelectionMode ? index + 1 : undefined}
+            index={index + 1 + indexOffset}
             isSelected={inquiry.id === selectedInquiryId}
             isBookmarked={bookmarkedIds.has(inquiry.id)}
             onClick={() => onSelectInquiry(inquiry.id)}

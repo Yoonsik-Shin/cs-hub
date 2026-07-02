@@ -76,13 +76,8 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({
     <div
       className={`inquiry-card ${statusClass}${isSelected ? ' selected' : ''}${isChecked ? ' has-checked' : ''}`}
       onClick={onClick}
-      style={(showCheckbox || index !== undefined) ? { display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'flex-start' } : undefined}
+      style={showCheckbox ? { display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'flex-start' } : undefined}
     >
-      {index !== undefined && (
-        <div className="inquiry-card-index-container">
-          {index}
-        </div>
-      )}
       {(showCheckbox || isChecked) && (
         <div 
           className="card-checkbox-container"
@@ -116,6 +111,11 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({
       {/* Row 1: Channel badge ← → Status badge */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, flexWrap: 'wrap' }}>
+          {index !== undefined && (
+            <div className="inquiry-card-index-container">
+              #{index}
+            </div>
+          )}
           <span className={`channel-badge ${channelInfo.className}`}>
             {channelInfo.icon}
             {channelInfo.label}

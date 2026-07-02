@@ -45,9 +45,6 @@ export const App: React.FC = () => {
     bookmarkedOnly: false,
   });
 
-  // Pagination states (Cursor Stack for page-like navigation)
-  // cursorStack holds the starting cursor for each page. Page 1 starts with null.
-  const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Data states
@@ -63,6 +60,12 @@ export const App: React.FC = () => {
   const [isBatchSelectionMode, setIsBatchSelectionMode] = useState(false);
   const [batchSelectionScope, setBatchSelectionScope] = useState<BatchSelectionScope>('PAGE');
   const [selectedInquiryIds, setSelectedInquiryIds] = useState<Set<string>>(new Set());
+  const [batchBaseOffset, setBatchBaseOffset] = useState(0);
+  const [pageCache, setPageCache] = useState<Record<number, {
+    inquiries: CustomerInquiry[];
+    nextCursor: string | null;
+    hasNext: boolean;
+  }>>({});
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [batchModal, setBatchModal] = useState<{
     isOpen: boolean;
@@ -423,12 +426,25 @@ export const App: React.FC = () => {
 
       const res = await inquiryApi.searchInquiries({
         ...searchParams,
-        size: 10,
+        size: 20,
       });
 
       setInquiries(res.content);
       setHasNext(res.hasNext);
       setNextCursor(res.nextCursor);
+
+      // Cache Page 1 on initial fetch or when cursorVal is null
+      if (!cursorVal) {
+        setPageCache({
+          1: {
+            inquiries: res.content,
+            nextCursor: res.nextCursor,
+            hasNext: res.hasNext
+          }
+        });
+        setCurrentPage(1);
+        setSelectedInquiryId(null);
+      }
 
       // Fetch matching inquiries count with 100 limit
       const countRes = await inquiryApi.countInquiries({
@@ -452,7 +468,7 @@ export const App: React.FC = () => {
       const searchParams = buildCurrentSearchParams(nextCursor);
       const res = await inquiryApi.searchInquiries({
         ...searchParams,
-        size: 10,
+        size: 20,
       });
 
       setInquiries((prev) => {
@@ -463,7 +479,6 @@ export const App: React.FC = () => {
       setHasNext(res.hasNext);
       setNextCursor(res.nextCursor);
       setCurrentPage((prev) => prev + 1);
-      setCursorStack((prev) => [...prev, nextCursor]);
     } catch (err) {
       console.error(err);
     } finally {
@@ -493,8 +508,7 @@ export const App: React.FC = () => {
 
   // Load inquiries when filters change or page index changes
   useEffect(() => {
-    // Reset cursor stack to Page 1 when search filters change
-    setCursorStack([null]);
+    // Reset page to Page 1 when search filters change
     setCurrentPage(1);
     fetchPage(null);
   }, [queryFilters, fetchPage]);
@@ -502,8 +516,7 @@ export const App: React.FC = () => {
   // Auto-select first item when inquiries list loads or changes
   useEffect(() => {
     if (inquiries.length > 0) {
-      const exists = inquiries.some(inq => inq.id === selectedInquiryId);
-      if (!exists) {
+      if (!selectedInquiryId) {
         setSelectedInquiryId(inquiries[0].id);
       }
     } else {
@@ -532,39 +545,96 @@ export const App: React.FC = () => {
   }, [fetchStats, fetchNaverSessionStatus]);
 
   // Pagination Handlers
-  const handleNextPage = () => {
+  const handleNextPage = async () => {
     if (hasNext && nextCursor) {
-      // Push next cursor to stack and fetch
-      setCursorStack((prev) => [...prev, nextCursor]);
-      setCurrentPage((prev) => prev + 1);
-      fetchPage(nextCursor);
+      const targetPage = currentPage + 1;
+      
+      // If Page is already cached
+      if (pageCache[targetPage]) {
+        const cacheEntry = pageCache[targetPage];
+        setInquiries(cacheEntry.inquiries);
+        setHasNext(cacheEntry.hasNext);
+        setNextCursor(cacheEntry.nextCursor);
+        setCurrentPage(targetPage);
+        return;
+      }
+
+      // If not cached, fetch from API
+      setLoading(true);
+      setError(null);
+      try {
+        const searchParams = buildCurrentSearchParams(nextCursor);
+        const res = await inquiryApi.searchInquiries({
+          ...searchParams,
+          size: 20,
+        });
+
+        // Cache the newly fetched page
+        setPageCache((prev) => ({
+          ...prev,
+          [targetPage]: {
+            inquiries: res.content,
+            nextCursor: res.nextCursor,
+            hasNext: res.hasNext
+          }
+        }));
+
+        // Set inquiries for the target page
+        setInquiries(res.content);
+        setHasNext(res.hasNext);
+        setNextCursor(res.nextCursor);
+        setCurrentPage(targetPage);
+      } catch (err) {
+        console.error(err);
+        setError('데이터를 불러오는 중 문제가 발생했습니다.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      // Pop last cursor from stack
-      const newStack = [...cursorStack];
-      newStack.pop();
-      const prevCursorVal = newStack[newStack.length - 1]; // Top of stack is previous page cursor
-      setCursorStack(newStack);
-      setCurrentPage((prev) => prev - 1);
-      fetchPage(prevCursorVal);
+  const handlePageClick = useCallback(async (p: number) => {
+    if (p === currentPage || p < 1) return;
+
+    if (pageCache[p]) {
+      const cacheEntry = pageCache[p];
+      setInquiries(cacheEntry.inquiries);
+      setHasNext(cacheEntry.hasNext);
+      setNextCursor(cacheEntry.nextCursor);
+      setCurrentPage(p);
+    } else {
+      if (p === currentPage + 1 && hasNext && nextCursor) {
+        handleNextPage();
+      }
     }
-  };
+  }, [currentPage, pageCache, hasNext, nextCursor]);
 
   const handleUpdateInquiry = useCallback((id: string, updatedFields: Partial<CustomerInquiry>) => {
     setInquiries((prev) =>
       prev.map((inq) => (inq.id === id ? { ...inq, ...updatedFields } : inq))
     );
+    setPageCache((prev) => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach((key) => {
+        const pageNum = Number(key);
+        updated[pageNum] = {
+          ...updated[pageNum],
+          inquiries: updated[pageNum].inquiries.map((inq) =>
+            inq.id === id ? { ...inq, ...updatedFields } : inq
+          ),
+        };
+      });
+      return updated;
+    });
     fetchStats();
   }, [fetchStats]);
 
   // Batch Selection Handlers
   const handleStartBatchSelection = useCallback(() => {
     setIsBatchSelectionMode(true);
+    setBatchBaseOffset((currentPage - 1) * 20);
     setBatchNotice(null);
-  }, []);
+  }, [currentPage]);
 
   const handleCancelBatchSelection = useCallback(() => {
     setSelectedInquiryIds(new Set());
@@ -625,9 +695,8 @@ export const App: React.FC = () => {
           };
       await inquiryApi.updateInquiryStatuses(target, batchModal.targetStatus);
 
-      // Successfully updated! Refresh current page
-      const currentCursorVal = cursorStack[currentPage - 1] || null;
-      await fetchPage(currentCursorVal);
+      // Successfully updated! Refresh starting from Page 1 to clear obsolete cache
+      await fetchPage(null);
 
       // Refresh Stats
       await fetchStats();
@@ -926,7 +995,18 @@ export const App: React.FC = () => {
     }
   };
 
-  const selectedInquiry = inquiries.find(inq => inq.id === selectedInquiryId);
+  const findSelectedInquiry = () => {
+    if (!selectedInquiryId) return undefined;
+    const found = inquiries.find((inq) => inq.id === selectedInquiryId);
+    if (found) return found;
+    for (const pageNum of Object.keys(pageCache).map(Number)) {
+      const cacheEntry = pageCache[pageNum];
+      const cachedFound = cacheEntry.inquiries.find((inq) => inq.id === selectedInquiryId);
+      if (cachedFound) return cachedFound;
+    }
+    return undefined;
+  };
+  const selectedInquiry = findSelectedInquiry();
   const effectiveVisibleSelectedIds = selectedInquiryIds;
   const selectedBatchCount = selectedInquiryIds.size;
   const allVisibleSelected = inquiries.length > 0 && inquiries.every((inquiry) => selectedInquiryIds.has(inquiry.id));
@@ -1291,15 +1371,15 @@ export const App: React.FC = () => {
                 </span>
               </div>
               <div className="list-header-actions">
-                {inquiries.length > 0 && !loading && (
+                {inquiries.length > 0 && !loading && !isBatchSelectionMode && (
                   <button
                     type="button"
-                    className={`batch-mode-btn${isBatchSelectionMode ? ' active' : ''}`}
-                    onClick={isBatchSelectionMode ? handleCancelBatchSelection : handleStartBatchSelection}
-                    title={isBatchSelectionMode ? '배치 선택 종료' : '여러 문의를 선택해 상태를 일괄 변경'}
+                    className="batch-mode-btn"
+                    onClick={handleStartBatchSelection}
+                    title="여러 문의를 선택해 상태를 일괄 변경"
                   >
                     <ListChecks size={14} />
-                    <span>{isBatchSelectionMode ? '선택 종료' : '배치 처리'}</span>
+                    <span>배치 처리</span>
                   </button>
                 )}
                 <button
@@ -1343,12 +1423,21 @@ export const App: React.FC = () => {
             {/* Scrollable list area — flex:1 so it fills remaining height */}
             {isBatchSelectionMode && inquiries.length > 0 && !loading ? (
               <div className="batch-workspace-container">
-                <div className="batch-workspace-controls">
+                <div className="batch-workspace-controls-top">
                   <div className="batch-control-header">
-                    <span className="batch-workspace-title">일괄 처리 모드</span>
-                    <span className="batch-selection-badge">
-                      {selectedBatchCount}개 선택됨
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="batch-workspace-title">일괄 처리 모드</span>
+                      <span className="batch-selection-badge">
+                        {selectedBatchCount}개 선택됨
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="batch-btn-cancel-top"
+                      onClick={handleCancelBatchSelection}
+                    >
+                      선택 종료
+                    </button>
                   </div>
 
                   <div className="batch-scope-selectors">
@@ -1364,7 +1453,7 @@ export const App: React.FC = () => {
                         onChange={handleToggleSelectAll}
                         className="card-checkbox"
                       />
-                      <span className="checkbox-custom-label">현재 로드된 요소 전체 선택</span>
+                      <span className="checkbox-custom-label">불러온 모든 문의 선택</span>
                     </label>
                   </div>
 
@@ -1373,42 +1462,6 @@ export const App: React.FC = () => {
                       {batchNotice}
                     </div>
                   )}
-
-                  <div className="batch-action-buttons">
-                    <div className="batch-action-grid">
-                      <button
-                        type="button"
-                        className="batch-status-btn open"
-                        disabled={selectedBatchCount === 0}
-                        onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null })}
-                      >
-                        미처리
-                      </button>
-                      <button
-                        type="button"
-                        className="batch-status-btn in-progress"
-                        disabled={selectedBatchCount === 0}
-                        onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null })}
-                      >
-                        진행중
-                      </button>
-                      <button
-                        type="button"
-                        className="batch-status-btn resolved"
-                        disabled={selectedBatchCount === 0}
-                        onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null })}
-                      >
-                        완료
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      className="batch-btn-cancel"
-                      onClick={handleCancelBatchSelection}
-                    >
-                      취소
-                    </button>
-                  </div>
                 </div>
 
                 <div 
@@ -1435,7 +1488,56 @@ export const App: React.FC = () => {
                     selectedInquiryIds={effectiveVisibleSelectedIds}
                     onToggleSelectInquiry={handleToggleSelectInquiry}
                     isBatchSelectionMode={isBatchSelectionMode}
+                    indexOffset={batchBaseOffset}
                   />
+
+                  {loadingMore && (
+                    <div className="batch-list-footer loading">
+                      <div className="spinner-small" />
+                      <span>추가 문의 불러오는 중...</span>
+                    </div>
+                  )}
+
+                  {!loadingMore && hasNext && (
+                    <div className="batch-list-footer more" onClick={loadMoreBatchInquiries}>
+                      <span>스크롤하여 더 보기 ({inquiries.length}개 로드됨)</span>
+                    </div>
+                  )}
+
+                  {!loadingMore && !hasNext && inquiries.length > 0 && (
+                    <div className="batch-list-footer end">
+                      <span>모든 문의를 불러왔습니다 (총 {inquiries.length}개)</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="batch-workspace-actions-bottom">
+                  <div className="batch-action-grid">
+                    <button
+                      type="button"
+                      className="batch-status-btn open"
+                      disabled={selectedBatchCount === 0}
+                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null })}
+                    >
+                      미처리
+                    </button>
+                    <button
+                      type="button"
+                      className="batch-status-btn in-progress"
+                      disabled={selectedBatchCount === 0}
+                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null })}
+                    >
+                      진행중
+                    </button>
+                    <button
+                      type="button"
+                      className="batch-status-btn resolved"
+                      disabled={selectedBatchCount === 0}
+                      onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null })}
+                    >
+                      완료
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1465,6 +1567,7 @@ export const App: React.FC = () => {
                   selectedInquiryIds={effectiveVisibleSelectedIds}
                   onToggleSelectInquiry={handleToggleSelectInquiry}
                   isBatchSelectionMode={isBatchSelectionMode}
+                  indexOffset={(currentPage - 1) * 20}
                 />
               </div>
             )}
@@ -1509,17 +1612,23 @@ export const App: React.FC = () => {
             )}
 
             {/* Pagination Controls — always at the bottom, never scrolls */}
-            {!isBatchSelectionMode && inquiries.length > 0 && !loading && (
-              <div style={{ flexShrink: 0, paddingTop: '0px', borderTop: '1px solid var(--border-light)', width: '100%' }}>
-                <Pagination
-                  currentPage={currentPage}
-                  hasNext={hasNext}
-                  onPrev={handlePrevPage}
-                  onNext={handleNextPage}
-                  loading={loading}
-                />
-              </div>
-            )}
+            {!isBatchSelectionMode && inquiries.length > 0 && !loading && (() => {
+              const loadedPages = Object.keys(pageCache).map(Number);
+              const maxLoadedPage = loadedPages.length > 0 ? Math.max(...loadedPages) : 1;
+              const hasNextFromMax = pageCache[maxLoadedPage]?.hasNext ?? hasNext;
+              const maxAvailablePage = hasNextFromMax ? maxLoadedPage + 1 : maxLoadedPage;
+
+              return (
+                <div style={{ flexShrink: 0, paddingTop: '0px', borderTop: '1px solid var(--border-light)', width: '100%' }}>
+                  <Pagination
+                    currentPage={currentPage}
+                    maxPage={maxAvailablePage}
+                    onPageClick={handlePageClick}
+                    loading={loading}
+                  />
+                </div>
+              );
+            })()}
 
           </div>
         )}

@@ -167,6 +167,8 @@ body.modal-open {
   overflow-x: hidden;
   overflow-y: auto;
   transition: width 0.2s ease, padding 0.2s ease;
+  position: relative;
+  z-index: 50; /* Allow collapsed tooltips to hover on top of sibling panels */
 }
 
 .dashboard-sidebar * {
@@ -1083,7 +1085,7 @@ body.modal-open {
   min-height: 0;
 }
 
-.batch-workspace-controls {
+.batch-workspace-controls-top {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1129,12 +1131,8 @@ body.modal-open {
 .batch-scope-checkbox-wrapper {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid rgba(79, 70, 229, 0.15);
-  border-radius: 6px;
-  background: #ffffff;
+  gap: 8px;
+  padding: 4px 2px;
   color: var(--text-primary);
   font-size: 11px;
   font-weight: 700;
@@ -1212,6 +1210,16 @@ body.modal-open {
   color: var(--accent-indigo);
 }
 
+.batch-workspace-actions-bottom {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px 12px 14px;
+  background: #ffffff;
+  border-top: 1px solid rgba(79, 70, 229, 0.12);
+  flex-shrink: 0;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.02);
+}
+
 .batch-action-buttons {
   display: flex;
   flex-direction: column;
@@ -1280,10 +1288,10 @@ body.modal-open {
   color: #ffffff;
 }
 
-.batch-btn-cancel {
-  width: 100%;
-  height: 28px;
-  display: flex;
+.batch-btn-cancel-top {
+  height: 24px;
+  padding: 0 8px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
@@ -1291,13 +1299,13 @@ body.modal-open {
   border: 1px solid rgba(148, 163, 184, 0.2);
   font-family: inherit;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 4px;
   transition: all var(--transition-fast);
 }
 
-.batch-btn-cancel:hover {
+.batch-btn-cancel-top:hover {
   color: var(--text-primary);
   background: rgba(15, 23, 42, 0.04);
   border-color: rgba(15, 23, 42, 0.15);
@@ -1309,6 +1317,53 @@ body.modal-open {
   min-height: 0;
   padding: 4px 6px;
   width: 100%;
+}
+
+.batch-list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+  user-select: none;
+}
+
+.batch-list-footer.end {
+  color: var(--text-muted);
+  opacity: 0.7;
+  border-top: 1px dashed rgba(148, 163, 184, 0.15);
+  margin-top: 12px;
+}
+
+.batch-list-footer.more {
+  color: var(--accent-indigo);
+  opacity: 0.85;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.batch-list-footer.more:hover {
+  opacity: 1;
+}
+
+.batch-list-footer.loading {
+  color: var(--accent-indigo);
+}
+
+.spinner-small {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(99, 102, 241, 0.2);
+  border-top-color: var(--accent-indigo);
+  border-radius: 50%;
+  animation: spin-small 0.8s linear infinite;
+}
+
+@keyframes spin-small {
+  to { transform: rotate(360deg); }
 }
 
 .batch-workspace-error {
@@ -1385,18 +1440,20 @@ body.modal-open {
 }
 
 .inquiry-card-index-container {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  min-width: 20px;
-  height: 18px;
-  background: rgba(148, 163, 184, 0.08);
-  border-radius: 4px;
-  flex-shrink: 0;
-  margin-top: 3px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  min-width: auto;
+  height: auto;
+  margin-right: 4px;
+  user-select: none;
+  line-height: 1;
 }
 
 /* Status-driven card styling — subtle top accent on hover */
@@ -1640,6 +1697,12 @@ body.modal-open {
   opacity: 0.3;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+.page-btn.active {
+  background: var(--accent-indigo) !important;
+  color: #ffffff !important;
+  border-color: var(--accent-indigo) !important;
 }
 
 .page-number {
