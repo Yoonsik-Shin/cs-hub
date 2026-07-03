@@ -27,14 +27,9 @@ security:
   internal:
     token: ${INTERNAL_API_TOKEN:changeme}
 
-# Nginx Basic Auth 계정 ↔ 관리자 정보 매핑
-# .htpasswd에 계정 추가 시 여기에도 동일하게 추가
+# Nginx Basic Auth 계정은 DB(admin_member)를 기준으로 관리합니다.
 admin:
-  users:
-    runday-cs-admin:
-      id: runday-cs-admin
-      nickname: CS 관리자
-      email: admin@ttam.com
+  htpasswd-path: ${ADMIN_HTPASSWD_PATH:/app/config/.htpasswd}
 
 naver:
   session:

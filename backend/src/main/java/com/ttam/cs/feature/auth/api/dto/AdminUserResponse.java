@@ -7,9 +7,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record AdminUserResponse(
         @Schema(description = "계정 ID (htpasswd username)") String id,
         @Schema(description = "표시 이름") String nickname,
-        @Schema(description = "이메일") String email
+        @Schema(description = "이메일") String email,
+        @Schema(description = "역할") String role
 ) {
     public static AdminUserResponse from(AdminUser user) {
-        return new AdminUserResponse(user.id(), user.nickname(), user.email());
+        return new AdminUserResponse(user.id(), user.nickname(), user.email(), user.role());
     }
 }
+
