@@ -1,8 +1,10 @@
 package com.ttam.cs.feature.auth.api;
 
 import com.ttam.cs.feature.auth.api.dto.AdminUserResponse;
-import com.ttam.cs.feature.auth.domain.AdminUser;
-import com.ttam.cs.infra.config.AdminUserProperties;
+import com.ttam.cs.feature.auth.service.AdminUserResolver;
+import com.ttam.cs.feature.auth.service.N8nAccessTokenService;
+import com.ttam.cs.infra.security.AdminRole;
+import com.ttam.cs.infra.security.RequireRoles;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -20,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Nginx Basic Auth로 인증된 현재 사용자 정보를 반환하는 컨트롤러.
  *
  * Nginx가 proxy_set_header X-Remote-User $remote_user로 인증된 사용자명을 전달합니다.
- * 이 값을 application.yml의 admin.users 설정과 매핑해 AdminUserResponse를 반환합니다.
+ * 이 값을 admin_member DB 테이블과 매핑해 AdminUserResponse를 반환합니다.
  */
 @Tag(name = "Auth API", description = "현재 로그인한 관리자 계정 정보 조회 API")
 @RestController
@@ -28,7 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AdminUserProperties adminUserProperties;
+    private final AdminUserResolver adminUserResolver;
+    private final N8nAccessTokenService n8nAccessTokenService;
 
     @Operation(
             summary = "현재 로그인 계정 조회",
@@ -39,9 +43,40 @@ public class AuthController {
     public ResponseEntity<AdminUserResponse> me(
             @RequestHeader(value = "X-Remote-User", required = false) String remoteUser
     ) {
-        AdminUser user = adminUserProperties.resolve(remoteUser);
-        return ResponseEntity.ok(AdminUserResponse.from(user));
+        return ResponseEntity.ok(AdminUserResponse.from(adminUserResolver.resolve(remoteUser)));
     }
+
+    @GetMapping("/admin-check")
+    @RequireRoles(AdminRole.ADMIN)
+    public ResponseEntity<Void> adminCheck() {
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/n8n-access")
+    @RequireRoles(AdminRole.ADMIN)
+    public ResponseEntity<Void> issueN8nAccess(
+            @RequestHeader(value = "X-Remote-User", required = false) String remoteUser
+    ) {
+        if (remoteUser == null || remoteUser.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.SET_COOKIE, "cs_n8n_access=" + n8nAccessTokenService.issue(remoteUser.trim())
+                + "; Max-Age=900; Path=/n8n; HttpOnly; SameSite=Lax");
+        return ResponseEntity.noContent().headers(headers).build();
+    }
+
+    @GetMapping("/n8n-check")
+    public ResponseEntity<Void> n8nCheck(
+            @CookieValue(value = "cs_n8n_access", required = false) String n8nAccessToken
+    ) {
+        if (n8nAccessTokenService.isValidAdminToken(n8nAccessToken)) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
 
     @Operation(
             summary = "로그아웃 및 계정 전환",

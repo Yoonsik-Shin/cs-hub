@@ -38,16 +38,15 @@ services:
       - DB_POSTGRESDB_USER=myuser
       - DB_POSTGRESDB_PASSWORD=mypassword
       - DB_POSTGRESDB_SCHEMA=n8n_schema
-      - N8N_HOST=localhost
+      - N8N_HOST=${N8N_HOST:-localhost:8888}
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
+      - N8N_PATH=/n8n/
       - NODE_ENV=production
-      - WEBHOOK_URL=${WEBHOOK_URL:-}
-      - N8N_EDITOR_BASE_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:8888/n8n/}
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-http://localhost:8888/n8n/}
       - N8N_PROXY_HOPS=1
       - GENERIC_TIMEZONE=Asia/Seoul
-    ports:
-      - "5678:5678"
     volumes:
       - ./data/n8n:/home/node/.n8n
     networks:
@@ -90,6 +89,7 @@ services:
       - S3_EXTERNAL_URL=${S3_EXTERNAL_URL:-http://localhost:8888/attachments}
     volumes:
       - webhook_logs:/app/logs/webhooks
+      - ./infra/nginx/.htpasswd:/app/config/.htpasswd
     depends_on:
       - postgres-db
     networks:
