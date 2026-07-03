@@ -4,7 +4,7 @@ import {
     Cpu, Info, Calendar, Clock, User, ArrowRight, History,
     FileText, CheckCircle, Inbox, MessageSquare, Pin, RefreshCw, AlertCircle,
     ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit, ImagePlus, Loader2, Star, X as XIcon,
-    Image, ZoomIn, ZoomOut
+    Image, ZoomIn, ZoomOut, Mail
 } from 'lucide-react';
 import type { CustomerInquiry, InquiryWorkLog, OperatorInfo } from '../types/inquiry';
 import { inquiryApi } from '../api/inquiryApi';
@@ -152,7 +152,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const currentOperator = operator ?? {
         id: 'unknown',
         nickname: '알 수 없음',
-        email: ''
+        email: '',
+        role: 'OPERATOR'
     };
 
     const startResizingLeft = (mouseDownEvent: React.MouseEvent) => {
@@ -2252,6 +2253,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                     <div className="skeleton skeleton-text short" />
                                     <div className="skeleton skeleton-text" />
                                 </div>
+                            ) : loadingReplies ? (
+                                <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '8px 0', flex: 1 }}>회신 내역을 불러오는 중...</div>
                             ) : logError ? (
                                 <div style={{ color: '#f87171', fontSize: '13px', padding: '8px 0', flex: 1 }}>⚠️ {logError}</div>
                             ) : (

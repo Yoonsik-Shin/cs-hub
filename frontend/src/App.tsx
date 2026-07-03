@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { BookmarkedStatsCard, UnprocessedStatsCard, TodayStatsCard } from './components/StatsCards';
+import { BookmarkedStatsCard, MissingUserCodeStatsCard, UnprocessedStatsCard, TodayStatsCard } from './components/StatsCards';
 import { FilterBar } from './components/FilterBar';
 import type { FilterValues } from './components/FilterBar';
 import { InquiryList } from './components/InquiryList';
@@ -9,9 +9,10 @@ import { CreateTicketModal } from './components/CreateTicketModal';
 import { inquiryApi } from './api/inquiryApi';
 import type { BatchUpdateInquiryStatusTarget, OperatorInfo } from './api/inquiryApi';
 import type { CustomFilterEntity, CustomerInquiry, InquiryStatus } from './types/inquiry';
-import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark, X, ListChecks } from 'lucide-react';
+import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark, X, ListChecks, Shield, Info, LogOut } from 'lucide-react';
 import { NaverLoginRenewPage } from './components/NaverLoginRenewPage';
 import { InquiryDetailPanel } from './components/InquiryDetailPanel';
+import { AccountManagementModal } from './components/AccountManagementModal';
 
 const SIDEBAR_EXPANDED_WIDTH = 300;
 const SIDEBAR_COLLAPSED_WIDTH = 64;
@@ -27,6 +28,9 @@ export const App: React.FC = () => {
 
   // Operator (현재 로그인한 관리자) 상태 — Nginx Basic Auth에서 파생
   const [currentOperator, setCurrentOperator] = useState<OperatorInfo | null>(null);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [isOperatorMenuOpen, setIsOperatorMenuOpen] = useState(false);
+  const operatorMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Naver Session states
   const [naverSessionStatus, setNaverSessionStatus] = useState<'ACTIVE' | 'EXPIRED' | 'MISSING' | 'CHECKING' | 'ERROR'>('CHECKING');
@@ -37,6 +41,7 @@ export const App: React.FC = () => {
   // Query Filter states
   const [queryFilters, setQueryFilters] = useState<FilterValues>({
     userCode: '',
+    userCodeMissing: false,
     statuses: [],
     channels: [],
     startDate: '',
@@ -86,6 +91,8 @@ export const App: React.FC = () => {
   const [unprocessedHasMore, setUnprocessedHasMore] = useState(false);
   const [todayCount, setTodayCount] = useState(0);
   const [todayHasMore, setTodayHasMore] = useState(false);
+  const [missingUserCodeCount, setMissingUserCodeCount] = useState(0);
+  const [missingUserCodeHasMore, setMissingUserCodeHasMore] = useState(false);
   const [totalListCount, setTotalListCount] = useState(0);
   const [totalListHasMore, setTotalListHasMore] = useState(false);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
@@ -111,7 +118,16 @@ export const App: React.FC = () => {
     const saved = localStorage.getItem('admin_cs_sidebar_groups_v3');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved) as WidgetGroup[];
+        return parsed.map((group) => {
+          if (group.id !== 'filter_group' || group.items.includes('USER_CODE_MISSING')) {
+            return group;
+          }
+          const bookmarksIndex = group.items.indexOf('BOOKMARKS');
+          const nextItems = [...group.items];
+          nextItems.splice(bookmarksIndex === -1 ? nextItems.length : bookmarksIndex, 0, 'USER_CODE_MISSING');
+          return { ...group, items: nextItems };
+        });
       } catch (e) {
         // fallback
       }
@@ -125,17 +141,69 @@ export const App: React.FC = () => {
       {
         id: 'filter_group',
         name: '필터 목록',
-        items: ['STATS_UNPROCESSED', 'STATS_TODAY', 'BOOKMARKS', 'CUSTOM_FILTERS']
+        items: ['STATS_UNPROCESSED', 'STATS_TODAY', 'USER_CODE_MISSING', 'BOOKMARKS', 'CUSTOM_FILTERS']
       }
     ];
   });
 
   const [draggedGroupIndex, setDraggedGroupIndex] = useState<number | null>(null);
   const [draggedItemInfo, setDraggedItemInfo] = useState<{ groupId: string; itemIndex: number } | null>(null);
+  const [customFilterOrder, setCustomFilterOrder] = useState<number[]>(() => {
+    const saved = localStorage.getItem('admin_cs_custom_filter_order_v1');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    return [];
+  });
+  const [draggedCustomFilterInfo, setDraggedCustomFilterInfo] = useState<{ id: number; index: number } | null>(null);
 
   useEffect(() => {
     localStorage.setItem('admin_cs_sidebar_groups_v3', JSON.stringify(groups));
   }, [groups]);
+
+  useEffect(() => {
+    localStorage.setItem('admin_cs_custom_filter_order_v1', JSON.stringify(customFilterOrder));
+  }, [customFilterOrder]);
+
+  useEffect(() => {
+    setCustomFilterOrder((currentOrder) => {
+      const currentIds = customFilters.map((filter) => filter.id);
+      const currentIdSet = new Set(currentIds);
+      const retainedOrder = currentOrder.filter((id) => currentIdSet.has(id));
+      const missingIds = currentIds.filter((id) => !retainedOrder.includes(id));
+      if (retainedOrder.length === currentOrder.length && missingIds.length === 0) {
+        return currentOrder;
+      }
+      return [...retainedOrder, ...missingIds];
+    });
+  }, [customFilters]);
+
+  const orderedCustomFilters = useMemo(() => {
+    const orderMap = new Map(customFilterOrder.map((id, index) => [id, index]));
+    return [...customFilters].sort((a, b) => {
+      const aOrder = orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+      return aOrder - bOrder;
+    });
+  }, [customFilters, customFilterOrder]);
+
+  useEffect(() => {
+    if (!isOperatorMenuOpen) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!operatorMenuRef.current?.contains(target)) {
+        setIsOperatorMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [isOperatorMenuOpen]);
 
   const onDragStartGroup = (e: React.DragEvent, index: number) => {
     setDraggedGroupIndex(index);
@@ -182,6 +250,44 @@ export const App: React.FC = () => {
 
   const onDragEndItem = () => {
     setDraggedItemInfo(null);
+  };
+
+  const onDragStartCustomFilter = (e: React.DragEvent, filterId: number, filterIndex: number) => {
+    e.stopPropagation();
+    setDraggedCustomFilterInfo({ id: filterId, index: filterIndex });
+    setDraggedItemInfo(null);
+    setDraggedGroupIndex(null);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(filterId));
+  };
+
+  const onDragOverCustomFilter = (e: React.DragEvent, targetFilterId: number, targetFilterIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (draggedCustomFilterInfo === null) return;
+    if (draggedCustomFilterInfo.id === targetFilterId || draggedCustomFilterInfo.index === targetFilterIndex) return;
+
+    setCustomFilterOrder((currentOrder) => {
+      const orderedIds = orderedCustomFilters.map((filter) => filter.id);
+      const nextOrder = currentOrder.length > 0 ? [...currentOrder] : orderedIds;
+      for (const id of orderedIds) {
+        if (!nextOrder.includes(id)) nextOrder.push(id);
+      }
+
+      const fromIndex = nextOrder.indexOf(draggedCustomFilterInfo.id);
+      const toIndex = nextOrder.indexOf(targetFilterId);
+      if (fromIndex === -1 || toIndex === -1) return currentOrder;
+
+      const [moved] = nextOrder.splice(fromIndex, 1);
+      nextOrder.splice(toIndex, 0, moved);
+      return nextOrder;
+    });
+    setDraggedCustomFilterInfo({ id: draggedCustomFilterInfo.id, index: targetFilterIndex });
+  };
+
+  const onDragEndCustomFilter = (e: React.DragEvent) => {
+    e.stopPropagation();
+    setDraggedCustomFilterInfo(null);
   };
 
   const startResizingSidebar = (mouseDownEvent: React.MouseEvent) => {
@@ -243,6 +349,10 @@ export const App: React.FC = () => {
       const todayRes = await inquiryApi.countInquiries({ status: 'OPEN', start: startOfToday, limit: 100 });
       setTodayCount(todayRes.count);
       setTodayHasMore(todayRes.hasMore);
+
+      const missingUserCodeRes = await inquiryApi.countInquiries({ userCodeMissing: true, limit: 100 });
+      setMissingUserCodeCount(missingUserCodeRes.count);
+      setMissingUserCodeHasMore(missingUserCodeRes.hasMore);
     } catch (err) {
       console.error('Failed to fetch stats:', err);
     }
@@ -285,8 +395,20 @@ export const App: React.FC = () => {
 
   const handleSwitchAccount = () => {
     const currentUserId = currentOperator?.id || '';
+    setIsOperatorMenuOpen(false);
     if (window.confirm("현재 로그인된 Nginx Basic Auth 계정을 변경(로그아웃)하시겠습니까?\n\n[확인]을 누르면 계정 변경을 위한 로그인 창이 다시 표시됩니다.")) {
       window.location.href = `/api/auth/logout?current=${encodeURIComponent(currentUserId)}`;
+    }
+  };
+
+  const handleOpenN8n = async () => {
+    try {
+      await inquiryApi.issueN8nAccess();
+      setIsOperatorMenuOpen(false);
+      window.open(`${window.location.origin}/n8n/`, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('Failed to open n8n:', err);
+      alert('n8n 접근 권한을 확인하지 못했습니다. 관리자 계정으로 다시 로그인한 뒤 시도해주세요.');
     }
   };
 
@@ -405,6 +527,7 @@ export const App: React.FC = () => {
 
     return {
       userCode: queryFilters.userCode.trim() || undefined,
+      userCodeMissing: queryFilters.userCodeMissing || undefined,
       status: queryFilters.statuses.length > 0 ? queryFilters.statuses : undefined,
       channel: queryFilters.channels.length > 0 ? queryFilters.channels : undefined,
       start: startISO,
@@ -536,7 +659,7 @@ export const App: React.FC = () => {
       })
       .catch((err) => {
         console.warn('관리자 계정 정보를 불러오지 못했습니다 (fallback 사용):', err);
-        setCurrentOperator({ id: 'unknown', nickname: '알 수 없음', email: '' });
+        setCurrentOperator({ id: 'unknown', nickname: '알 수 없음', email: '', role: 'OPERATOR' });
       });
   }, [fetchBookmarks, fetchCustomFilters]);
 
@@ -758,6 +881,7 @@ export const App: React.FC = () => {
   const handleUnprocessedStatsClick = () => {
     setQueryFilters({
       userCode: '',
+      userCodeMissing: false,
       statuses: ['OPEN'],
       channels: [],
       startDate: '',
@@ -771,6 +895,7 @@ export const App: React.FC = () => {
     const today = getLocalDateInputValue(new Date());
     setQueryFilters({
       userCode: '',
+      userCodeMissing: false,
       statuses: ['OPEN'],
       channels: [],
       startDate: today,
@@ -783,12 +908,26 @@ export const App: React.FC = () => {
   const handleBookmarkedStatsClick = () => {
     setQueryFilters({
       userCode: '',
+      userCodeMissing: false,
       statuses: [],
       channels: [],
       startDate: '',
       endDate: '',
       isManual: undefined,
       bookmarkedOnly: true,
+    });
+  };
+
+  const handleMissingUserCodeStatsClick = () => {
+    setQueryFilters({
+      userCode: '',
+      userCodeMissing: true,
+      statuses: [],
+      channels: [],
+      startDate: '',
+      endDate: '',
+      isManual: undefined,
+      bookmarkedOnly: false,
     });
   };
 
@@ -841,6 +980,7 @@ export const App: React.FC = () => {
     const data = filter.filterData || {};
     return {
       userCode: data.userCode || '',
+      userCodeMissing: Boolean(data.userCodeMissing),
       statuses: data.statuses || [],
       channels: data.channels || [],
       startDate: data.startDate || '',
@@ -860,6 +1000,7 @@ export const App: React.FC = () => {
     if (values.statuses.length > 0) parts.push(values.statuses.join(', '));
     if (values.channels.length > 0) parts.push(values.channels.join(', '));
     if (values.userCode) parts.push(values.userCode);
+    if (values.userCodeMissing) parts.push('유저코드 없음');
     if (values.bookmarkedOnly) parts.push('즐겨찾기');
     if (values.isManual !== undefined) parts.push(values.isManual ? '수동' : '자동');
     if (values.startDate || values.endDate) parts.push(`${values.startDate || '전체'}~${values.endDate || '전체'}`);
@@ -929,6 +1070,15 @@ export const App: React.FC = () => {
             onClick={handleTodayStatsClick}
           />
         );
+      case 'USER_CODE_MISSING':
+        return (
+          <MissingUserCodeStatsCard
+            count={missingUserCodeCount}
+            hasMore={missingUserCodeHasMore}
+            isCollapsed={false}
+            onClick={handleMissingUserCodeStatsClick}
+          />
+        );
       case 'BOOKMARKS':
         return (
           <BookmarkedStatsCard
@@ -945,7 +1095,30 @@ export const App: React.FC = () => {
                 저장된 필터가 없습니다.
               </div>
             ) : (
-              customFilters.map((filter) => renderCustomFilterShortcut(filter, false))
+              orderedCustomFilters.map((filter, filterIndex) => {
+                const isFilterDragged = draggedCustomFilterInfo?.id === filter.id;
+                return (
+                  <div
+                    key={`custom-filter-sortable-${filter.id}`}
+                    draggable
+                    onDragStart={(e) => onDragStartCustomFilter(e, filter.id, filterIndex)}
+                    onDragOver={(e) => onDragOverCustomFilter(e, filter.id, filterIndex)}
+                    onDragEnd={onDragEndCustomFilter}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    style={{
+                      width: '100%',
+                      opacity: isFilterDragged ? 0.45 : 1,
+                      cursor: 'grab',
+                      transition: 'transform 0.15s, opacity 0.15s',
+                    }}
+                  >
+                    {renderCustomFilterShortcut(filter, false)}
+                  </div>
+                );
+              })
             )}
           </div>
         );
@@ -976,6 +1149,15 @@ export const App: React.FC = () => {
             hasMore={todayHasMore}
             isCollapsed={true}
             onClick={handleTodayStatsClick}
+          />
+        );
+      case 'USER_CODE_MISSING':
+        return (
+          <MissingUserCodeStatsCard
+            count={missingUserCodeCount}
+            hasMore={missingUserCodeHasMore}
+            isCollapsed={true}
+            onClick={handleMissingUserCodeStatsClick}
           />
         );
       case 'BOOKMARKS':
@@ -1020,64 +1202,207 @@ export const App: React.FC = () => {
     const operatorName = currentOperator?.nickname || '계정 확인 중';
     const operatorId = currentOperator?.id || 'loading';
     const operatorEmail = currentOperator?.email || '';
+    const operatorRole = currentOperator?.role || 'UNKNOWN';
+    const isAdmin = operatorRole === 'ADMIN';
     const isFallbackOperator = currentOperator?.id === 'unknown';
     const title = currentOperator
-      ? `현재 로그인: ${operatorName} (${operatorId})\n[클릭하면 로그아웃/계정 변경]`
+      ? `현재 로그인: ${operatorName} (${operatorId})`
       : '현재 로그인 계정 확인 중';
+    const roleLabel = operatorRole === 'ADMIN' ? '관리자' : operatorRole === 'OPERATOR' ? '운영자' : '권한 확인 중';
+    const menuBackground = '#111827';
+    const menuBorder = 'rgba(255, 255, 255, 0.12)';
+    const menuPrimaryText = '#ffffff';
+    const menuSecondaryText = '#cbd5e1';
+    const operatorMenu = (
+      <div
+        style={{
+          position: 'absolute',
+          left: isSidebarCollapsed ? 'calc(100% + 12px)' : 0,
+          right: isSidebarCollapsed ? 'auto' : 0,
+          top: isSidebarCollapsed ? '-6px' : 'calc(100% + 8px)',
+          zIndex: 80,
+          width: isSidebarCollapsed ? '260px' : '100%',
+          padding: '16px',
+          borderRadius: '8px',
+          border: `1px solid ${menuBorder}`,
+          background: menuBackground,
+          boxShadow: '0 18px 38px rgba(2, 6, 23, 0.38)',
+        }}
+      >
+        {isSidebarCollapsed && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '-8px',
+              top: '17px',
+              transform: 'rotate(45deg)',
+              width: '16px',
+              height: '16px',
+              background: menuBackground,
+              borderLeft: `1px solid ${menuBorder}`,
+              borderBottom: `1px solid ${menuBorder}`,
+              borderBottomLeftRadius: '3px',
+            }}
+          />
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px', color: menuPrimaryText, fontWeight: 800, fontSize: '12.5px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Info size={14} />
+            계정 정보
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsOperatorMenuOpen(false)}
+            aria-label="계정 메뉴 닫기"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '22px',
+              height: '22px',
+              padding: 0,
+              borderRadius: '5px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'rgba(255, 255, 255, 0.06)',
+              color: menuSecondaryText,
+              cursor: 'pointer',
+            }}
+          >
+            <X size={13} />
+          </button>
+        </div>
+        <div style={{ display: 'grid', gap: '6px', marginBottom: '12px', fontSize: '12px', color: menuSecondaryText }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+            <span>아이디</span>
+            <strong style={{ color: menuPrimaryText, overflow: 'hidden', textOverflow: 'ellipsis' }}>{operatorId}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+            <span>권한</span>
+            <strong style={{ color: isAdmin ? '#f87171' : '#818cf8' }}>{roleLabel} ({operatorRole})</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+            <span>이메일</span>
+            <strong style={{ color: menuPrimaryText, overflow: 'hidden', textOverflow: 'ellipsis' }}>{operatorEmail || '-'}</strong>
+          </div>
+          {isFallbackOperator && (
+            <div style={{ marginTop: '4px', color: '#d97706', fontWeight: 700 }}>
+              인증 헤더 또는 DB 계정 정보를 확인하지 못했습니다.
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {isAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOperatorMenuOpen(false);
+                  setIsAccountModalOpen(true);
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(248, 113, 113, 0.26)', background: 'rgba(248, 113, 113, 0.12)', color: '#fecaca', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}
+              >
+                <Shield size={14} />
+                계정 관리
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenN8n}
+                style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(129, 140, 248, 0.28)', background: 'rgba(129, 140, 248, 0.12)', color: '#c7d2fe', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}
+              >
+                <ExternalLink size={14} />
+                워크플로우 관리 (n8n)
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={handleSwitchAccount}
+            style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.14)', background: 'rgba(255, 255, 255, 0.08)', color: '#e5e7eb', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}
+          >
+            <LogOut size={14} />
+            로그아웃 / 계정 전환
+          </button>
+        </div>
+      </div>
+    );
 
     if (isSidebarCollapsed) {
       return (
-        <button
-          type="button"
-          onClick={handleSwitchAccount}
-          className={`collapsed-tooltip operator-compact ${isFallbackOperator ? 'unknown' : ''}`}
-          data-tooltip={title}
-          aria-label={title}
-          style={{ cursor: 'pointer' }}
-        >
-          <User size={17} />
-        </button>
+        <div ref={operatorMenuRef} style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setIsOperatorMenuOpen((open) => !open)}
+            className={`${isOperatorMenuOpen ? '' : 'collapsed-tooltip'} operator-compact ${isFallbackOperator ? 'unknown' : ''}`}
+            data-tooltip={`${title} - 계정 메뉴`}
+            aria-label={title}
+            style={{
+              cursor: 'pointer',
+            }}
+          >
+            <User size={17} />
+          </button>
+          {isOperatorMenuOpen && operatorMenu}
+        </div>
       );
     }
 
     return (
-      <button 
-        type="button"
-        className={`operator-widget ${isFallbackOperator ? 'unknown' : ''}`} 
-        title={title}
-        onClick={handleSwitchAccount}
-        style={{ 
-          border: '1px solid rgba(79, 70, 229, 0.16)',
-          borderRadius: '8px',
-          background: 'rgba(79, 70, 229, 0.04)',
-          width: '100%',
-          textAlign: 'left',
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          padding: '10px 12px',
-          transition: 'all 0.2s'
-        }}
-        onMouseOver={(e) => {
-          e.currentTarget.style.background = 'rgba(79, 70, 229, 0.08)';
-          e.currentTarget.style.borderColor = 'rgba(79, 70, 229, 0.35)';
-        }}
-        onMouseOut={(e) => {
-          e.currentTarget.style.background = 'rgba(79, 70, 229, 0.04)';
-          e.currentTarget.style.borderColor = 'rgba(79, 70, 229, 0.16)';
-        }}
-      >
-        <div className="operator-avatar">
-          <User size={16} />
-        </div>
-        <div className="operator-info">
-          <span className="operator-label">현재 로그인 (변경하려면 클릭)</span>
-          <strong className="operator-name">{operatorName}</strong>
-          <span className="operator-meta">{operatorEmail || operatorId}</span>
-        </div>
-      </button>
+      <div ref={operatorMenuRef} style={{ position: 'relative', width: '100%' }}>
+        <button
+          type="button"
+          className={`operator-widget ${isFallbackOperator ? 'unknown' : ''}`}
+          title={title}
+          onClick={() => setIsOperatorMenuOpen((open) => !open)}
+          style={{
+            border: '1px solid rgba(79, 70, 229, 0.16)',
+            borderRadius: '8px',
+            background: isOperatorMenuOpen ? 'rgba(79, 70, 229, 0.08)' : 'rgba(79, 70, 229, 0.04)',
+            width: '100%',
+            textAlign: 'left',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '10px 12px',
+            transition: 'all 0.2s'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'rgba(79, 70, 229, 0.08)';
+            e.currentTarget.style.borderColor = 'rgba(79, 70, 229, 0.35)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = isOperatorMenuOpen ? 'rgba(79, 70, 229, 0.08)' : 'rgba(79, 70, 229, 0.04)';
+            e.currentTarget.style.borderColor = 'rgba(79, 70, 229, 0.16)';
+          }}
+        >
+          <div className="operator-avatar">
+            <User size={16} />
+          </div>
+          <div className="operator-info">
+            <span className="operator-label">현재 로그인</span>
+            <strong className="operator-name">{operatorName}</strong>
+            <span className="operator-meta">{operatorEmail || operatorId}</span>
+          </div>
+          <span
+            style={{
+              marginLeft: 'auto',
+              flexShrink: 0,
+              padding: '3px 7px',
+              borderRadius: '999px',
+              border: isAdmin ? '1px solid rgba(239, 68, 68, 0.24)' : '1px solid rgba(79, 70, 229, 0.2)',
+              background: isAdmin ? 'rgba(239, 68, 68, 0.07)' : 'rgba(79, 70, 229, 0.07)',
+              color: isAdmin ? '#dc2626' : 'var(--accent-indigo)',
+              fontSize: '10.5px',
+              fontWeight: 800,
+            }}
+          >
+            {operatorRole}
+          </span>
+        </button>
+
+        {isOperatorMenuOpen && operatorMenu}
+      </div>
     );
   };
 
@@ -1225,21 +1550,23 @@ export const App: React.FC = () => {
                       return (
                         <div
                           key={item}
-                          draggable
+                          draggable={item !== 'CUSTOM_FILTERS'}
                           onDragStart={(e) => {
                             e.stopPropagation(); // Prevent group dragging
+                            if (item === 'CUSTOM_FILTERS') return;
                             onDragStartItem(e, group.id, itemIdx);
                           }}
                           onDragOver={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
+                            if (item === 'CUSTOM_FILTERS') return;
                             onDragOverItem(e, group.id, itemIdx);
                           }}
                           onDragEnd={onDragEndItem}
                           style={{
                             width: '100%',
                             opacity: isItemDragged ? 0.4 : 1,
-                            cursor: 'grab',
+                            cursor: item === 'CUSTOM_FILTERS' ? 'default' : 'grab',
                             transition: 'transform 0.15s',
                           }}
                           onDragEnter={(e) => {
@@ -1269,16 +1596,18 @@ export const App: React.FC = () => {
 
             </div>
 
-            {/* CS 티켓 수동 생성 — 하단 고정 */}
-            <button
-              type="button"
-              className="btn-primary glow-violet-hover"
-              onClick={() => setIsModalOpen(true)}
-              style={{ width: '100%', justifyContent: 'center', marginTop: '12px', flexShrink: 0 }}
-            >
-              <Plus size={16} />
-              CS 티켓 수동 생성
-            </button>
+            {/* 하단 고정 버튼들 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', flexShrink: 0, width: '100%' }}>
+              <button
+                type="button"
+                className="btn-primary glow-violet-hover"
+                onClick={() => setIsModalOpen(true)}
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                <Plus size={16} />
+                CS 티켓 수동 생성
+              </button>
+            </div>
           </>
         )}
       </aside>
@@ -1712,6 +2041,13 @@ export const App: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateTicket}
+      />
+
+      {/* Account Management Modal (ADMIN only) */}
+      <AccountManagementModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+        currentUsername={currentOperator?.id || ''}
       />
 
       {/* Batch Status Confirmation Modal */}
