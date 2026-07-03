@@ -15,10 +15,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.ttam.cs.feature.auth.domain.AdminUser;
+import com.ttam.cs.feature.auth.service.AdminUserResolver;
 import com.ttam.cs.feature.inquiry.domain.InquiryWorkLog;
 import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
-import com.ttam.cs.infra.config.AdminUserProperties;
 
 @Tag(name = "Bookmark API", description = "운영자별 고객 문의 즐겨찾기(북마크) API")
 @RestController
@@ -27,7 +27,7 @@ import com.ttam.cs.infra.config.AdminUserProperties;
 public class BookmarkController {
 
     private final InquiryBookmarkRepository bookmarkRepository;
-    private final AdminUserProperties adminUserProperties;
+    private final AdminUserResolver adminUserResolver;
     private final InquiryWorkLogRepository workLogRepository;
 
     @Operation(summary = "즐겨찾기 문의 ID 목록 조회", description = "현재 로그인한 운영자의 즐겨찾기 등록된 모든 문의 UUID 목록을 조회합니다.")
@@ -59,7 +59,7 @@ public class BookmarkController {
         if (!bookmarkRepository.existsByOperatorIdAndInquiryId(operatorId, inquiryId)) {
             bookmarkRepository.save(InquiryBookmark.create(operatorId, inquiryId));
 
-            AdminUser adminUser = adminUserProperties.resolve(remoteUser);
+            AdminUser adminUser = adminUserResolver.resolve(remoteUser);
             OperatorInfo operatorInfo = new OperatorInfo(adminUser.id(), adminUser.nickname(), adminUser.email());
             InquiryWorkLog workLog = InquiryWorkLog.create(
                     inquiryId,
@@ -89,7 +89,7 @@ public class BookmarkController {
         if (bookmarkRepository.existsByOperatorIdAndInquiryId(operatorId, inquiryId)) {
             bookmarkRepository.deleteByOperatorIdAndInquiryId(operatorId, inquiryId);
 
-            AdminUser adminUser = adminUserProperties.resolve(remoteUser);
+            AdminUser adminUser = adminUserResolver.resolve(remoteUser);
             OperatorInfo operatorInfo = new OperatorInfo(adminUser.id(), adminUser.nickname(), adminUser.email());
             InquiryWorkLog workLog = InquiryWorkLog.create(
                     inquiryId,

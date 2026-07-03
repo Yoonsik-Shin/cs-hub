@@ -15,7 +15,7 @@ import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.BatchUpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
 import com.ttam.cs.feature.auth.domain.AdminUser;
-import com.ttam.cs.infra.config.AdminUserProperties;
+import com.ttam.cs.feature.auth.service.AdminUserResolver;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -37,7 +37,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class CustomerInquiryController {
 
     private final CustomerInquiryService inquiryService;
-    private final AdminUserProperties adminUserProperties;
+    private final AdminUserResolver adminUserResolver;
 
     @org.springframework.beans.factory.annotation.Value("${s3.external-url}")
     private String externalUrl;
@@ -57,13 +57,14 @@ public class CustomerInquiryController {
             @RequestParam(name = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
             @RequestParam(name = "isManual", required = false) Boolean isManual,
             @RequestParam(name = "bookmarkedOnly", required = false) Boolean bookmarkedOnly,
+            @RequestParam(name = "userCodeMissing", required = false) Boolean userCodeMissing,
             @RequestParam(name = "limit", defaultValue = "100") int limit) {
         if (Boolean.TRUE.equals(bookmarkedOnly) && !StringUtils.hasText(remoteUser)) {
             return ResponseEntity.ok(new InquiryCountResponse(0, false));
         }
 
         int boundedLimit = Math.max(1, limit);
-        long cappedCount = inquiryService.count(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, remoteUser, boundedLimit + 1);
+        long cappedCount = inquiryService.count(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, userCodeMissing, remoteUser, boundedLimit + 1);
         boolean hasMore = cappedCount > boundedLimit;
         return ResponseEntity.ok(new InquiryCountResponse(Math.min(cappedCount, boundedLimit), hasMore));
     }
@@ -80,6 +81,7 @@ public class CustomerInquiryController {
             @RequestParam(name = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
             @RequestParam(name = "isManual", required = false) Boolean isManual,
             @RequestParam(name = "bookmarkedOnly", required = false) Boolean bookmarkedOnly,
+            @RequestParam(name = "userCodeMissing", required = false) Boolean userCodeMissing,
             @RequestParam(name = "cursor", required = false) UUID cursor,
             @RequestParam(name = "size", defaultValue = "10") int size) {
         if (Boolean.TRUE.equals(bookmarkedOnly) && !StringUtils.hasText(remoteUser)) {
@@ -87,7 +89,7 @@ public class CustomerInquiryController {
         }
 
         CursorPage<CustomerInquiry> result = inquiryService.search(channels,
-                userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, remoteUser, cursor, size);
+                userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, userCodeMissing, remoteUser, cursor, size);
 
         String s3UrlPrefix = externalUrl.endsWith("/") ? 
                 externalUrl + bucketName : 
@@ -171,7 +173,7 @@ public class CustomerInquiryController {
             @RequestHeader(value = "X-Remote-User", required = false) String remoteUser,
             @RequestBody @Valid BatchUpdateInquiryStatusRequest request) {
 
-        AdminUser adminUser = adminUserProperties.resolve(remoteUser);
+        AdminUser adminUser = adminUserResolver.resolve(remoteUser);
         OperatorInfo operatorInfo = new OperatorInfo(adminUser.id(), adminUser.nickname(), adminUser.email());
 
         inquiryService.updateStatuses(request, operatorInfo, remoteUser);
