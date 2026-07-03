@@ -4,6 +4,7 @@ export interface OperatorInfo {
   id: string;
   nickname: string;
   email: string;
+  role: string;
 }
 
 export interface FieldModification {
@@ -16,7 +17,7 @@ export interface FieldModification {
 export interface InquiryWorkLog {
   id: string;
   inquiryId: string;
-  actionType: 'ANSWER_SUBMITTED' | 'MEMO_ADDED' | 'ANSWER_AND_MEMO_SUBMITTED' | 'STATUS_CHANGED' | 'FIELD_MODIFIED' | 'BOOKMARK_ADDED' | 'BOOKMARK_REMOVED';
+  actionType: 'INITIAL_SUBMISSION' | 'PENDING_ACTION' | 'ANSWER_SUBMITTED' | 'MEMO_ADDED' | 'ANSWER_AND_MEMO_SUBMITTED' | 'STATUS_CHANGED' | 'FIELD_MODIFIED' | 'BOOKMARK_ADDED' | 'BOOKMARK_REMOVED' | 'CUSTOMER_REPLY';
   answer: string | null;
   memo: string | null;
   operatorInfo: OperatorInfo;
@@ -75,6 +76,7 @@ export interface SearchInquiriesResponse {
 export interface SearchInquiriesParams {
   channel?: string | string[];
   userCode?: string;
+  userCodeMissing?: boolean;
   status?: InquiryStatus | InquiryStatus[];
   keyword?: string;
   start?: string; // ISO 8601 string
@@ -91,6 +93,7 @@ export interface CustomFilterEntity {
   name: string;
   filterData: Partial<SearchInquiriesParams> & {
     userCode?: string;
+    userCodeMissing?: boolean;
     statuses?: InquiryStatus[];
     channels?: string[];
     startDate?: string;

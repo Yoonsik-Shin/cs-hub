@@ -4,6 +4,7 @@ import type { CustomFilterEntity, InquiryStatus } from '../types/inquiry';
 
 export interface FilterValues {
   userCode: string;
+  userCodeMissing?: boolean;
   statuses: InquiryStatus[];
   channels: string[];
   startDate: string;
@@ -60,6 +61,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 }) => {
   // Local temporary states for each filter control
   const [userCode, setUserCode] = useState(initialValues.userCode);
+  const [userCodeMissing, setUserCodeMissing] = useState(Boolean(initialValues.userCodeMissing));
   const [statuses, setStatuses] = useState<InquiryStatus[]>(initialValues.statuses);
   const [channels, setChannels] = useState<string[]>(initialValues.channels);
   const [startDate, setStartDate] = useState(initialValues.startDate);
@@ -79,11 +81,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const [isEditingFilter, setIsEditingFilter] = useState(false);
 
   const defaultPresets = [
-    { id: 'default-all', name: '📢 전체 문의', filterData: { userCode: '', statuses: [], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
-    { id: 'default-open', name: '🔴 미처리 문의', filterData: { userCode: '', statuses: ['OPEN'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
-    { id: 'default-in_progress', name: '🟡 진행중 문의', filterData: { userCode: '', statuses: ['IN_PROGRESS'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
-    { id: 'default-resolved', name: '🟢 완료 문의', filterData: { userCode: '', statuses: ['RESOLVED'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
-    { id: 'default-bookmarked', name: '⭐ 즐겨찾기 문의', filterData: { userCode: '', statuses: [], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: true } }
+    { id: 'default-all', name: '📢 전체 문의', filterData: { userCode: '', userCodeMissing: false, statuses: [], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
+    { id: 'default-open', name: '🔴 미처리 문의', filterData: { userCode: '', userCodeMissing: false, statuses: ['OPEN'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
+    { id: 'default-in_progress', name: '🟡 진행중 문의', filterData: { userCode: '', userCodeMissing: false, statuses: ['IN_PROGRESS'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
+    { id: 'default-resolved', name: '🟢 완료 문의', filterData: { userCode: '', userCodeMissing: false, statuses: ['RESOLVED'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
+    { id: 'default-user-code-missing', name: '⚪ 유저코드 없음', filterData: { userCode: '', userCodeMissing: true, statuses: [], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
+    { id: 'default-bookmarked', name: '⭐ 즐겨찾기 문의', filterData: { userCode: '', userCodeMissing: false, statuses: [], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: true } }
   ];
 
   const statusOptions: { value: InquiryStatus; label: string }[] = [
@@ -102,6 +105,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   // Keep internal states synced if parent values change
   useEffect(() => {
     setUserCode(initialValues.userCode);
+    setUserCodeMissing(Boolean(initialValues.userCodeMissing));
     setStatuses(initialValues.statuses);
     setChannels(initialValues.channels);
     setStartDate(initialValues.startDate);
@@ -135,6 +139,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         (data.endDate || '') === endDate &&
         data.isManual === isManual &&
         Boolean(data.bookmarkedOnly) === bookmarkedOnly &&
+        Boolean(data.userCodeMissing) === userCodeMissing &&
         (data.userCode || '') === userCode
       );
     });
@@ -154,6 +159,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         (data.endDate || '') === endDate &&
         data.isManual === isManual &&
         Boolean(data.bookmarkedOnly) === bookmarkedOnly &&
+        Boolean(data.userCodeMissing) === userCodeMissing &&
         (data.userCode || '') === userCode
       );
     });
@@ -163,7 +169,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     } else {
       setSelectedFilterId('');
     }
-  }, [channels, statuses, startDate, endDate, isManual, bookmarkedOnly, userCode, customFilters]);
+  }, [channels, statuses, startDate, endDate, isManual, bookmarkedOnly, userCodeMissing, userCode, customFilters]);
 
   const toggleValue = <T extends string>(values: T[], value: T, setter: React.Dispatch<React.SetStateAction<T[]>>) => {
     setter(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
@@ -172,6 +178,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const handleSearch = () => {
     onSearch({
       userCode,
+      userCodeMissing,
       statuses,
       channels,
       startDate,
@@ -190,8 +197,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       endDate: '',
       isManual: undefined,
       bookmarkedOnly: false,
+      userCodeMissing: false,
     };
     setUserCode(cleared.userCode);
+    setUserCodeMissing(false);
     setStatuses(cleared.statuses);
     setChannels(cleared.channels);
     setStartDate(cleared.startDate);
@@ -217,10 +226,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     startDate !== '' ||
     endDate !== '' ||
     isManual !== undefined ||
-    bookmarkedOnly;
+    bookmarkedOnly ||
+    userCodeMissing;
 
   const currentValues = (): FilterValues => ({
     userCode,
+    userCodeMissing,
     statuses,
     channels,
     startDate,
@@ -232,6 +243,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const applyFilter = (values: Partial<FilterValues>, id?: number | string) => {
     const next: FilterValues = {
       userCode: values.userCode || '',
+      userCodeMissing: Boolean(values.userCodeMissing),
       statuses: values.statuses || [],
       channels: values.channels || [],
       startDate: values.startDate || '',
@@ -240,6 +252,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       bookmarkedOnly: Boolean(values.bookmarkedOnly),
     };
     setUserCode(next.userCode);
+    setUserCodeMissing(Boolean(next.userCodeMissing));
     setStatuses(next.statuses);
     setChannels(next.channels);
     setStartDate(next.startDate);
@@ -375,6 +388,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <div key="usercode" style={summaryBadgeStyle}>
           <span style={summaryBadgeLabelStyle}>유저코드</span>
           <span style={summaryBadgeValueStyle}>{userCode}</span>
+        </div>
+      );
+    }
+
+    if (userCodeMissing) {
+      badges.push(
+        <div key="userCodeMissing" style={summaryBadgeStyle}>
+          <span style={summaryBadgeLabelStyle}>유저코드</span>
+          <span style={summaryBadgeValueStyle}>없음</span>
         </div>
       );
     }
@@ -977,20 +999,51 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               ({userCode.length}/12)
             </span>
           </label>
-          <div className="search-input-wrapper" style={{ height: '30px', position: 'relative', width: '100%' }}>
-            <Search className="search-icon" style={{ left: '6px', width: '11px', height: '11px' }} />
-            <input
-              type="text"
-              className="search-input"
-              placeholder="검색..."
-              value={userCode}
-              onChange={(e) => {
-                const onlyNums = e.target.value.replace(/[^0-9]/g, '');
-                setUserCode(onlyNums.slice(0, 12));
-              }}
-              onKeyDown={handleKeyDown}
-              style={{ padding: '6px 10px 6px 20px', fontSize: '12px', height: '30px', width: '100%', letterSpacing: '0.2px' }}
-            />
+          <div style={{ display: 'flex', gap: '4px', width: '100%' }}>
+            {!userCodeMissing && (
+              <div className="search-input-wrapper" style={{ height: '30px', position: 'relative', width: '100%' }}>
+                <Search className="search-icon" style={{ left: '6px', width: '11px', height: '11px' }} />
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="검색..."
+                  value={userCode}
+                  onChange={(e) => {
+                    const onlyNums = e.target.value.replace(/[^0-9]/g, '');
+                    setUserCode(onlyNums.slice(0, 12));
+                    setUserCodeMissing(false);
+                  }}
+                  onKeyDown={handleKeyDown}
+                  style={{ padding: '6px 10px 6px 20px', fontSize: '12px', height: '30px', width: '100%', letterSpacing: '0.2px' }}
+                />
+              </div>
+            )}
+            {(userCodeMissing || userCode.trim() === '') && (
+              <button
+                type="button"
+                aria-pressed={userCodeMissing}
+                onClick={() => {
+                  const next = !userCodeMissing;
+                  setUserCodeMissing(next);
+                  if (next) setUserCode('');
+                }}
+                style={{
+                  height: '30px',
+                  minWidth: userCodeMissing ? '100%' : '46px',
+                  padding: '0 8px',
+                  borderRadius: '8px',
+                  border: userCodeMissing ? '1px solid rgba(79, 70, 229, 0.55)' : '1px solid var(--border-light)',
+                  background: userCodeMissing ? 'rgba(79, 70, 229, 0.1)' : '#ffffff',
+                  color: userCodeMissing ? 'var(--accent-indigo)' : 'var(--text-secondary)',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                없음
+              </button>
+            )}
           </div>
         </div>
 

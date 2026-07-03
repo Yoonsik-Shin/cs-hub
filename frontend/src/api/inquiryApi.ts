@@ -1,4 +1,4 @@
-import type { SearchInquiriesParams, SearchInquiriesResponse, InquiryWorkLog, CustomFilterEntity, InquiryStatus } from '../types/inquiry';
+import type { SearchInquiriesParams, SearchInquiriesResponse, InquiryWorkLog, CustomFilterEntity, InquiryStatus, CustomerInquiry } from '../types/inquiry';
 
 export type BatchUpdateInquiryStatusTarget =
   | {
@@ -452,12 +452,42 @@ export const inquiryApi = {
 
     return response.json();
   },
+
+  async issueN8nAccess(): Promise<void> {
+    const response = await fetch('/api/auth/n8n-access', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to issue n8n access token: ${response.status}`);
+    }
+  },
 };
 
 export interface OperatorInfo {
   id: string;
   nickname: string;
   email: string;
+  role: string;
+}
+
+export interface AdminAccount {
+  username: string;
+  nickname: string;
+  email: string;
+  role: string;
+  createdAt: string;
+}
+
+export interface CreateAccountRequest {
+  username: string;
+  password: string;
+  nickname: string;
+  email: string;
+  role: string;
 }
 
 export interface NaverSessionStatus {
@@ -471,3 +501,36 @@ export interface InquiryCountResponse {
   count: number;
   hasMore: boolean;
 }
+
+export const accountApi = {
+  async getAccounts(): Promise<AdminAccount[]> {
+    const response = await fetch('/api/accounts', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`Failed to fetch accounts: ${response.status}`);
+    return response.json();
+  },
+
+  async createAccount(request: CreateAccountRequest): Promise<void> {
+    const response = await fetch('/api/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to create account: ${response.status}`);
+    }
+  },
+
+  async deleteAccount(username: string): Promise<void> {
+    const response = await fetch(`/api/accounts/${encodeURIComponent(username)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to delete account: ${response.status}`);
+    }
+  },
+};

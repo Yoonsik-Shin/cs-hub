@@ -41,6 +41,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             OffsetDateTime endDateTime,
             Boolean isManual,
             Boolean bookmarkedOnly,
+            Boolean userCodeMissing,
             String operatorId,
             UUID cursor,
             int size) {
@@ -57,7 +58,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                 .where(
                         parentIdIsNull(),
                         channelIn(channels),
-                        userCodeEq(userCode),
+                        userCodeFilter(userCode, userCodeMissing),
                         statusIn(statuses),
                         contentContains(contentKeyword),
                         timestampBetween(startDateTime, endDateTime),
@@ -81,6 +82,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             OffsetDateTime endDateTime,
             Boolean isManual,
             Boolean bookmarkedOnly,
+            Boolean userCodeMissing,
             String operatorId,
             int limit) {
         if (Boolean.TRUE.equals(bookmarkedOnly) && !StringUtils.hasText(operatorId)) {
@@ -98,7 +100,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                 .where(
                         parentIdIsNull(),
                         channelIn(channels),
-                        userCodeEq(userCode),
+                        userCodeFilter(userCode, userCodeMissing),
                         statusIn(statuses),
                         contentContains(contentKeyword),
                         timestampBetween(startDateTime, endDateTime),
@@ -120,6 +122,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             OffsetDateTime endDateTime,
             Boolean isManual,
             Boolean bookmarkedOnly,
+            Boolean userCodeMissing,
             String operatorId,
             List<UUID> excludedIds,
             int limit) {
@@ -136,7 +139,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                 .where(
                         parentIdIsNull(),
                         channelIn(channels),
-                        userCodeEq(userCode),
+                        userCodeFilter(userCode, userCodeMissing),
                         statusIn(statuses),
                         contentContains(contentKeyword),
                         timestampBetween(startDateTime, endDateTime),
@@ -185,8 +188,15 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
         );
     }
 
-    private BooleanExpression userCodeEq(String userCode) {
-        return StringUtils.hasText(userCode) ? QCustomerInquiry.customerInquiry.userCode.eq(userCode) : null;
+    private BooleanExpression userCodeFilter(String userCode, Boolean userCodeMissing) {
+        if (StringUtils.hasText(userCode)) {
+            return QCustomerInquiry.customerInquiry.userCode.eq(userCode);
+        }
+        if (Boolean.TRUE.equals(userCodeMissing)) {
+            return QCustomerInquiry.customerInquiry.userCode.isNull()
+                    .or(QCustomerInquiry.customerInquiry.userCode.eq(""));
+        }
+        return null;
     }
 
     private BooleanExpression statusIn(List<CustomerInquiry.Status> statuses) {

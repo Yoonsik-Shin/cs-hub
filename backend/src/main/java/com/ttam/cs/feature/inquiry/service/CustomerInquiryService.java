@@ -173,10 +173,11 @@ public class CustomerInquiryService {
             OffsetDateTime end,
             Boolean isManual,
             Boolean bookmarkedOnly,
+            Boolean userCodeMissing,
             String operatorId,
             UUID cursor,
             int size) {
-        return repository.searchInquiries(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, operatorId, cursor, size);
+        return repository.searchInquiries(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, userCodeMissing, operatorId, cursor, size);
     }
 
     @Transactional(readOnly = true)
@@ -189,9 +190,10 @@ public class CustomerInquiryService {
             OffsetDateTime end,
             Boolean isManual,
             Boolean bookmarkedOnly,
+            Boolean userCodeMissing,
             String operatorId,
             int limit) {
-        return repository.countInquiries(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, operatorId, limit);
+        return repository.countInquiries(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, userCodeMissing, operatorId, limit);
     }
 
     @Transactional
@@ -337,6 +339,7 @@ public class CustomerInquiryService {
                 filters.end(),
                 filters.isManual(),
                 filters.bookmarkedOnly(),
+                filters.userCodeMissing(),
                 operatorId,
                 request.excludedInquiryIds(),
                 MAX_BATCH_UPDATE_COUNT

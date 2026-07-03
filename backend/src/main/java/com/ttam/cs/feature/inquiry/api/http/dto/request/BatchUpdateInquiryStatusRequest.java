@@ -31,6 +31,7 @@ public record BatchUpdateInquiryStatusRequest(
             OffsetDateTime start,
             OffsetDateTime end,
             Boolean isManual,
-            Boolean bookmarkedOnly
+            Boolean bookmarkedOnly,
+            Boolean userCodeMissing
     ) {}
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Inbox, AlertCircle, Star } from 'lucide-react';
+import { Inbox, AlertCircle, Star, UserX } from 'lucide-react';
 
 interface SingleCardProps {
   count: number;
@@ -131,6 +131,49 @@ export const BookmarkedStatsCard: React.FC<SingleCardProps> = ({
       </div>
       <div className="stats-info">
         <span className="stats-label">즐겨찾기 CS</span>
+        <span className="stats-value">{display}</span>
+      </div>
+    </button>
+  );
+};
+
+export const MissingUserCodeStatsCard: React.FC<SingleCardProps> = ({
+  count,
+  hasMore = false,
+  isCollapsed,
+  onClick,
+}) => {
+  const display = hasMore ? `${count}+` : String(count);
+  const tooltipCount = hasMore ? `${count}건 이상` : `${count}건`;
+
+  if (isCollapsed) {
+    return (
+      <button
+        type="button"
+        className="collapsed-tooltip collapsed-stat cyan"
+        data-tooltip={`유저코드 없음 CS ${tooltipCount} - 클릭하여 조회`}
+        onClick={onClick}
+        aria-label={`유저코드 없음 CS ${tooltipCount} 조회`}
+        style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px' }}
+      >
+        {display}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="stats-card glass-card cyan glow-cyan-hover"
+      onClick={onClick}
+      aria-label={`유저코드 없음 CS ${tooltipCount} 조회`}
+      style={{ width: '100%', cursor: 'grab' }}
+    >
+      <div className="stats-icon-wrapper">
+        <UserX size={20} />
+      </div>
+      <div className="stats-info">
+        <span className="stats-label">유저코드 없음</span>
         <span className="stats-value">{display}</span>
       </div>
     </button>
