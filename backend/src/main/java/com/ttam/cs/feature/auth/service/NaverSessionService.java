@@ -97,11 +97,25 @@ public class NaverSessionService {
             if (body != null && Boolean.TRUE.equals(body.get("success"))) {
                 List<Map<String, Object>> cookies = (List<Map<String, Object>>) body.get("cookies");
 
-                // Filter only essential Naver session cookies: NID_AUT, NID_SES
+                // Filter only essential Naver session cookies: NID_AUT, NID_SES and Clean up
+                // values
                 List<Map<String, Object>> filteredCookies = cookies.stream()
                         .filter(cookie -> {
                             Object name = cookie.get("name");
                             return name != null && ("NID_AUT".equals(name) || "NID_SES".equals(name));
+                        })
+                        .map(cookie -> {
+                            // restClient 응답으로 생성된 원본 Map이 불변(Immutable)일 수 있으므로 복사하여 사용
+                            Map<String, Object> cleanCookie = new HashMap<>(cookie);
+                            Object valueObj = cleanCookie.get("value");
+
+                            // value 값에 세미콜론(;)이 포함되어 있다면 앞부분(순수 토큰)만 잘라서 덮어쓰기
+                            if (valueObj instanceof String valueStr && valueStr.contains(";")) {
+                                String cleanValue = valueStr.substring(0, valueStr.indexOf(";")).trim();
+                                cleanCookie.put("value", cleanValue);
+                            }
+
+                            return cleanCookie;
                         })
                         .toList();
 

@@ -80,6 +80,9 @@ public class NaverSessionController {
                     continue;
                 }
                 String value = cookieMap.get("value");
+                if (value != null && value.contains(";")) {
+                    value = value.substring(0, value.indexOf(";")).trim();
+                }
                 String domain = cookieMap.get("domain");
                 String path = cookieMap.get("path");
 
@@ -133,7 +136,7 @@ public class NaverSessionController {
             OffsetDateTime oldUpdatedAt = sessionBefore.getUpdatedAt();
 
             boolean isValid = naverSessionService.syncSessionStatus(id);
-            
+
             NaverCafeSession sessionAfter = repository.findById(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
             String newStatus = sessionAfter.getStatus();
@@ -148,10 +151,12 @@ public class NaverSessionController {
                 // Cooldown: Alert again only if it's been EXPIRED for more than 3 hours
                 if (oldUpdatedAt.isBefore(OffsetDateTime.now(ZoneOffset.UTC).minusHours(3))) {
                     shouldAlert = true;
-                    log.warn("🚨 Naver Cafe Session remains EXPIRED (3h cooldown passed). Re-triggering alert. ID: {}", id);
-                    
+                    log.warn("🚨 Naver Cafe Session remains EXPIRED (3h cooldown passed). Re-triggering alert. ID: {}",
+                            id);
+
                     // Reset the 3-hour cooldown timer by updating the updatedAt timestamp
-                    sessionAfter.update(sessionAfter.getEncryptedCookies(), "EXPIRED", OffsetDateTime.now(ZoneOffset.UTC));
+                    sessionAfter.update(sessionAfter.getEncryptedCookies(), "EXPIRED",
+                            OffsetDateTime.now(ZoneOffset.UTC));
                     repository.save(sessionAfter);
                 }
             }
