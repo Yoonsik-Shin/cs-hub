@@ -39,9 +39,6 @@ dependencies {
     annotationProcessor("jakarta.annotation:jakarta.annotation-api")
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
 
-    // Resilience4j (Spring Boot 3)
-    implementation("io.github.resilience4j:resilience4j-spring-boot3:2.2.0")
-
     // Springdoc OpenAPI (Swagger)
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0")
 
@@ -66,5 +63,4 @@ graalvmNative {
         }
     }
 }
-
 

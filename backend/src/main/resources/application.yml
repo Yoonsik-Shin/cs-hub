@@ -52,34 +52,16 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
 
-resilience4j:
-  circuitbreaker:
-    instances:
-      antiAbuseService:
-        registerHealthIndicator: true
-        slidingWindowType: COUNT_BASED
-        slidingWindowSize: 5
-        minimumNumberOfCalls: 3
-        failureRateThreshold: 50
-        slowCallRateThreshold: 50
-        slowCallDurationThreshold: 4s
-        waitDurationInOpenState: 10s
-        permittedNumberOfCallsInHalfOpenState: 2
-        automaticTransitionFromOpenToHalfOpenEnabled: true
-  retry:
-    instances:
-      antiAbuseService:
-        maxAttempts: 3
-        waitDuration: 500ms
-
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,loggers
       base-path: /internal/actuator
   endpoint:
     health:
+      probes:
+        enabled: true
       show-details: when-authorized
   metrics:
     tags:

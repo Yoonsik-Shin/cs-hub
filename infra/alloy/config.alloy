@@ -1,0 +1,72 @@
+logging {
+  level = "info"
+}
+
+local.file_match "cs_api_access" {
+  path_targets = [
+    {
+      "__path__" = "/app/logs/access/*.log",
+      "service"  = "cs-api",
+      "log_type" = "access",
+    },
+  ]
+}
+
+local.file_match "cs_api_webhooks" {
+  path_targets = [
+    {
+      "__path__"     = "/app/logs/webhooks/kakao-skill*.log",
+      "service"      = "cs-api",
+      "log_type"     = "webhook",
+      "webhook_type" = "kakao-skill",
+    },
+    {
+      "__path__"     = "/app/logs/webhooks/kakao-validation*.log",
+      "service"      = "cs-api",
+      "log_type"     = "webhook",
+      "webhook_type" = "kakao-validation",
+    },
+    {
+      "__path__"     = "/app/logs/webhooks/n8n*.log",
+      "service"      = "cs-api",
+      "log_type"     = "webhook",
+      "webhook_type" = "n8n",
+    },
+  ]
+}
+
+local.file_match "cs_api_app" {
+  path_targets = [
+    {
+      "__path__" = "/app/logs/app/application*.log",
+      "service"  = "cs-api",
+      "log_type" = "application",
+    },
+    {
+      "__path__" = "/app/logs/app/error*.log",
+      "service"  = "cs-api",
+      "log_type" = "error",
+    },
+  ]
+}
+
+loki.source.file "cs_api_access" {
+  targets    = local.file_match.cs_api_access.targets
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.source.file "cs_api_webhooks" {
+  targets    = local.file_match.cs_api_webhooks.targets
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.source.file "cs_api_app" {
+  targets    = local.file_match.cs_api_app.targets
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

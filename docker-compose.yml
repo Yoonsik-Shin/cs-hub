@@ -1,8 +1,8 @@
-version: '3.8'
-
 volumes:
-  webhook_logs:
+  app_logs:
   minio_storage:
+  loki_data:
+  grafana_data:
 
 networks:
   n8n_network:
@@ -12,6 +12,8 @@ services:
     image: postgres:16
     container_name: postgres-db
     restart: always
+    env_file:
+      - .env
     environment:
       - POSTGRES_USER=${DB_USERNAME}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
@@ -58,9 +60,11 @@ services:
     image: minio/minio:latest
     container_name: minio
     restart: always
+    env_file:
+      - .env
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadminpassword}
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -77,41 +81,73 @@ services:
     restart: always
     env_file:
       - .env
-    environment:
-      - DB_URL=${DB_URL}
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN}
-      - NAVER_SESSION_SECRET=${NAVER_SESSION_SECRET}
-      - NAVER_SESSION_RENEW_TRIGGER_URL=${NAVER_SESSION_RENEW_TRIGGER_URL:-}
-      - S3_ENDPOINT=http://minio:9000
-      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
-      - S3_SECRET_KEY=${S3_SECRET_KEY}
-      - S3_BUCKET=${MINIO_BUCKET:-kakao-webhook-logs}
-      - S3_REGION=us-east-1
-      - S3_EXTERNAL_URL=${S3_EXTERNAL_URL:-http://localhost:8888/attachments}
     volumes:
-      - webhook_logs:/app/logs/webhooks
+      - app_logs:/app/logs
       - ./infra/nginx/.htpasswd:/app/config/.htpasswd
     depends_on:
       - postgres-db
     networks:
       - n8n_network
 
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: always
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./infra/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - n8n_network
+
+  grafana-alloy:
+    image: grafana/alloy:latest
+    container_name: grafana-alloy
+    restart: always
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./infra/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - app_logs:/app/logs:ro
+    depends_on:
+      - loki
+    networks:
+      - n8n_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: always
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3001}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - loki
+    networks:
+      - n8n_network
+    ports:
+      - "3001:3000"
+
   browser-worker:
     build:
       context: ./browser-worker
     container_name: browser-worker
     restart: always
+    env_file:
+      - .env
     environment:
       - BACKEND_API_URL=http://cs-api:8080
-      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN}
     depends_on:
       - cs-api
     networks:
       - n8n_network
-    ports:
-      - "3000:3000"
 
   frontend:
     image: nginx:alpine
@@ -134,6 +170,6 @@ services:
     depends_on:
       - minio
     entrypoint: >
-      /bin/sh -c " until (/usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadminpassword); do echo 'Waiting for MinIO...'; sleep 1; done; /usr/bin/mc mb --ignore-existing myminio/kakao-webhook-logs; /usr/bin/mc anonymous set download myminio/kakao-webhook-logs; echo 'Bucket kakao-webhook-logs created and download policy set!'; exit 0; "
+      /bin/sh -c " until (/usr/bin/mc alias set myminio http://minio:9000 ${S3_ACCESS_KEY} ${S3_SECRET_KEY}); do echo 'Waiting for MinIO...'; sleep 1; done; /usr/bin/mc mb --ignore-existing myminio/${S3_BUCKET}; /usr/bin/mc anonymous set download myminio/${S3_BUCKET}; echo 'Bucket ${S3_BUCKET} created and download policy set!'; exit 0; "
     networks:
       - n8n_network
