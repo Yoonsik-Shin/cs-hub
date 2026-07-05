@@ -53,7 +53,7 @@ sequenceDiagram
     Nginx-->>Manager: 3. 번호 입력 폼 반환
     Note over Manager: 4. 스마트폰 네이버 앱에서 일회용 번호 발급
     Manager->>Nginx: 5. 8자리 일회용 번호 입력 후 제출
-    Nginx->>Java: 6. 로그인 API 호출 (/api/internal/v1/naver/session/one-time-login)
+    Nginx->>Java: 6. 로그인 API 호출 (/api/v1/naver/sessions/one-time-login)
     Java->>Worker: 7. 로그인 대행 요청 (POST /api/naver/login/one-time)
     Note over Worker: 8. Playwright 백그라운드 구동 및 일회용 번호 입력
     Worker->>Naver: 9. 네이버 일회용 로그인 요청
@@ -86,10 +86,10 @@ Playwright와 Chromium 브라우저를 이미지 빌드 시 내장 패키징하�
   * `renewSessionWithOneTimeCode(id, code)`: Extended Timeout(20초)이 설정된 `RestClient`를 통해 워커에 일회용 번호 로그인을 위임하고 반환받은 쿠키를 암호화하여 저장.
   * `syncSessionStatus(id)`: 저장된 쿠키 유효성을 워커 호출을 통해 실시간 검증하고 결과를 DB 상태(status)와 동기화.
 * **[NaverSessionController.java](file:///c:/Users/RUNDAY/Desktop/test-bed/backend/src/main/java/com/ttam/cs/feature/auth/api/NaverSessionController.java)**:
-  * `GET /api/internal/v1/naver/session`: n8n 등 내부 연동 시스템을 위한 세션 조회 API. **보안을 위해 쿠키 정보는 응답 바디(JSON)에서 제외**하고, 응답 헤더(`Set-Cookie` 및 단일 문자열 포맷인 `X-Naver-Cookie`)로 반환합니다.
-  * `POST /api/internal/v1/naver/session/one-time-login`: 세션 일회용 로그인 갱신.
-  * `POST /api/internal/v1/naver/session/sync`: 세션 상태 실시간 강제 검사 및 동기화.
-  * `GET /api/internal/v1/naver/session/status`: 복호화 정보 제외, 외부 비노출 세션 상태(status) 및 갱신 시간 조회.
+  * `GET /api/v1/naver/sessions`: n8n 등 내부 연동 시스템을 위한 세션 조회 API. **보안을 위해 쿠키 정보는 응답 바디(JSON)에서 제외**하고, 응답 헤더(`Set-Cookie` 및 단일 문자열 포맷인 `X-Naver-Cookie`)로 반환합니다.
+  * `POST /api/v1/naver/sessions/one-time-login`: 세션 일회용 로그인 갱신.
+  * `POST /api/v1/naver/sessions/sync`: 세션 상태 실시간 강제 검사 및 동기화.
+  * `GET /api/v1/naver/sessions/status`: 복호화 정보 제외, 외부 비노출 세션 상태(status) 및 갱신 시간 조회.
 
 ### ③ 프론트엔드 (`frontend/`)
 * **[inquiryApi.ts](file:///c:/Users/RUNDAY/Desktop/test-bed/frontend/src/api/inquiryApi.ts)**: 백엔드의 세션 갱신 API(`renewNaverSession`), 상태 조회 API(`getNaverSessionStatus`), 상태 검증 API(`validateNaverSession`) 연동.
@@ -105,7 +105,7 @@ Playwright와 Chromium 브라우저를 이미지 빌드 시 내장 패키징하�
 n8n과 같은 외부 연동 워크플로우 엔진에서 복호화된 네이버 세션 쿠키를 읽어 네이버 API를 대리 호출할 때, 호출 로그(Response Body/JSON logs)에 민감한 세션 쿠키 평문 정보가 그대로 기록되거나 노출되는 보안 위협을 원천 방어하고자 아래와 같이 응답 처리 구조를 대폭 개선했습니다.
 
 1. **JSON Response Body 제거**:
-   * `GET /api/internal/v1/naver/session` API의 응답 JSON 바디에서 `cookiesJson` 필드를 완전히 제거했습니다.
+   * `GET /api/v1/naver/sessions` API의 응답 JSON 바디에서 `cookiesJson` 필드를 완전히 제거했습니다.
    * 이제 응답 바디에는 오직 세션 기본 식별 정보(`id`), 상태(`status`), 갱신 시점(`updatedAt`)만 담겨 반환됩니다.
 2. **응답 HTTP 헤더를 통한 쿠키 전송**:
    * 복호화된 개별 쿠키들은 표준 스펙에 맞게 HTTP 응답의 `Set-Cookie` 헤더로 분리되어 전송됩니다.
@@ -115,7 +115,7 @@ n8n과 같은 외부 연동 워크플로우 엔진에서 복호화된 네이버 
 
 내부 컨테이너 통신을 흉내 내어 API 호출을 테스트한 결과는 다음과 같습니다:
 
-* **테스트 요청**: `GET /api/internal/v1/naver/session`
+* **테스트 요청**: `GET /api/v1/naver/sessions`
 * **응답 헤더 확인**:
   ```http
   Set-Cookie: NID_AUT=eRDOOpHw...; Path=/; Domain=.naver.com; Secure; HttpOnly
@@ -198,7 +198,7 @@ N8N 워크플로우에서 네이버 비공개 카페 게시글을 수집하기 �
 
 #### 1. [네이버 세션 상태 동기화] 노드 (HTTP Request)
 * **Method**: `POST`
-* **URL**: `http://cs-api:8080/api/internal/v1/naver/session/sync`
+* **URL**: `http://cs-api:8080/api/v1/naver/sessions/sync`
 * **Headers**:
   * `X-Internal-Token`: `<INTERNAL_API_TOKEN>` (기본값: `changeme`)
 * **역할**: 백엔드를 통해 실제 네이버 세션 상태를 확인하여 DB와 동기화하고 알림 여부를 반환하도록 지시합니다.
@@ -242,7 +242,7 @@ N8N 워크플로우에서 네이버 비공개 카페 게시글을 수집하기 �
 
 #### 5. [네이버 세션 조회] 노드 (HTTP Request)
 * **Method**: `GET`
-* **URL**: `http://cs-api:8080/api/internal/v1/naver/session`
+* **URL**: `http://cs-api:8080/api/v1/naver/sessions`
 * **Headers**:
   * `X-Internal-Token`: `<INTERNAL_API_TOKEN>` (기본값: `changeme`)
 * **Response Settings (필수 설정)**:

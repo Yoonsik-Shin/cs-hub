@@ -1,18 +1,20 @@
 package com.ttam.cs.infra.storage;
 
-import com.ttam.cs.common.exception.BusinessException;
-import com.ttam.cs.common.exception.ErrorCode;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import com.ttam.cs.common.exception.BusinessException;
+import com.ttam.cs.common.exception.ErrorCode;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
-
-import java.time.Duration;
 
 @Service
 @RequiredArgsConstructor
@@ -44,9 +46,8 @@ public class StorageService {
             var presignedRequest = s3Presigner.presignPutObject(presignRequest);
             String uploadUrl = presignedRequest.url().toString();
 
-            String downloadUrl = externalUrl.endsWith("/") ?
-                    externalUrl + bucketName + "/" + objectName :
-                    externalUrl + "/" + bucketName + "/" + objectName;
+            String downloadUrl = externalUrl.endsWith("/") ? externalUrl + bucketName + "/" + objectName
+                    : externalUrl + "/" + bucketName + "/" + objectName;
 
             return new PresignedUrlResponse(uploadUrl, downloadUrl);
         } catch (Exception e) {
@@ -99,9 +100,8 @@ public class StorageService {
         }
 
         // 3. prefix와 비교하는 fallback 로직
-        String prefix = externalUrl.endsWith("/") ?
-                externalUrl + bucketName + "/" :
-                externalUrl + "/" + bucketName + "/";
+        String prefix = externalUrl.endsWith("/") ? externalUrl + bucketName + "/"
+                : externalUrl + "/" + bucketName + "/";
 
         if (objectKeyOrUrl.startsWith(prefix)) {
             return objectKeyOrUrl.substring(prefix.length());
@@ -111,5 +111,6 @@ public class StorageService {
         return objectKeyOrUrl;
     }
 
-    public record PresignedUrlResponse(String uploadUrl, String downloadUrl) {}
+    public record PresignedUrlResponse(String uploadUrl, String downloadUrl) {
+    }
 }

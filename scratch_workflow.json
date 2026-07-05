@@ -672,7 +672,7 @@
     },
     {
       "parameters": {
-        "url": "http://cs-api:8080/api/internal/v1/naver/session",
+        "url": "http://cs-api:8080/api/v1/naver/sessions",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -702,7 +702,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://cs-api:8080/api/internal/v1/naver/session/sync",
+        "url": "http://cs-api:8080/api/v1/naver/sessions/sync",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -855,7 +855,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://cs-api:8080/api/internal/v1/inquiries/attachments/presigned-urls",
+        "url": "http://cs-api:8080/api/v1/files/presigned-urls",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1041,7 +1041,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://cs-api:8080/api/internal/v1/inquiries/attachments/presigned-urls",
+        "url": "http://cs-api:8080/api/v1/files/presigned-urls",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

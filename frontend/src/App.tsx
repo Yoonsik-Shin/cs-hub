@@ -397,7 +397,7 @@ export const App: React.FC = () => {
     const currentUserId = currentOperator?.id || '';
     setIsOperatorMenuOpen(false);
     if (window.confirm("현재 로그인된 Nginx Basic Auth 계정을 변경(로그아웃)하시겠습니까?\n\n[확인]을 누르면 계정 변경을 위한 로그인 창이 다시 표시됩니다.")) {
-      window.location.href = `/api/auth/logout?current=${encodeURIComponent(currentUserId)}`;
+      window.location.href = `/api/v1/auth/logout?current=${encodeURIComponent(currentUserId)}`;
     }
   };
 

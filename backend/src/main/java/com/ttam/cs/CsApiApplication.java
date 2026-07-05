@@ -10,4 +10,3 @@ public class CsApiApplication {
         SpringApplication.run(CsApiApplication.class, args);
     }
 }
-
