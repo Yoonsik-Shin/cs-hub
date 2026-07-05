@@ -1,4 +1,4 @@
-package com.ttam.cs.feature.inquiry.domain;
+package com.ttam.cs.feature.inquiry.domain.entity;
 
 import jakarta.persistence.Access;
 import jakarta.persistence.AccessType;
@@ -15,6 +15,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.ttam.cs.common.util.UuidUtils;
+import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
+import com.ttam.cs.feature.inquiry.domain.vo.DeviceInfo;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;

@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.inquiry.api.http.dto.request;
 
-import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;

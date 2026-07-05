@@ -1,5 +1,6 @@
-package com.ttam.cs.common.exception;
+package com.ttam.cs.infra.web.exception;
 
+import com.ttam.cs.common.exception.ErrorCode;
 import java.time.OffsetDateTime;
 import java.util.List;
 

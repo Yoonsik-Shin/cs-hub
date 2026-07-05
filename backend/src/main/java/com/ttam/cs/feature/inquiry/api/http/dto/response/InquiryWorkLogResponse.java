@@ -1,9 +1,9 @@
 package com.ttam.cs.feature.inquiry.api.http.dto.response;
 
-import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
-import com.ttam.cs.feature.inquiry.domain.InquiryWorkLog;
-import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
-import com.ttam.cs.feature.inquiry.domain.FieldModification;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
+import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
+import com.ttam.cs.feature.inquiry.domain.vo.FieldModification;
 
 import java.time.OffsetDateTime;
 import java.util.List;

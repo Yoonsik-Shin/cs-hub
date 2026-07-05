@@ -1,8 +1,8 @@
 package com.ttam.cs.feature.auth.usecase;
 
-import com.ttam.cs.feature.auth.domain.AdminMember;
-import com.ttam.cs.feature.auth.domain.AdminUser;
+import com.ttam.cs.feature.auth.domain.entity.AdminMember;
 import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
+import com.ttam.cs.feature.auth.usecase.dto.CurrentAdminUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -12,18 +12,18 @@ public class AdminUserResolver {
 
     private final AdminMemberRepository adminMemberRepository;
 
-    public AdminUser resolve(String remoteUser) {
+    public CurrentAdminUser resolve(String remoteUser) {
         if (remoteUser == null || remoteUser.isBlank()) {
-            return AdminUser.unknown(null);
+            return CurrentAdminUser.unknown(null);
         }
 
         String username = remoteUser.trim();
         return adminMemberRepository.findById(username)
-                .map(this::toAdminUser)
-                .orElseGet(() -> AdminUser.unknown(username));
+                .map(this::toCurrentAdminUser)
+                .orElseGet(() -> CurrentAdminUser.unknown(username));
     }
 
-    private AdminUser toAdminUser(AdminMember member) {
-        return new AdminUser(member.getUsername(), member.getNickname(), member.getEmail(), member.getRole());
+    private CurrentAdminUser toCurrentAdminUser(AdminMember member) {
+        return new CurrentAdminUser(member.getUsername(), member.getNickname(), member.getEmail(), member.getRole());
     }
 }

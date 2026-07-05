@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.inquiry.usecase;
 
-import com.ttam.cs.feature.inquiry.domain.CustomFilter;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomFilter;
 import com.ttam.cs.feature.inquiry.repository.CustomFilterRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

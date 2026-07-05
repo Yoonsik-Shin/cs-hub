@@ -1,4 +1,4 @@
-package com.ttam.cs.feature.inquiry.domain;
+package com.ttam.cs.feature.inquiry.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -6,6 +6,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import com.ttam.cs.common.util.UuidUtils;
+import com.ttam.cs.feature.inquiry.domain.vo.FieldModification;
+import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 
 import java.time.OffsetDateTime;
 import java.util.List;

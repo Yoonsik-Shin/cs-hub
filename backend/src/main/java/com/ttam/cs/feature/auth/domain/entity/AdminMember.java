@@ -1,4 +1,4 @@
-package com.ttam.cs.feature.auth.domain;
+package com.ttam.cs.feature.auth.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.inquiry.repository;
 
-import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.common.dto.CursorPage;
 
 import java.time.OffsetDateTime;

@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.inquiry.api.http.dto.request;
 
-import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
+import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 

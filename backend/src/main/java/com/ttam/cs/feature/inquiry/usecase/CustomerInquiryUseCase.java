@@ -1,9 +1,9 @@
 package com.ttam.cs.feature.inquiry.usecase;
 
-import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
-import com.ttam.cs.feature.inquiry.domain.EmailMetadata;
-import com.ttam.cs.feature.inquiry.domain.ChannelMetadata;
-import com.ttam.cs.feature.inquiry.domain.InquiryWorkLog;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.vo.EmailMetadata;
+import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
+import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.CreateInquiryRequest;
@@ -12,10 +12,10 @@ import com.ttam.cs.feature.inquiry.api.http.dto.request.RegisterWorkLogRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryFieldsRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.BatchUpdateInquiryStatusRequest;
-import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
+import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import com.ttam.cs.feature.inquiry.api.http.dto.response.InquiryWorkLogResponse;
 import com.ttam.cs.feature.inquiry.domain.service.InquiryUniqueKeyGenerator;
-import com.ttam.cs.feature.inquiry.domain.FieldModification;
+import com.ttam.cs.feature.inquiry.domain.vo.FieldModification;
 import com.ttam.cs.common.dto.CursorPage;
 import java.util.ArrayList;
 import java.util.Map;
@@ -47,7 +47,7 @@ public class CustomerInquiryUseCase {
         List<CustomerInquiry> inquiries = items.stream()
                 .map(item -> {
                     List<String> imageUrls = item.imageUrls();
-                    if ((imageUrls == null || imageUrls.isEmpty()) && item.channelMetadata() instanceof com.ttam.cs.feature.inquiry.domain.NaverCafeMetadata cafeMeta) {
+                    if ((imageUrls == null || imageUrls.isEmpty()) && item.channelMetadata() instanceof com.ttam.cs.feature.inquiry.domain.vo.NaverCafeMetadata cafeMeta) {
                         imageUrls = cafeMeta.imageUrls();
                     }
                     List<String> relativeUrls = imageUrls != null ?

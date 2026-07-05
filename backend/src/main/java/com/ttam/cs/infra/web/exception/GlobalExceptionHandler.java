@@ -1,5 +1,7 @@
-package com.ttam.cs.common.exception;
+package com.ttam.cs.infra.web.exception;
 
+import com.ttam.cs.common.exception.BusinessException;
+import com.ttam.cs.common.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -15,7 +17,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException exception) {
         ErrorCode errorCode = exception.getErrorCode();
-        return ResponseEntity.status(errorCode.status()).body(ErrorResponse.of(errorCode));
+        return ResponseEntity.status(ErrorCodeHttpStatusMapper.toHttpStatus(errorCode)).body(ErrorResponse.of(errorCode));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

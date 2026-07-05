@@ -1,7 +1,7 @@
 package com.ttam.cs.feature.inquiry.api.http.dto.request;
 
-import com.ttam.cs.feature.inquiry.domain.ChannelMetadata;
-import com.ttam.cs.feature.inquiry.domain.DeviceInfo;
+import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
+import com.ttam.cs.feature.inquiry.domain.vo.DeviceInfo;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.time.OffsetDateTime;

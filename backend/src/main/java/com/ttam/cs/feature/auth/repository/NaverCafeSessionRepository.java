@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.auth.repository;
 
-import com.ttam.cs.feature.auth.domain.NaverCafeSession;
+import com.ttam.cs.feature.auth.domain.entity.NaverCafeSession;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

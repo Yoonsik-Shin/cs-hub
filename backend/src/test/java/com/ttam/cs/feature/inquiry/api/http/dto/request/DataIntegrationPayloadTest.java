@@ -2,9 +2,9 @@ package com.ttam.cs.feature.inquiry.api.http.dto.request;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
-import com.ttam.cs.feature.inquiry.domain.ChannelMetadata;
-import com.ttam.cs.feature.inquiry.domain.GoogleSheetMetadata;
-import com.ttam.cs.feature.inquiry.domain.NaverCafeMetadata;
+import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
+import com.ttam.cs.feature.inquiry.domain.vo.GoogleSheetMetadata;
+import com.ttam.cs.feature.inquiry.domain.vo.NaverCafeMetadata;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

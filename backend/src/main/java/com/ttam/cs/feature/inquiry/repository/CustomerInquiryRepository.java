@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.inquiry.repository;
 
-import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import org.springframework.data.jpa.repository.Query;

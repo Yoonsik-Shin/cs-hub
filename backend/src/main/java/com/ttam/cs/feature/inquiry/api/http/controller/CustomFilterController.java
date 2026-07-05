@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.inquiry.api.http.controller;
 
-import com.ttam.cs.feature.inquiry.domain.CustomFilter;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomFilter;
 import com.ttam.cs.feature.inquiry.usecase.CustomFilterUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

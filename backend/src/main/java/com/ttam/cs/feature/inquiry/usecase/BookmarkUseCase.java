@@ -1,10 +1,10 @@
 package com.ttam.cs.feature.inquiry.usecase;
 
-import com.ttam.cs.feature.auth.domain.AdminUser;
 import com.ttam.cs.feature.auth.usecase.AdminUserResolver;
-import com.ttam.cs.feature.inquiry.domain.InquiryBookmark;
-import com.ttam.cs.feature.inquiry.domain.InquiryWorkLog;
-import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
+import com.ttam.cs.feature.auth.usecase.dto.CurrentAdminUser;
+import com.ttam.cs.feature.inquiry.domain.entity.InquiryBookmark;
+import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
+import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import com.ttam.cs.feature.inquiry.repository.InquiryBookmarkRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import lombok.RequiredArgsConstructor;
@@ -59,7 +59,7 @@ public class BookmarkUseCase {
     }
 
     private void saveWorkLog(String remoteUser, UUID inquiryId, InquiryWorkLog.ActionType actionType) {
-        AdminUser adminUser = adminUserResolver.resolve(remoteUser);
+        CurrentAdminUser adminUser = adminUserResolver.resolve(remoteUser);
         OperatorInfo operatorInfo = new OperatorInfo(adminUser.id(), adminUser.nickname(), adminUser.email());
         InquiryWorkLog workLog = InquiryWorkLog.create(
                 inquiryId,

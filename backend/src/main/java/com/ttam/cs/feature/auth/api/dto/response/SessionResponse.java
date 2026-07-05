@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.auth.api.dto.response;
 
-import com.ttam.cs.feature.auth.domain.NaverCafeSession;
+import com.ttam.cs.feature.auth.domain.entity.NaverCafeSession;
 
 import java.time.OffsetDateTime;
 

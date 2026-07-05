@@ -1,4 +1,4 @@
-package com.ttam.cs.feature.inquiry.domain;
+package com.ttam.cs.feature.inquiry.domain.vo;
 
 public record GoogleSheetMetadata(
     String type,

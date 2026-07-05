@@ -1,9 +1,9 @@
 package com.ttam.cs.feature.inquiry.api.http.dto.response;
 
 import com.ttam.cs.common.dto.CursorPage;
-import com.ttam.cs.feature.inquiry.domain.ChannelMetadata;
-import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
-import com.ttam.cs.feature.inquiry.domain.DeviceInfo;
+import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.vo.DeviceInfo;
 
 import java.time.OffsetDateTime;
 import java.util.List;

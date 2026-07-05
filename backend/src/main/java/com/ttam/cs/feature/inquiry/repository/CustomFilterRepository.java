@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.inquiry.repository;
 
-import com.ttam.cs.feature.inquiry.domain.CustomFilter;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomFilter;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

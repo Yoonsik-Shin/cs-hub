@@ -2,7 +2,7 @@ package com.ttam.cs.feature.inquiry.api.http.controller;
 
 import com.ttam.cs.feature.inquiry.usecase.CustomerInquiryUseCase;
 import lombok.RequiredArgsConstructor;
-import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.common.dto.CursorPage;
 import com.ttam.cs.feature.inquiry.api.http.dto.response.InquiryCountResponse;
 import com.ttam.cs.feature.inquiry.api.http.dto.response.SearchCustomerInquiryResponse;
@@ -13,9 +13,9 @@ import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryStatusReque
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryFieldsRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.BatchUpdateInquiryStatusRequest;
-import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
-import com.ttam.cs.feature.auth.domain.AdminUser;
+import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import com.ttam.cs.feature.auth.usecase.AdminUserResolver;
+import com.ttam.cs.feature.auth.usecase.dto.CurrentAdminUser;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -173,7 +173,7 @@ public class CustomerInquiryController {
             @RequestHeader(value = "X-Remote-User", required = false) String remoteUser,
             @RequestBody @Valid BatchUpdateInquiryStatusRequest request) {
 
-        AdminUser adminUser = adminUserResolver.resolve(remoteUser);
+        CurrentAdminUser adminUser = adminUserResolver.resolve(remoteUser);
         OperatorInfo operatorInfo = new OperatorInfo(adminUser.id(), adminUser.nickname(), adminUser.email());
 
         inquiryUseCase.updateStatuses(request, operatorInfo, remoteUser);

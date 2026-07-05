@@ -1,6 +1,6 @@
 package com.ttam.cs.infra.security;
 
-import com.ttam.cs.feature.auth.domain.AdminMember;
+import com.ttam.cs.feature.auth.domain.entity.AdminMember;
 import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

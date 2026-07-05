@@ -1,16 +1,16 @@
 package com.ttam.cs.feature.inquiry.usecase;
 
-import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
-import com.ttam.cs.feature.inquiry.domain.InquiryWorkLog;
-import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
+import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
+import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.RegisterWorkLogRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryFieldsRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.DataIntegrationPayload;
-import com.ttam.cs.feature.inquiry.domain.EmailMetadata;
-import com.ttam.cs.feature.inquiry.domain.DeviceInfo;
+import com.ttam.cs.feature.inquiry.domain.vo.EmailMetadata;
+import com.ttam.cs.feature.inquiry.domain.vo.DeviceInfo;
 import com.ttam.cs.feature.inquiry.domain.service.InquiryUniqueKeyGenerator;
 import com.ttam.cs.infra.storage.StorageService;
 import java.util.Map;

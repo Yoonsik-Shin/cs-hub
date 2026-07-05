@@ -1,4 +1,4 @@
-package com.ttam.cs.common.util;
+package com.ttam.cs.infra.security.crypto;
 
 import com.ttam.cs.common.exception.BusinessException;
 import com.ttam.cs.common.exception.ErrorCode;

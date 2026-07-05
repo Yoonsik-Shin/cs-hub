@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.auth.repository;
 
-import com.ttam.cs.feature.auth.domain.AdminMember;
+import com.ttam.cs.feature.auth.domain.entity.AdminMember;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

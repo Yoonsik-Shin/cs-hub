@@ -1,4 +1,4 @@
-package com.ttam.cs.feature.inquiry.domain;
+package com.ttam.cs.feature.inquiry.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;

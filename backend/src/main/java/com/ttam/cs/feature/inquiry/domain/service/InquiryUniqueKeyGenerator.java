@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.inquiry.domain.service;
 
-import com.ttam.cs.feature.inquiry.domain.ChannelMetadata;
+import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
 import org.springframework.stereotype.Component;
 import java.time.OffsetDateTime;
 

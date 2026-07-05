@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.inquiry.repository;
 
-import com.ttam.cs.feature.inquiry.domain.InquiryBookmark;
+import com.ttam.cs.feature.inquiry.domain.entity.InquiryBookmark;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

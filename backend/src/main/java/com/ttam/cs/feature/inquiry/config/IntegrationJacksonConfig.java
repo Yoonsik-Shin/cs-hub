@@ -2,7 +2,7 @@ package com.ttam.cs.feature.inquiry.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
-import com.ttam.cs.feature.inquiry.domain.ChannelMetadata;
+import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.config.BeanDefinition;

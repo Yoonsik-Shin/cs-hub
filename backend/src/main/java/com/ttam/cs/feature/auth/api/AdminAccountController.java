@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.auth.api;
 
-import com.ttam.cs.feature.auth.domain.AdminMember;
+import com.ttam.cs.feature.auth.domain.entity.AdminMember;
 import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
 import com.ttam.cs.feature.auth.usecase.HtpasswdUseCase;
 import com.ttam.cs.infra.security.AdminRole;
