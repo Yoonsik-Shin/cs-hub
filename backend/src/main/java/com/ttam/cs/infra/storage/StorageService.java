@@ -1,5 +1,7 @@
 package com.ttam.cs.infra.storage;
 
+import com.ttam.cs.common.exception.BusinessException;
+import com.ttam.cs.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,7 +51,7 @@ public class StorageService {
             return new PresignedUrlResponse(uploadUrl, downloadUrl);
         } catch (Exception e) {
             log.error("Failed to generate presigned upload URL for object: {}", objectName, e);
-            throw new RuntimeException("파일 업로드 URL 생성에 실패했습니다.", e);
+            throw new BusinessException(ErrorCode.STORAGE_ERROR, e);
         }
     }
 
@@ -70,7 +72,7 @@ public class StorageService {
             log.info("Deleted object from storage: {}", objectKey);
         } catch (Exception e) {
             log.error("Failed to delete object from storage: {}", objectKeyOrUrl, e);
-            throw new RuntimeException("파일 삭제에 실패했습니다.", e);
+            throw new BusinessException(ErrorCode.STORAGE_ERROR, e);
         }
     }
 
@@ -111,4 +113,3 @@ public class StorageService {
 
     public record PresignedUrlResponse(String uploadUrl, String downloadUrl) {}
 }
-

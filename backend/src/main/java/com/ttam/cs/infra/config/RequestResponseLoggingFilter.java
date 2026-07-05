@@ -1,4 +1,4 @@
-package com.ttam.cs.infra.webhooks.config;
+package com.ttam.cs.infra.config;
 
 import java.io.IOException;
 

@@ -13,8 +13,8 @@ services:
     container_name: postgres-db
     restart: always
     environment:
-      - POSTGRES_USER=myuser
-      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=cs_database
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
@@ -35,8 +35,8 @@ services:
       - DB_POSTGRESDB_DATABASE=cs_database
       - DB_POSTGRESDB_HOST=postgres-db # n8n이 DB를 찾을 때 사용하는 주소
       - DB_POSTGRESDB_PORT=5432
-      - DB_POSTGRESDB_USER=myuser
-      - DB_POSTGRESDB_PASSWORD=mypassword
+      - DB_POSTGRESDB_USER=${DB_USERNAME}
+      - DB_POSTGRESDB_PASSWORD=${DB_PASSWORD}
       - DB_POSTGRESDB_SCHEMA=n8n_schema
       - N8N_HOST=${N8N_HOST:-localhost:8888}
       - N8N_PORT=5678
@@ -75,15 +75,18 @@ services:
       context: ./backend
     container_name: cs-api
     restart: always
+    env_file:
+      - .env
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/cs_database
-      - SPRING_DATASOURCE_USERNAME=myuser
-      - SPRING_DATASOURCE_PASSWORD=mypassword
-      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-changeme}
+      - DB_URL=${DB_URL}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN}
+      - NAVER_SESSION_SECRET=${NAVER_SESSION_SECRET}
       - NAVER_SESSION_RENEW_TRIGGER_URL=${NAVER_SESSION_RENEW_TRIGGER_URL:-}
       - S3_ENDPOINT=http://minio:9000
-      - S3_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - S3_SECRET_KEY=${MINIO_SECRET_KEY:-minioadminpassword}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
       - S3_BUCKET=${MINIO_BUCKET:-kakao-webhook-logs}
       - S3_REGION=us-east-1
       - S3_EXTERNAL_URL=${S3_EXTERNAL_URL:-http://localhost:8888/attachments}
@@ -102,7 +105,7 @@ services:
     restart: always
     environment:
       - BACKEND_API_URL=http://cs-api:8080
-      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-changeme}
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN}
     depends_on:
       - cs-api
     networks:

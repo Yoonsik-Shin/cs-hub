@@ -1,4 +1,4 @@
-package com.ttam.cs.feature.inquiry.service;
+package com.ttam.cs.feature.inquiry.usecase;
 
 import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.EmailMetadata;
@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
@@ -32,9 +32,9 @@ import java.util.UUID;
 import com.ttam.cs.infra.storage.StorageService;
 
 @Slf4j
-@Service
+@Component
 @RequiredArgsConstructor
-public class CustomerInquiryService {
+public class CustomerInquiryUseCase {
     private static final int MAX_BATCH_UPDATE_COUNT = 100;
 
     private final CustomerInquiryRepository repository;

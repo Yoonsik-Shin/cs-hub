@@ -19,6 +19,7 @@ import com.ttam.cs.infra.webhooks.handler.kakao.KakaoChatbotSkillHandlerRegistry
 import com.ttam.cs.infra.webhooks.handler.n8n.N8nWorkflowHandler;
 import com.ttam.cs.infra.webhooks.handler.n8n.N8nWorkflowRegistry;
 import com.ttam.cs.infra.webhooks.logging.WebhookLoggerService;
+import com.ttam.cs.infra.security.RequireInternalAuth;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,7 @@ public class WebhookController {
 
     @Operation(summary = "n8n 워크플로우 웹훅 처리", description = "n8n 워크플로우 실행 완료 혹은 상태 변화 시 트리거되는 웹훅을 수신 및 처리합니다.")
     @PostMapping("/webhooks/n8n")
+    @RequireInternalAuth
     public ResponseEntity<Void> handleN8nWebhook(@Valid @RequestBody N8nWebhookRequest request) {
         log.info("Received n8n webhook request: workflow={}",
                 request.workflowName());

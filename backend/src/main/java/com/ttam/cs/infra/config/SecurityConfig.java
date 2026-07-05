@@ -28,7 +28,9 @@ public class SecurityConfig {
         // Nginx 헤더 파싱 필터를 UsernamePasswordAuthenticationFilter 전에 추가
         http.addFilterBefore(nginxHeaderAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
-        http.authorizeHttpRequests(registry -> registry.anyRequest().permitAll());
+        http.authorizeHttpRequests(registry -> registry
+                .requestMatchers("/internal/actuator/**").hasRole("ADMIN")
+                .anyRequest().permitAll());
         return http.build();
     }
 }

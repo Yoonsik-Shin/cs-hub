@@ -1,4 +1,4 @@
-package com.ttam.cs.feature.inquiry.service;
+package com.ttam.cs.feature.inquiry.usecase;
 
 import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.InquiryWorkLog;
@@ -30,7 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class CustomerInquiryServiceTest {
+class CustomerInquiryUseCaseTest {
 
     @Mock
     private CustomerInquiryRepository repository;
@@ -45,7 +45,7 @@ class CustomerInquiryServiceTest {
     private StorageService storageService;
 
     @InjectMocks
-    private CustomerInquiryService service;
+    private CustomerInquiryUseCase service;
 
     private UUID inquiryId;
     private CustomerInquiry inquiry;
@@ -195,8 +195,8 @@ class CustomerInquiryServiceTest {
                 "2026-07-02T12:00:00Z",
                 "user_01",
                 channelMetadata,
-                null,
                 "회신 내용입니다.",
+                null,
                 List.of()
         );
 

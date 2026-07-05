@@ -2,12 +2,18 @@ package com.ttam.cs.feature.auth.api;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ttam.cs.common.exception.BusinessException;
+import com.ttam.cs.common.exception.ErrorCode;
+import com.ttam.cs.feature.auth.api.dto.request.OneTimeLoginRequest;
+import com.ttam.cs.feature.auth.api.dto.request.SessionSaveRequest;
+import com.ttam.cs.feature.auth.api.dto.response.SessionResponse;
+import com.ttam.cs.feature.auth.api.dto.response.SessionStatusResponse;
 import com.ttam.cs.infra.security.RequireInternalAuth;
 import com.ttam.cs.feature.auth.domain.NaverCafeSession;
-import com.ttam.cs.feature.auth.repo.NaverCafeSessionRepository;
-import com.ttam.cs.feature.auth.service.NaverSessionService;
+import com.ttam.cs.feature.auth.repository.NaverCafeSessionRepository;
+import com.ttam.cs.feature.auth.usecase.NaverSessionUseCase;
 import com.ttam.cs.common.util.EncryptionUtils;
-import lombok.Data;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -33,25 +39,25 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class NaverSessionController {
 
     private final NaverCafeSessionRepository repository;
-    private final NaverSessionService naverSessionService;
+    private final NaverSessionUseCase naverSessionUseCase;
     private final EncryptionUtils encryptionUtils;
     private final ObjectMapper objectMapper;
 
     @Operation(summary = "네이버 카페 세션 저장", description = "로그인된 네이버 쿠키 JSON을 암호화하여 저장합니다. 내부 시스템 토큰 인증이 필요합니다.")
     @PostMapping
     @RequireInternalAuth
-    public ResponseEntity<Void> saveSession(@RequestBody SessionSaveRequest request) {
-        String encrypted = encryptionUtils.encrypt(request.getCookiesJson());
+    public ResponseEntity<Void> saveSession(@RequestBody @Valid SessionSaveRequest request) {
+        String encrypted = encryptionUtils.encrypt(request.cookiesJson());
 
-        String cookie = naverSessionService.saveSession(request.getId(), encrypted);
+        naverSessionUseCase.saveSession(request.normalizedId(), encrypted);
 
         return ResponseEntity.ok().build();
     }
 
     @Operation(summary = "일회용 로그인 코드로 세션 갱신", description = "네이버 로그인 시 8자리 일회용 코드를 사용하여 쿠키 세션을 갱신합니다.")
     @PostMapping("/one-time-login")
-    public ResponseEntity<Void> oneTimeLogin(@RequestBody OneTimeLoginRequest request) {
-        naverSessionService.renewSessionWithOneTimeCode(request.getId(), request.getCode());
+    public ResponseEntity<Void> oneTimeLogin(@RequestBody @Valid OneTimeLoginRequest request) {
+        naverSessionUseCase.renewSessionWithOneTimeCode(request.normalizedId(), request.code());
         return ResponseEntity.ok().build();
     }
 
@@ -66,7 +72,17 @@ public class NaverSessionController {
             throw new ResponseStatusException(HttpStatus.GONE, "Session has expired");
         }
 
-        String decrypted = encryptionUtils.decrypt(session.getEncryptedCookies());
+        String decrypted;
+        try {
+            decrypted = encryptionUtils.decrypt(session.getEncryptedCookies());
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == ErrorCode.DECRYPTION_FAILED) {
+                session.markExpired(OffsetDateTime.now(ZoneOffset.UTC));
+                repository.save(session);
+                throw new ResponseStatusException(HttpStatus.GONE, "Session encryption has expired. Please log in again.", e);
+            }
+            throw e;
+        }
 
         HttpHeaders headers = new HttpHeaders();
         try {
@@ -105,12 +121,7 @@ public class NaverSessionController {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to parse session cookies");
         }
 
-        SessionResponse response = new SessionResponse();
-        response.setId(session.getId());
-        response.setStatus(session.getStatus());
-        response.setUpdatedAt(session.getUpdatedAt());
-
-        return ResponseEntity.ok().headers(headers).body(response);
+        return ResponseEntity.ok().headers(headers).body(SessionResponse.from(session));
     }
 
     @Operation(summary = "네이버 세션 명시적 만료 처리", description = "특정 ID의 세션을 강제로 만료 상태(EXPIRED)로 변경합니다. 내부 시스템 토큰 인증이 필요합니다.")
@@ -135,7 +146,7 @@ public class NaverSessionController {
             String oldStatus = sessionBefore.getStatus();
             OffsetDateTime oldUpdatedAt = sessionBefore.getUpdatedAt();
 
-            boolean isValid = naverSessionService.syncSessionStatus(id);
+            boolean isValid = naverSessionUseCase.syncSessionStatus(id);
 
             NaverCafeSession sessionAfter = repository.findById(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
@@ -161,21 +172,18 @@ public class NaverSessionController {
                 }
             }
 
-            SessionStatusResponse response = new SessionStatusResponse();
-            response.setId(sessionAfter.getId());
-            response.setStatus(sessionAfter.getStatus());
-            response.setUpdatedAt(sessionAfter.getUpdatedAt());
-            response.setValid(isValid);
-            response.setShouldAlert(shouldAlert);
-            response.setRenewalToken(null);
+            SessionStatusResponse response = new SessionStatusResponse(
+                    sessionAfter.getId(),
+                    sessionAfter.getStatus(),
+                    sessionAfter.getUpdatedAt(),
+                    isValid,
+                    shouldAlert,
+                    null
+            );
             return ResponseEntity.ok(response);
         } catch (ResponseStatusException e) {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
-                SessionStatusResponse response = new SessionStatusResponse();
-                response.setId(id);
-                response.setStatus("MISSING");
-                response.setValid(false);
-                return ResponseEntity.ok(response);
+                return ResponseEntity.ok(SessionStatusResponse.missing(id));
             }
             throw e;
         }
@@ -188,48 +196,18 @@ public class NaverSessionController {
         NaverCafeSession session = repository.findById(id)
                 .orElse(null);
 
-        SessionStatusResponse response = new SessionStatusResponse();
-        response.setId(id);
         if (session == null) {
-            response.setStatus("MISSING");
-            response.setValid(false);
-            response.setUpdatedAt(null);
-        } else {
-            response.setStatus(session.getStatus());
-            response.setValid("ACTIVE".equals(session.getStatus()));
-            response.setUpdatedAt(session.getUpdatedAt());
+            return ResponseEntity.ok(SessionStatusResponse.missing(id));
         }
 
+        SessionStatusResponse response = new SessionStatusResponse(
+                id,
+                session.getStatus(),
+                session.getUpdatedAt(),
+                "ACTIVE".equals(session.getStatus()),
+                false,
+                null
+        );
         return ResponseEntity.ok(response);
-    }
-
-    @Data
-    public static class SessionSaveRequest {
-        private String id = "default";
-        private String cookiesJson;
-    }
-
-    @Data
-    public static class OneTimeLoginRequest {
-        private String id = "default";
-        private String code;
-        private String token;
-    }
-
-    @Data
-    public static class SessionResponse {
-        private String id;
-        private String status;
-        private OffsetDateTime updatedAt;
-    }
-
-    @Data
-    public static class SessionStatusResponse {
-        private String id;
-        private String status;
-        private OffsetDateTime updatedAt;
-        private boolean isValid;
-        private boolean shouldAlert;
-        private String renewalToken;
     }
 }

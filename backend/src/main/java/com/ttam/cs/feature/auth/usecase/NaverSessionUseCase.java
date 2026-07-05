@@ -1,8 +1,10 @@
-package com.ttam.cs.feature.auth.service;
+package com.ttam.cs.feature.auth.usecase;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ttam.cs.common.exception.BusinessException;
+import com.ttam.cs.common.exception.ErrorCode;
 import com.ttam.cs.feature.auth.domain.NaverCafeSession;
-import com.ttam.cs.feature.auth.repo.NaverCafeSessionRepository;
+import com.ttam.cs.feature.auth.repository.NaverCafeSessionRepository;
 import com.ttam.cs.common.util.EncryptionUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,7 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -21,16 +23,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-@Service
+@Component
 @Slf4j
-public class NaverSessionService {
+public class NaverSessionUseCase {
 
     private final NaverCafeSessionRepository repository;
     private final EncryptionUtils encryptionUtils;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
 
-    @Value("${INTERNAL_API_TOKEN:changeme}")
+    @Value("${INTERNAL_API_TOKEN}")
     private String internalToken;
 
     @Value("${BROWSER_WORKER_URL:http://browser-worker:3000}")
@@ -39,7 +41,7 @@ public class NaverSessionService {
     @Value("${naver.session.renew-trigger-url:}")
     private String renewTriggerUrl;
 
-    public NaverSessionService(NaverCafeSessionRepository repository,
+    public NaverSessionUseCase(NaverCafeSessionRepository repository,
             EncryptionUtils encryptionUtils,
             ObjectMapper objectMapper) {
         this.repository = repository;
@@ -156,7 +158,18 @@ public class NaverSessionService {
             return false;
         }
 
-        String decryptedCookies = encryptionUtils.decrypt(session.getEncryptedCookies());
+        String decryptedCookies;
+        try {
+            decryptedCookies = encryptionUtils.decrypt(session.getEncryptedCookies());
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == ErrorCode.DECRYPTION_FAILED) {
+                session.markExpired(OffsetDateTime.now(ZoneOffset.UTC));
+                repository.save(session);
+                log.warn("Naver Cafe Session marked as EXPIRED because encrypted cookies are not GCM-compatible. ID: {}", id);
+                return false;
+            }
+            throw e;
+        }
 
         Map<String, String> requestBody = new HashMap<>();
         requestBody.put("cookiesJson", decryptedCookies);

@@ -1,7 +1,6 @@
 package com.ttam.cs.feature.inquiry.api.http.dto.response;
 
 import com.ttam.cs.common.dto.CursorPage;
-import com.ttam.cs.common.dto.CustomCursorPageResponse;
 import com.ttam.cs.feature.inquiry.domain.ChannelMetadata;
 import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.DeviceInfo;
@@ -14,7 +13,7 @@ public record SearchCustomerInquiryResponse(
         List<Content> content,
         UUID nextCursor,
         boolean hasNext
-) implements CustomCursorPageResponse<SearchCustomerInquiryResponse.Content> {
+) {
 
     public static SearchCustomerInquiryResponse of(CursorPage<CustomerInquiry> page, String s3UrlPrefix) {
         List<Content> mappedContent = page.content().stream()

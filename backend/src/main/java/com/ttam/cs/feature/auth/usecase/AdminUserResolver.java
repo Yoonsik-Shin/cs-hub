@@ -1,12 +1,12 @@
-package com.ttam.cs.feature.auth.service;
+package com.ttam.cs.feature.auth.usecase;
 
 import com.ttam.cs.feature.auth.domain.AdminMember;
 import com.ttam.cs.feature.auth.domain.AdminUser;
-import com.ttam.cs.feature.auth.repo.AdminMemberRepository;
+import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+@Component
 @RequiredArgsConstructor
 public class AdminUserResolver {
 

@@ -6,9 +6,9 @@ spring:
     name: cs-api
 
   datasource:
-    url: jdbc:postgresql://postgres-db:5432/cs_database
-    username: myuser
-    password: mypassword
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:
@@ -25,7 +25,7 @@ spring:
 
 security:
   internal:
-    token: ${INTERNAL_API_TOKEN:changeme}
+    token: ${INTERNAL_API_TOKEN}
 
 # Nginx Basic Auth 계정은 DB(admin_member)를 기준으로 관리합니다.
 admin:
@@ -37,8 +37,8 @@ naver:
 
 s3:
   endpoint: ${S3_ENDPOINT:http://localhost:9000}
-  access-key: ${S3_ACCESS_KEY:minioadmin}
-  secret-key: ${S3_SECRET_KEY:minioadminpassword}
+  access-key: ${S3_ACCESS_KEY}
+  secret-key: ${S3_SECRET_KEY}
   bucket: ${S3_BUCKET:kakao-webhook-logs}
   region: ${S3_REGION:ap-northeast-2}
   external-url: ${S3_EXTERNAL_URL:http://localhost:9000}
@@ -77,9 +77,10 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
+      base-path: /internal/actuator
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
   metrics:
     tags:
       application: ${spring.application.name}

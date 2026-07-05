@@ -1,6 +1,6 @@
 package com.ttam.cs.feature.inquiry.api.http.controller;
 
-import com.ttam.cs.feature.inquiry.service.CustomerInquiryService;
+import com.ttam.cs.feature.inquiry.usecase.CustomerInquiryUseCase;
 import lombok.RequiredArgsConstructor;
 import com.ttam.cs.feature.inquiry.domain.CustomerInquiry;
 import com.ttam.cs.common.dto.CursorPage;
@@ -15,7 +15,7 @@ import com.ttam.cs.feature.inquiry.api.http.dto.request.UpdateInquiryRequest;
 import com.ttam.cs.feature.inquiry.api.http.dto.request.BatchUpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.domain.OperatorInfo;
 import com.ttam.cs.feature.auth.domain.AdminUser;
-import com.ttam.cs.feature.auth.service.AdminUserResolver;
+import com.ttam.cs.feature.auth.usecase.AdminUserResolver;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -36,7 +36,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequiredArgsConstructor
 public class CustomerInquiryController {
 
-    private final CustomerInquiryService inquiryService;
+    private final CustomerInquiryUseCase inquiryUseCase;
     private final AdminUserResolver adminUserResolver;
 
     @org.springframework.beans.factory.annotation.Value("${s3.external-url}")
@@ -64,7 +64,7 @@ public class CustomerInquiryController {
         }
 
         int boundedLimit = Math.max(1, limit);
-        long cappedCount = inquiryService.count(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, userCodeMissing, remoteUser, boundedLimit + 1);
+        long cappedCount = inquiryUseCase.count(channels, userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, userCodeMissing, remoteUser, boundedLimit + 1);
         boolean hasMore = cappedCount > boundedLimit;
         return ResponseEntity.ok(new InquiryCountResponse(Math.min(cappedCount, boundedLimit), hasMore));
     }
@@ -88,7 +88,7 @@ public class CustomerInquiryController {
             return ResponseEntity.ok(SearchCustomerInquiryResponse.of(new CursorPage<>(List.of(), null, false)));
         }
 
-        CursorPage<CustomerInquiry> result = inquiryService.search(channels,
+        CursorPage<CustomerInquiry> result = inquiryUseCase.search(channels,
                 userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, userCodeMissing, remoteUser, cursor, size);
 
         String s3UrlPrefix = externalUrl.endsWith("/") ? 
@@ -96,7 +96,7 @@ public class CustomerInquiryController {
                 externalUrl + "/" + bucketName;
 
         List<UUID> parentIds = result.content().stream().map(CustomerInquiry::getId).toList();
-        java.util.Map<UUID, Long> replyCounts = inquiryService.getReplyCounts(parentIds);
+        java.util.Map<UUID, Long> replyCounts = inquiryUseCase.getReplyCounts(parentIds);
 
         return ResponseEntity.ok(SearchCustomerInquiryResponse.of(result, s3UrlPrefix, replyCounts));
     }
@@ -106,7 +106,7 @@ public class CustomerInquiryController {
     public ResponseEntity<Void> create(
             @RequestBody @Valid CreateInquiryRequest request) {
 
-        UUID id = inquiryService.create(request);
+        UUID id = inquiryUseCase.create(request);
 
         return ResponseEntity.created(URI.create("/api/internal/v1/inquiries/" + id)).build();
     }
@@ -116,7 +116,7 @@ public class CustomerInquiryController {
     public ResponseEntity<Void> addWorkLog(
             @PathVariable("id") UUID id,
             @RequestBody @Valid RegisterWorkLogRequest request) {
-        UUID logId = inquiryService.addWorkLog(id, request);
+        UUID logId = inquiryUseCase.addWorkLog(id, request);
         return ResponseEntity.created(URI.create("/api/internal/v1/inquiries/" + id + "/work-logs/" + logId)).build();
     }
 
@@ -141,7 +141,7 @@ public class CustomerInquiryController {
                     request.status(),
                     statusReason.trim()
             );
-            inquiryService.updateStatus(id, statusRequest);
+            inquiryUseCase.updateStatus(id, statusRequest);
         }
 
         // 2. 정보 필드 수정 건 처리
@@ -161,7 +161,7 @@ public class CustomerInquiryController {
                     request.reasons()
             );
             String ipAddress = getClientIp(servletRequest);
-            inquiryService.updateInquiryFields(id, fieldsRequest, ipAddress);
+            inquiryUseCase.updateInquiryFields(id, fieldsRequest, ipAddress);
         }
 
         return ResponseEntity.ok().build();
@@ -176,7 +176,7 @@ public class CustomerInquiryController {
         AdminUser adminUser = adminUserResolver.resolve(remoteUser);
         OperatorInfo operatorInfo = new OperatorInfo(adminUser.id(), adminUser.nickname(), adminUser.email());
 
-        inquiryService.updateStatuses(request, operatorInfo, remoteUser);
+        inquiryUseCase.updateStatuses(request, operatorInfo, remoteUser);
         return ResponseEntity.ok().build();
     }
 
@@ -184,7 +184,7 @@ public class CustomerInquiryController {
     @GetMapping("/{id}/work-logs")
     public ResponseEntity<List<InquiryWorkLogResponse>> getWorkLogs(
             @PathVariable("id") UUID id) {
-        List<InquiryWorkLogResponse> result = inquiryService.getWorkLogs(id);
+        List<InquiryWorkLogResponse> result = inquiryUseCase.getWorkLogs(id);
         return ResponseEntity.ok(result);
     }
 
@@ -195,7 +195,7 @@ public class CustomerInquiryController {
         String s3UrlPrefix = externalUrl.endsWith("/") ? 
                 externalUrl + bucketName : 
                 externalUrl + "/" + bucketName;
-        List<SearchCustomerInquiryResponse.Content> result = inquiryService.getReplies(id).stream()
+        List<SearchCustomerInquiryResponse.Content> result = inquiryUseCase.getReplies(id).stream()
                 .map(entity -> new SearchCustomerInquiryResponse.Content(entity, s3UrlPrefix))
                 .toList();
         return ResponseEntity.ok(result);

@@ -1,8 +1,8 @@
 package com.ttam.cs.feature.auth.api;
 
 import com.ttam.cs.feature.auth.api.dto.AdminUserResponse;
-import com.ttam.cs.feature.auth.service.AdminUserResolver;
-import com.ttam.cs.feature.auth.service.N8nAccessTokenService;
+import com.ttam.cs.feature.auth.usecase.AdminUserResolver;
+import com.ttam.cs.feature.auth.usecase.N8nAccessTokenUseCase;
 import com.ttam.cs.infra.security.AdminRole;
 import com.ttam.cs.infra.security.RequireRoles;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AdminUserResolver adminUserResolver;
-    private final N8nAccessTokenService n8nAccessTokenService;
+    private final N8nAccessTokenUseCase n8nAccessTokenUseCase;
 
     @Operation(
             summary = "현재 로그인 계정 조회",
@@ -62,8 +62,8 @@ public class AuthController {
         }
 
         HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.SET_COOKIE, "cs_n8n_access=" + n8nAccessTokenService.issue(remoteUser.trim())
-                + "; Max-Age=900; Path=/n8n; HttpOnly; SameSite=Lax");
+        headers.add(HttpHeaders.SET_COOKIE, "cs_n8n_access=" + n8nAccessTokenUseCase.issue(remoteUser.trim())
+                + "; Max-Age=900; Path=/n8n; HttpOnly; Secure; SameSite=Lax");
         return ResponseEntity.noContent().headers(headers).build();
     }
 
@@ -71,7 +71,7 @@ public class AuthController {
     public ResponseEntity<Void> n8nCheck(
             @CookieValue(value = "cs_n8n_access", required = false) String n8nAccessToken
     ) {
-        if (n8nAccessTokenService.isValidAdminToken(n8nAccessToken)) {
+        if (n8nAccessTokenUseCase.isValidAdminToken(n8nAccessToken)) {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();

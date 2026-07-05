@@ -1,9 +1,11 @@
-package com.ttam.cs.feature.auth.service;
+package com.ttam.cs.feature.auth.usecase;
 
+import com.ttam.cs.common.exception.BusinessException;
+import com.ttam.cs.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCrypt;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -14,9 +16,9 @@ import java.util.stream.Collectors;
 /**
  * NGINX Basic Auth의인증 정보 파일(.htpasswd)을 동적으로 제어하는 서비스입니다.
  */
-@Service
+@Component
 @Slf4j
-public class HtpasswdService {
+public class HtpasswdUseCase {
 
     @Value("${admin.htpasswd-path:/app/config/.htpasswd}")
     private String htpasswdPath;
@@ -61,7 +63,7 @@ public class HtpasswdService {
             log.info("Successfully updated htpasswd entry for user: {}", username);
         } catch (IOException e) {
             log.error("Failed to write user to htpasswd file: {}", username, e);
-            throw new RuntimeException("비밀번호 파일 저장 중 오류가 발생했습니다.", e);
+            throw new BusinessException(ErrorCode.HTPASSWD_IO_ERROR, e);
         }
     }
 
@@ -86,7 +88,7 @@ public class HtpasswdService {
             log.info("Successfully deleted htpasswd entry for user: {}", username);
         } catch (IOException e) {
             log.error("Failed to delete user from htpasswd file: {}", username, e);
-            throw new RuntimeException("비밀번호 파일에서 사용자 삭제 중 오류가 발생했습니다.", e);
+            throw new BusinessException(ErrorCode.HTPASSWD_IO_ERROR, e);
         }
     }
 }

@@ -1,9 +1,9 @@
-package com.ttam.cs.feature.auth.service;
+package com.ttam.cs.feature.auth.usecase;
 
-import com.ttam.cs.feature.auth.repo.AdminMemberRepository;
+import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
 import com.ttam.cs.infra.security.AdminRole;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -12,8 +12,8 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Optional;
 
-@Service
-public class N8nAccessTokenService {
+@Component
+public class N8nAccessTokenUseCase {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final long TOKEN_TTL_SECONDS = 15 * 60;
@@ -21,9 +21,9 @@ public class N8nAccessTokenService {
     private final AdminMemberRepository adminMemberRepository;
     private final byte[] secret;
 
-    public N8nAccessTokenService(
+    public N8nAccessTokenUseCase(
             AdminMemberRepository adminMemberRepository,
-            @Value("${admin.n8n-access-secret:${INTERNAL_API_TOKEN:changeme}}") String secret
+            @Value("${admin.n8n-access-secret:${INTERNAL_API_TOKEN}}") String secret
     ) {
         this.adminMemberRepository = adminMemberRepository;
         this.secret = secret.getBytes(StandardCharsets.UTF_8);

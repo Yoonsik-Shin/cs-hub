@@ -1,8 +1,8 @@
 package com.ttam.cs.feature.auth.api;
 
 import com.ttam.cs.feature.auth.domain.AdminMember;
-import com.ttam.cs.feature.auth.repo.AdminMemberRepository;
-import com.ttam.cs.feature.auth.service.HtpasswdService;
+import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
+import com.ttam.cs.feature.auth.usecase.HtpasswdUseCase;
 import com.ttam.cs.infra.security.AdminRole;
 import com.ttam.cs.infra.security.RequireRoles;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 public class AdminAccountController {
 
     private final AdminMemberRepository adminMemberRepository;
-    private final HtpasswdService htpasswdService;
+    private final HtpasswdUseCase htpasswdUseCase;
 
     @Operation(summary = "관리자 목록 조회", description = "시스템에 등록된 모든 관리자/운영자 목록을 조회합니다.")
     @GetMapping
@@ -65,7 +65,7 @@ public class AdminAccountController {
         adminMemberRepository.save(member);
 
         // htpasswd 저장
-        htpasswdService.saveOrUpdateUser(username, request.getPassword());
+        htpasswdUseCase.saveOrUpdateUser(username, request.getPassword());
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
@@ -95,7 +95,7 @@ public class AdminAccountController {
         adminMemberRepository.deleteById(targetUsername);
 
         // htpasswd 삭제
-        htpasswdService.deleteUser(targetUsername);
+        htpasswdUseCase.deleteUser(targetUsername);
 
         return ResponseEntity.ok().build();
     }

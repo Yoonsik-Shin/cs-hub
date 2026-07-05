@@ -1,7 +1,7 @@
-package com.ttam.cs.feature.inquiry.api;
+package com.ttam.cs.feature.inquiry.api.webhook;
 
 import com.ttam.cs.feature.inquiry.api.http.dto.request.DataIntegrationPayload;
-import com.ttam.cs.feature.inquiry.service.CustomerInquiryService;
+import com.ttam.cs.feature.inquiry.usecase.CustomerInquiryUseCase;
 import com.ttam.cs.infra.webhooks.handler.n8n.N8nWorkflowHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class DataIntegrationWorkflowHandler implements N8nWorkflowHandler<DataIntegrationPayload> {
 
-    private final CustomerInquiryService customerInquiryService;
+    private final CustomerInquiryUseCase customerInquiryUseCase;
 
     @Override
     public String getWorkflowName() {
@@ -26,6 +26,6 @@ public class DataIntegrationWorkflowHandler implements N8nWorkflowHandler<DataIn
 
     @Override
     public void execute(DataIntegrationPayload payload) {
-        customerInquiryService.integrateInquiries(payload.channel(), payload.items());
+        customerInquiryUseCase.integrateInquiries(payload.channel(), payload.items());
     }
 }
