@@ -26,27 +26,96 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NginxHeaderAuthFilter extends OncePerRequestFilter {
 
+    private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private final AdminMemberRepository adminMemberRepository;
+    private final InternalAuthProperties internalAuthProperties;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
+        if (authenticateInternalTokenIfPresent(request)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String remoteUser = request.getHeader("X-Remote-User");
+        boolean remoteUserRequired = requiresRemoteUser(request);
 
-        if (remoteUser != null && !remoteUser.isBlank()) {
-            adminMemberRepository.findById(remoteUser.trim()).ifPresent(member -> {
-                // Spring Security가 이해하는 ROLE_ 접두사를 붙여 권한 설정
-                List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + member.getRole()));
+        if (remoteUser == null || remoteUser.isBlank()) {
+            if (remoteUserRequired) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing authenticated user header");
+                return;
+            }
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        member.getUsername(), null, authorities);
+        adminMemberRepository.findById(remoteUser.trim())
+                .ifPresentOrElse(member -> authenticate(request, member), () -> {
+                    if (remoteUserRequired) {
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    }
+                });
 
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            });
+        if (remoteUserRequired && response.getStatus() == HttpServletResponse.SC_UNAUTHORIZED) {
+            response.getWriter().write("Unknown authenticated user");
+            return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean authenticateInternalTokenIfPresent(HttpServletRequest request) {
+        String headerToken = request.getHeader(INTERNAL_TOKEN_HEADER);
+        String configured = internalAuthProperties.getToken();
+        if (!hasText(configured) || !hasText(headerToken) || !constantTimeEquals(configured, headerToken)) {
+            return false;
+        }
+
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                "internal-system", null, List.of(new SimpleGrantedAuthority("ROLE_SYSTEM")));
+        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        return true;
+    }
+
+    private void authenticate(HttpServletRequest request, AdminMember member) {
+        // Spring Security가 이해하는 ROLE_ 접두사를 붙여 권한 설정
+        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + member.getRole()));
+
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                member.getUsername(), null, authorities);
+
+        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private boolean requiresRemoteUser(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (!path.startsWith("/api/")) {
+            return false;
+        }
+
+        return !isN8nAuthCheck(request);
+    }
+
+    private boolean isN8nAuthCheck(HttpServletRequest request) {
+        return "GET".equals(request.getMethod()) && "/api/v1/auth/n8n-check".equals(request.getRequestURI());
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null || a.length() != b.length()) {
+            return false;
+        }
+        int result = 0;
+        for (int i = 0; i < a.length(); i++) {
+            result |= a.charAt(i) ^ b.charAt(i);
+        }
+        return result == 0;
     }
 }
