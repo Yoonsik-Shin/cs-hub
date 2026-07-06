@@ -97,11 +97,11 @@ public class NginxHeaderAuthFilter extends OncePerRequestFilter {
             return false;
         }
 
-        return !isN8nAuthCheck(request);
+        return !isAdminAuthCheck(request);
     }
 
-    private boolean isN8nAuthCheck(HttpServletRequest request) {
-        return "GET".equals(request.getMethod()) && "/api/v1/auth/n8n-check".equals(request.getRequestURI());
+    private boolean isAdminAuthCheck(HttpServletRequest request) {
+        return "GET".equals(request.getMethod()) && "/api/v1/auth/admin-check".equals(request.getRequestURI());
     }
 
     private boolean hasText(String value) {

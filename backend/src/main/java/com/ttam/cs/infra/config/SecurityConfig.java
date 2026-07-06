@@ -31,7 +31,7 @@ public class SecurityConfig {
 
         http.authorizeHttpRequests(registry -> registry
                 .requestMatchers("/internal/actuator/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/v1/auth/n8n-check").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/auth/admin-check").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll());
         return http.build();

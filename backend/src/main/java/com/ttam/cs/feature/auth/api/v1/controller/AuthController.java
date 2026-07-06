@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.ttam.cs.feature.auth.api.v1.dto.AdminUserResponse;
 import com.ttam.cs.feature.auth.usecase.AdminUserResolver;
-import com.ttam.cs.feature.auth.usecase.N8nAccessTokenUseCase;
+import com.ttam.cs.feature.auth.usecase.AdminAccessTokenUseCase;
 import com.ttam.cs.infra.security.AdminRole;
 import com.ttam.cs.infra.security.RequireRoles;
 
@@ -34,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 public class AuthController {
 
     private final AdminUserResolver adminUserResolver;
-    private final N8nAccessTokenUseCase n8nAccessTokenUseCase;
+    private final AdminAccessTokenUseCase adminAccessTokenUseCase;
 
     @Operation(summary = "현재 로그인 계정 조회", description = "Nginx Basic Auth로 인증되고 DB에 등록된 현재 관리자 계정 정보를 반환합니다.")
     @GetMapping("/me")
@@ -50,26 +50,26 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/n8n-access")
+    @PostMapping("/admin-access")
     @RequireRoles(AdminRole.ADMIN)
-    @Operation(summary = "n8n UI 접근 쿠키 발급", description = "ADMIN 사용자에게 n8n UI 접근용 임시 쿠키(cs_n8n_access)를 발급합니다. 이 쿠키는 /n8n 경로에서만 사용되며 기본 유효 시간은 900초입니다.")
-    public ResponseEntity<Void> issueN8nAccess(
+    @Operation(summary = "어드민 툴 접근 쿠키 발급", description = "ADMIN 사용자에게 어드민 툴 접근용 임시 쿠키(cs_admin_access)를 발급합니다. 이 쿠키는 어드민 전용 경로에서 사용되며 기본 유효 시간은 43200초(12시간)입니다.")
+    public ResponseEntity<Void> issueAdminAccess(
             @RequestHeader(value = "X-Remote-User", required = false) String remoteUser) {
         if (remoteUser == null || remoteUser.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
         HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.SET_COOKIE, "cs_n8n_access=" + n8nAccessTokenUseCase.issue(remoteUser.trim())
-                + "; Max-Age=900; Path=/; HttpOnly; Secure; SameSite=Lax");
+        headers.add(HttpHeaders.SET_COOKIE, "cs_admin_access=" + adminAccessTokenUseCase.issue(remoteUser.trim())
+                + "; Max-Age=43200; Path=/; HttpOnly; Secure; SameSite=Lax");
         return ResponseEntity.noContent().headers(headers).build();
     }
 
-    @GetMapping("/n8n-check")
-    @Operation(summary = "n8n UI 접근 쿠키 검증", description = "nginx auth_request 전용 API입니다. cs_n8n_access 쿠키가 유효하면 204를 반환하고, 유효하지 않으면 403을 반환합니다.")
-    public ResponseEntity<Void> n8nCheck(
-            @CookieValue(value = "cs_n8n_access", required = false) String n8nAccessToken) {
-        if (n8nAccessTokenUseCase.isValidAdminToken(n8nAccessToken)) {
+    @GetMapping("/admin-check")
+    @Operation(summary = "어드민 툴 접근 쿠키 검증", description = "nginx auth_request 전용 API입니다. cs_admin_access 쿠키가 유효하면 204를 반환하고, 유효하지 않으면 403을 반환합니다.")
+    public ResponseEntity<Void> adminCheck(
+            @CookieValue(value = "cs_admin_access", required = false) String adminAccessToken) {
+        if (adminAccessTokenUseCase.isValidAdminToken(adminAccessToken)) {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();

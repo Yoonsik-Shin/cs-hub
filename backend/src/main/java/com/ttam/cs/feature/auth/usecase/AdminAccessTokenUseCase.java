@@ -13,17 +13,17 @@ import java.util.Base64;
 import java.util.Optional;
 
 @Component
-public class N8nAccessTokenUseCase {
+public class AdminAccessTokenUseCase {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
-    private static final long TOKEN_TTL_SECONDS = 15 * 60;
+    private static final long TOKEN_TTL_SECONDS = 12 * 60 * 60; // 12 hours
 
     private final AdminMemberRepository adminMemberRepository;
     private final byte[] secret;
 
-    public N8nAccessTokenUseCase(
+    public AdminAccessTokenUseCase(
             AdminMemberRepository adminMemberRepository,
-            @Value("${admin.n8n-access-secret:${INTERNAL_API_TOKEN}}") String secret
+            @Value("${admin.access-secret:${admin.n8n-access-secret:${INTERNAL_API_TOKEN}}}") String secret
     ) {
         this.adminMemberRepository = adminMemberRepository;
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
@@ -89,7 +89,7 @@ public class N8nAccessTokenUseCase {
             return Base64.getUrlEncoder().withoutPadding()
                     .encodeToString(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to sign n8n access token", e);
+            throw new IllegalStateException("Failed to sign admin access token", e);
         }
     }
 }
