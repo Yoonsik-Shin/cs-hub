@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-07-06T11:07:43.816Z",
+    "updatedAt": "2026-07-06T11:26:20.419Z",
     "createdAt": "2026-06-18T04:28:10.651Z",
     "id": "nsbvUUSzjjH2zFic",
     "name": "CS 데이터 통합(N8N 수정)",
@@ -409,7 +409,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1616,
+          1552,
           576
         ],
         "id": "request-dto-no-image-naver-cafe",
@@ -781,7 +781,6 @@
       },
       {
         "parameters": {
-          "mode": "runOnceForAllItems",
           "jsCode": "const allPresignedItems = $input.all();\nconst allArticles = $('데이터 파싱').all(0, $runIndex);\nconst pairedItems = [];\n\nfor (const item of allPresignedItems) {\n  const urls = item.json.urls || [];\n  if (urls.length === 0) continue;\n\n  const firstObjectName = urls[0].objectName || \"\";\n  const parts = firstObjectName.split('/');\n  if (parts.length < 2) continue;\n  const idParts = parts[1].split('_');\n  const cafeId = idParts[0];\n  const articleId = idParts[1];\n\n  const matchedArticle = allArticles.find(art => String(art.json.articleId) === String(articleId));\n  const originalUrls = matchedArticle ? (matchedArticle.json.originalImageUrls || []) : [];\n\n  urls.forEach((urlItem, index) => {\n    pairedItems.push({\n      json: {\n        cafeId: cafeId,\n        articleId: articleId,\n        originalImageUrl: originalUrls[index] || \"\",\n        objectName: urlItem.objectName,\n        uploadUrl: urlItem.uploadUrl,\n        downloadUrl: urlItem.downloadUrl\n      }\n    });\n  });\n}\n\nreturn pairedItems;"
         },
         "type": "n8n-nodes-base.code",
@@ -1101,7 +1100,6 @@
       },
       {
         "parameters": {
-          "mode": "runOnceForAllItems",
           "jsCode": "const allImages = $input.all();\nconst allPaired = $('이미지 정보 페어링').all(0, $runIndex);\n\nreturn allImages.map((item, index) => {\n  const paired = allPaired[index] ? allPaired[index].json : {};\n  return {\n    json: {\n      cafeId: paired.cafeId,\n      articleId: paired.articleId,\n      originalImageUrl: paired.originalImageUrl || \"\",\n      objectName: paired.objectName || \"\",\n      downloadUrl: paired.downloadUrl || \"\"\n    }\n  };\n});"
         },
         "type": "n8n-nodes-base.code",
@@ -1115,7 +1113,6 @@
       },
       {
         "parameters": {
-          "mode": "runOnceForAllItems",
           "jsCode": "const items = $input.all();\nconst groups = {};\n\nfor (const item of items) {\n  const data = item.json || {};\n  const articleId = data.articleId;\n  if (!articleId) continue;\n\n  if (!groups[articleId]) {\n    groups[articleId] = {\n      cafeId: data.cafeId,\n      articleId: articleId,\n      images: []\n    };\n  }\n\n  groups[articleId].images.push({\n    originalUrl: data.originalImageUrl || \"\",\n    objectName: data.objectName || \"\",\n    downloadUrl: data.downloadUrl || \"\"\n  });\n}\n\nreturn Object.values(groups).map(group => ({ json: group }));"
         },
         "type": "n8n-nodes-base.code",
@@ -1142,14 +1139,12 @@
         "name": "이메일 이미지 업로드 완료 정보"
       },
       {
-        "parameters": {
-          "mode": "append"
-        },
+        "parameters": {},
         "type": "n8n-nodes-base.merge",
         "typeVersion": 3,
         "position": [
-          1344,
-          432
+          1696,
+          480
         ],
         "id": "merge-naver-cafe-branches",
         "name": "데이터 합치기"
@@ -1741,9 +1736,9 @@
     },
     "nodeGroups": [],
     "pinData": {},
-    "versionId": "09841f36-fd79-4a1a-810c-614780779bf2",
+    "versionId": "96ea7e0f-75e4-45f4-bed1-fa739602acb3",
     "activeVersionId": null,
-    "versionCounter": 967,
+    "versionCounter": 970,
     "triggerCount": 3,
     "sourceWorkflowId": null,
     "tags": [],
