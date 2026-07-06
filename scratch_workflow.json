@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-07-06T11:26:20.419Z",
+    "updatedAt": "2026-07-06T11:37:52.580Z",
     "createdAt": "2026-06-18T04:28:10.651Z",
     "id": "nsbvUUSzjjH2zFic",
     "name": "CS 데이터 통합(N8N 수정)",
@@ -8,6 +8,106 @@
     "active": false,
     "isArchived": false,
     "nodes": [
+      {
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst items = $('구글시트에서 실제 데이터 가져오기').all();\nif (items.length > 0) {\n  staticData.lastRowProcessed = (staticData.lastRowProcessed || 1) + items.length;\n}\nreturn [{ json: { status: \"success\", lastRowProcessed: staticData.lastRowProcessed } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          -220
+        ],
+        "id": "google-sheets-update-row-id",
+        "name": "구글 시트 처리 행 갱신"
+      },
+      {
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst currentBatchMaxId = $('더 처리할 글 있는지 확인').first().json.currentBatchMaxId;\nif (currentBatchMaxId > (staticData.lastArticleId || 0)) {\n  staticData.lastArticleId = currentBatchMaxId;\n}\nreturn $input.all();"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1950,
+          450
+        ],
+        "id": "naver-cafe-update-id",
+        "name": "네이버 카페 처리 ID 실시간 갱신"
+      },
+      {
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst processedUids = staticData.processedEmailUids || [];\nconst uid = $json.attributes?.uid || $json.headers?.['message-id'];\nconst isProcessed = uid ? processedUids.includes(String(uid)) : false;\nreturn [{ json: { ...$json, isProcessed } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -20,
+          1380
+        ],
+        "id": "email-check-processed-id",
+        "name": "이미 처리된 이메일 필터 검사"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "is-processed-check",
+                "leftValue": "={{ $json.isProcessed }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.3,
+        "position": [
+          140,
+          1380
+        ],
+        "id": "email-duplicate-filter",
+        "name": "이미 처리된 이메일 필터"
+      },
+      {
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.processedEmailUids) {\n  staticData.processedEmailUids = [];\n}\nconst uid = $('데이터 파싱1').item.json.attributes?.uid || $('데이터 파싱1').item.json.headers?.['message-id'];\nif (uid && !staticData.processedEmailUids.includes(String(uid))) {\n  staticData.processedEmailUids.push(String(uid));\n}\nreturn $input.all();"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1550,
+          1520
+        ],
+        "id": "email-record-uid",
+        "name": "이메일 처리 UID 기록"
+      },
+      {
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nstaticData.processedEmailUids = [];\nreturn [{ json: { status: \"success\", cleared: true } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -200,
+          1280
+        ],
+        "id": "email-clear-uids",
+        "name": "이메일 처리 기록 초기화"
+      },
       {
         "parameters": {
           "assignments": {
@@ -232,7 +332,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const initialLastId = $('기존 처리 정보 가져오기').first().json.lastArticleId;\nconst articles = $input.item.json.message.result.articleList || [];\n\n// 과거 번호보다 '큰' 번호를 가진 새 글만 필터링\nconst newArticles = articles.filter(a => a.articleId > initialLastId);\n\n// 현재 수집된 것 중 가장 큰 글 번호\nconst currentBatchMaxId = articles.length > 0 ? Math.max(...articles.map(a => a.articleId)) : initialLastId;\n\n// ★ 문제의 로직 수정: 단 1개의 새 글이라도 존재하면 무조건 True (저장 루프로 진입)\nconst shouldContinue = newArticles.length > 0;\n\nreturn [{\n  json: {\n    newArticles: newArticles,\n    currentBatchMaxId: currentBatchMaxId,\n    shouldContinue: shouldContinue, // 이제 무조건 true가 됩니다.\n    count: newArticles.length\n  }\n}];"
+          "jsCode": "const targetMenuIds = [49, 36, 37, 42, 12];\nconst initialLastId = $('기존 처리 정보 가져오기').first().json.lastArticleId;\nconst articles = $input.item.json.message?.result?.articleList || [];\n\n// 1. 수집 대상 게시판 중 과거 번호보다 '큰' 번호를 가진 새 글만 필터링\nconst newArticles = articles.filter(a => a.articleId > initialLastId && targetMenuIds.includes(a.menuId));\n\n// 2. 전체 글 기준 최대 글 번호를 트래킹하여 다음 증분 수집 시 중복 조회 방지\nconst currentBatchMaxId = articles.length > 0 ? Math.max(...articles.map(a => a.articleId)) : initialLastId;\n\n// 3. 카페 전체에 아직 처리되지 않은 새 글이 더 있는지 여부로 페이징 지속 판단\nconst shouldContinue = articles.some(a => a.articleId > initialLastId);\n\nreturn [{  json: {\n    newArticles: newArticles,\n    currentBatchMaxId: currentBatchMaxId,\n    shouldContinue: shouldContinue,\n    count: newArticles.length\n  }\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -312,7 +412,7 @@
       },
       {
         "parameters": {
-          "url": "=https://apis.naver.com/cafe-web/cafe2/ArticleListV3dot1.json?search.clubid=28580947&search.queryType=lastArticle&search.menuid=36&search.page={{ $runIndex + 1 }}&search.perPage=50",
+          "url": "=https://apis.naver.com/cafe-web/cafe2/ArticleListV3dot1.json?search.clubid=28580947&search.queryType=lastArticle&search.page={{ $runIndex + 1 }}&search.perPage=50",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
@@ -944,8 +1044,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          272,
-          1296
+          144,
+          1312
         ],
         "id": "230b948b-5336-4ca8-a169-dc17b9901622",
         "name": "Presigned URLs 발급1",
@@ -964,8 +1064,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          464,
-          1296
+          304,
+          1312
         ],
         "id": "6fd611ee-9ab7-45da-8b27-2d1b74752882",
         "name": "이미지 정보 페어링1"
@@ -1018,7 +1118,7 @@
         "typeVersion": 3,
         "position": [
           464,
-          1488
+          1392
         ],
         "id": "c67b0e35-b050-4b1d-ac09-b1efae0a623b",
         "name": "Loop Over Images1"
@@ -1051,8 +1151,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          16,
-          1568
+          -32,
+          1552
         ],
         "id": "16123b0d-aa60-4f3b-bf2a-f52f359adbf5",
         "name": "이미지 존재 여부 확인1"
@@ -1065,8 +1165,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -128,
-          1568
+          -176,
+          1552
         ],
         "id": "e35f5a5a-20c0-4187-b358-8dfd7534f231",
         "name": "데이터 파싱1"
@@ -1092,7 +1192,7 @@
         "type": "n8n-nodes-base.splitInBatches",
         "typeVersion": 3,
         "position": [
-          -304,
+          -368,
           1488
         ],
         "id": "e3cbdf01-d77c-4731-9a7f-d5b73e51f890",
@@ -1132,7 +1232,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          848,
+          896,
           1760
         ],
         "id": "email-upload-ok-2858-0947-9000-000000000001",
@@ -1197,7 +1297,13 @@
       },
       "배치 처리": {
         "main": [
-          [],
+          [
+            {
+              "node": "구글 시트 처리 행 갱신",
+              "type": "main",
+              "index": 0
+            }
+          ],
           [
             {
               "node": "Aggregate",
@@ -1270,6 +1376,17 @@
         ]
       },
       "Webhook API 전송1": {
+        "main": [
+          [
+            {
+              "node": "네이버 카페 처리 ID 실시간 갱신",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "네이버 카페 처리 ID 실시간 갱신": {
         "main": [
           [
             {
@@ -1630,6 +1747,35 @@
         "main": [
           [
             {
+              "node": "이미 처리된 이메일 필터 검사",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "이미 처리된 이메일 필터 검사": {
+        "main": [
+          [
+            {
+              "node": "이미 처리된 이메일 필터",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "이미 처리된 이메일 필터": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Emails",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
               "node": "이미지 존재 여부 확인1",
               "type": "main",
               "index": 0
@@ -1661,7 +1807,13 @@
       },
       "Loop Over Emails": {
         "main": [
-          [],
+          [
+            {
+              "node": "이메일 처리 기록 초기화",
+              "type": "main",
+              "index": 0
+            }
+          ],
           [
             {
               "node": "데이터 파싱1",
@@ -1672,6 +1824,17 @@
         ]
       },
       "Webhook API 전송2": {
+        "main": [
+          [
+            {
+              "node": "이메일 처리 UID 기록",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "이메일 처리 UID 기록": {
         "main": [
           [
             {
@@ -1718,7 +1881,8 @@
     },
     "settings": {
       "executionOrder": "v1",
-      "binaryMode": "separate"
+      "binaryMode": "separate",
+      "errorWorkflow": "error-handler-wf"
     },
     "staticData": {
       "node:네이버 카페글 수집": {
@@ -1736,9 +1900,9 @@
     },
     "nodeGroups": [],
     "pinData": {},
-    "versionId": "96ea7e0f-75e4-45f4-bed1-fa739602acb3",
+    "versionId": "91a2f7a0-9e1f-4e7f-ae96-d43d12ee5ccb",
     "activeVersionId": null,
-    "versionCounter": 970,
+    "versionCounter": 985,
     "triggerCount": 3,
     "sourceWorkflowId": null,
     "tags": [],
