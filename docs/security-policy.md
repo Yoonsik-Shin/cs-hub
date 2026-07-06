@@ -49,21 +49,21 @@ n8n 호출   -> X-Internal-Token
 
 내부 토큰 인증은 `ROLE_SYSTEM`으로만 인증되므로 `@RequireRoles(AdminRole.ADMIN)`이 필요한 관리자 기능은 호출할 수 없습니다.
 
-## n8n UI 접근 제어
+## 어드민 툴 접근 제어
 
-n8n UI는 `/n8n/` 경로로 nginx가 프록시합니다. 직접 Basic Auth를 다시 요구하지 않고 backend의 auth API로 접근 가능 여부를 확인합니다.
+n8n UI, Grafana, MinIO 등의 어드민 툴은 nginx가 프록시합니다. 직접 Basic Auth를 다시 요구하지 않고 backend의 auth API로 접근 가능 여부를 확인합니다.
 
 ```text
 ADMIN 사용자
-  -> POST /api/v1/auth/n8n-access
-  -> backend가 cs_n8n_access 쿠키 발급
-  -> /n8n/ 접근
-  -> nginx auth_request /_n8n_admin_auth
-  -> GET /api/v1/auth/n8n-check
-  -> 쿠키 유효 시 n8n UI 프록시 허용
+  -> POST /api/v1/auth/admin-tool-access
+  -> backend가 cs_admin_access 쿠키 발급
+  -> 어드민 툴 경로(/n8n/, /grafana/ 등) 접근
+  -> nginx auth_request /_admin_tool_auth
+  -> GET /api/v1/auth/admin-tool-check
+  -> 쿠키 유효 시 프록시 허용
 ```
 
-`/api/v1/auth/n8n-access`는 `@RequireRoles(AdminRole.ADMIN)`이 필요합니다. `/api/v1/auth/n8n-check`는 사용자가 직접 쓰는 API가 아니라 nginx `auth_request`에서 호출하는 쿠키 검증 API입니다.
+`/api/v1/auth/admin-tool-access`는 `@RequireRoles(AdminRole.ADMIN)`이 필요합니다. `/api/v1/auth/admin-tool-check`는 사용자가 직접 쓰는 API가 아니라 nginx `auth_request`에서 호출하는 쿠키 검증 API입니다.
 
 ## 내부 서비스 인증
 

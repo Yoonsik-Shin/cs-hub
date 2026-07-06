@@ -24,8 +24,8 @@
 ```text
 GET    /api/v1/auth/me
 GET    /api/v1/auth/admin-check
-POST   /api/v1/auth/n8n-access
-GET    /api/v1/auth/n8n-check
+POST   /api/v1/auth/admin-tool-access
+GET    /api/v1/auth/admin-tool-check
 GET    /api/v1/auth/logout
 
 GET    /api/v1/admin/accounts
@@ -67,8 +67,8 @@ POST   /api/v1/files/presigned-urls
 ```text
 GET  /api/v1/auth/me          현재 로그인한 관리자 정보 조회
 GET  /api/v1/auth/admin-check nginx auth_request용 ADMIN 권한 확인
-POST /api/v1/auth/n8n-access  n8n UI 접근용 임시 쿠키 발급
-GET  /api/v1/auth/n8n-check   nginx auth_request용 n8n 접근 쿠키 검증
+POST /api/v1/auth/admin-tool-access  어드민 툴 접근용 임시 쿠키 발급
+GET  /api/v1/auth/admin-tool-check   nginx auth_request용 어드민 툴 접근 쿠키 검증
 GET  /api/v1/auth/logout      Basic Auth 계정 전환을 위한 401 challenge
 ```
 
@@ -80,16 +80,16 @@ POST   /api/v1/admin/accounts            관리자/운영자 계정 생성
 DELETE /api/v1/admin/accounts/{username} 관리자/운영자 계정 삭제
 ```
 
-n8n UI 접근은 일반 앱 API 인증과 별도의 게이트를 둡니다.
+어드민 툴 접근은 일반 앱 API 인증과 별도의 게이트를 둡니다.
 
 ```text
-1. ADMIN 사용자가 프론트에서 n8n 접근을 요청
-2. POST /api/v1/auth/n8n-access 호출
-3. backend가 ADMIN 역할을 확인하고 cs_n8n_access 쿠키 발급
-4. 브라우저가 /n8n/ 접근
-5. nginx가 GET /api/v1/auth/n8n-check를 auth_request로 호출
-6. backend가 cs_n8n_access 쿠키를 검증
-7. 유효하면 nginx가 n8n UI 프록시 허용
+1. ADMIN 사용자가 프론트에서 어드민 툴(n8n, Grafana 등) 접근을 요청
+2. POST /api/v1/auth/admin-tool-access 호출
+3. backend가 ADMIN 역할을 확인하고 cs_admin_access 쿠키 발급
+4. 브라우저가 어드민 툴 경로(/n8n/, /grafana/ 등) 접근
+5. nginx가 GET /api/v1/auth/admin-tool-check를 auth_request로 호출
+6. backend가 cs_admin_access 쿠키를 검증
+7. 유효하면 nginx가 해당 툴로 프록시 허용
 ```
 
 앱 API의 controller와 request/response DTO는 URL 버전에 맞춰 패키지를 분리합니다.
