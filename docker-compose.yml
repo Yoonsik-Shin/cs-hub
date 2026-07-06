@@ -77,7 +77,7 @@ services:
 
   cs-api:
     build:
-      context: ./apps/backend-api
+      context: ./apps/cs-api
     container_name: cs-api
     restart: always
     env_file:
