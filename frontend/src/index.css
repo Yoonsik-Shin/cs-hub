@@ -207,6 +207,8 @@ body.modal-open {
   min-width: 0;
   background-color: var(--bg-primary);
   transition: width 0.2s ease, padding 0.2s ease;
+  container-type: inline-size;
+  container-name: list-main;
 }
 
 .dashboard-detail-pane {
@@ -3241,5 +3243,149 @@ body.modal-open {
   color: var(--text-primary);
   background: rgba(15, 23, 42, 0.05);
 }
+
+/* ──────────────────────────────────────────
+   Auto Refresh Control Styles
+   ────────────────────────────────────────── */
+.auto-refresh-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 7px;
+  padding: 0 6px 0 4px;
+  height: 28px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.auto-refresh-container:focus-within {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.auto-refresh-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.auto-refresh-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.auto-refresh-btn:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.auto-refresh-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border-light);
+  flex-shrink: 0;
+}
+
+.auto-refresh-select {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+  padding: 0 4px 0 2px;
+  font-family: inherit;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast);
+}
+
+.auto-refresh-select.active {
+  color: var(--accent-indigo);
+}
+
+.auto-refresh-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: normal;
+}
+
+/* ──────────────────────────────────────────
+   Container Queries for Resizable List Column
+   ────────────────────────────────────────── */
+@container list-main (max-width: 340px) {
+  .batch-mode-btn span {
+    display: none;
+  }
+  .batch-mode-btn {
+    padding: 0 6px;
+    gap: 0;
+  }
+}
+
+@container list-main (max-width: 310px) {
+  .auto-refresh-select {
+    font-size: 10px;
+  }
+}
+
+/* ──────────────────────────────────────────
+   Instant Bottom Tooltip
+   ────────────────────────────────────────── */
+.action-tooltip {
+  position: relative;
+}
+
+.action-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  z-index: 50;
+  width: max-content;
+  max-width: 200px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+  box-shadow: var(--shadow-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.action-tooltip:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.action-tooltip.tooltip-left::after {
+  left: auto;
+  right: 0;
+  transform: translateY(-4px) translateX(0);
+}
+
+.action-tooltip.tooltip-left:hover::after {
+  transform: translateY(0) translateX(0);
+}
+
 
 

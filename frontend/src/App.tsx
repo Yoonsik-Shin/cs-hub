@@ -22,10 +22,6 @@ type BatchSelectionScope = 'PAGE' | 'FILTER';
 export const App: React.FC = () => {
   const isNaverLogin = window.location.pathname === '/naver-login';
 
-  if (isNaverLogin) {
-    return <NaverLoginRenewPage />;
-  }
-
   // Operator (현재 로그인한 관리자) 상태 — Nginx Basic Auth에서 파생
   const [currentOperator, setCurrentOperator] = useState<OperatorInfo | null>(null);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -61,6 +57,12 @@ export const App: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Auto-refresh states
+  const [refreshInterval, setRefreshInterval] = useState<number>(() => {
+    const saved = localStorage.getItem('admin_cs_refresh_interval');
+    return saved ? Number(saved) : 0;
+  });
+  const [isRefreshing, setIsRefreshing] = useState(false);
   // Batch selection states
   const [isBatchSelectionMode, setIsBatchSelectionMode] = useState(false);
   const [batchSelectionScope, setBatchSelectionScope] = useState<BatchSelectionScope>('PAGE');
@@ -106,6 +108,29 @@ export const App: React.FC = () => {
   const [isListCollapsed, setIsListCollapsed] = useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingList, setIsResizingList] = useState(false);
+
+  // Keep detail panel open even if selected inquiry disappears from list due to auto-refresh filter mismatch
+  const [selectedInquiryDetail, setSelectedInquiryDetail] = useState<CustomerInquiry | null>(null);
+
+  useEffect(() => {
+    if (!selectedInquiryId) {
+      setSelectedInquiryDetail(null);
+      return;
+    }
+    const found = inquiries.find((inq) => inq.id === selectedInquiryId);
+    if (found) {
+      setSelectedInquiryDetail(found);
+      return;
+    }
+    for (const pageNum of Object.keys(pageCache).map(Number)) {
+      const cacheEntry = pageCache[pageNum];
+      const cachedFound = cacheEntry.inquiries.find((inq) => inq.id === selectedInquiryId);
+      if (cachedFound) {
+        setSelectedInquiryDetail(cachedFound);
+        return;
+      }
+    }
+  }, [selectedInquiryId, inquiries, pageCache]);
 
   // Nested Sidebar Widget Groups DND
   interface WidgetGroup {
@@ -539,8 +564,10 @@ export const App: React.FC = () => {
   }, [queryFilters]);
 
   // Fetch inquiries for the current page and filter conditions
-  const fetchPage = useCallback(async (cursorVal: string | null) => {
-    setLoading(true);
+  const fetchPage = useCallback(async (cursorVal: string | null, keepSelection: boolean = false, silent: boolean = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     setSelectedInquiryIds(new Set()); // Reset selection on page/filter change
     setBatchSelectionScope('PAGE');
@@ -568,7 +595,9 @@ export const App: React.FC = () => {
           }
         });
         setCurrentPage(1);
-        setSelectedInquiryId(null);
+        if (!keepSelection) {
+          setSelectedInquiryId(null);
+        }
       }
 
       // Fetch matching inquiries count with 100 limit
@@ -582,9 +611,47 @@ export const App: React.FC = () => {
       console.error(err);
       setError('데이터를 불러오는 중 문제가 발생했습니다. 백엔드 서버 연결 상태를 확인해 주세요.');
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [buildCurrentSearchParams]);
+
+  // Refs for tracking loading states to prevent timer hook re-initialization
+  const loadingRef = useRef(loading);
+  const refreshingRef = useRef(isRefreshing);
+  useEffect(() => {
+    loadingRef.current = loading;
+    refreshingRef.current = isRefreshing;
+  }, [loading, isRefreshing]);
+
+  // Unified refresh handler
+  const handleRefresh = useCallback(async (silent: boolean = false) => {
+    if (loadingRef.current || refreshingRef.current) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        fetchStats(),
+        fetchNaverSessionStatus(),
+        fetchPage(null, true, silent)
+      ]);
+    } catch (err) {
+      console.error('Refresh error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [fetchStats, fetchNaverSessionStatus, fetchPage]);
+
+  // Auto-refresh timer hook
+  useEffect(() => {
+    if (refreshInterval <= 0) return;
+
+    const intervalId = setInterval(() => {
+      handleRefresh(true);
+    }, refreshInterval * 1000);
+
+    return () => clearInterval(intervalId);
+  }, [refreshInterval, handleRefresh]);
 
   const loadMoreBatchInquiries = useCallback(async () => {
     if (loading || loadingMore || !hasNext || !nextCursor) return;
@@ -1181,18 +1248,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const findSelectedInquiry = () => {
-    if (!selectedInquiryId) return undefined;
-    const found = inquiries.find((inq) => inq.id === selectedInquiryId);
-    if (found) return found;
-    for (const pageNum of Object.keys(pageCache).map(Number)) {
-      const cacheEntry = pageCache[pageNum];
-      const cachedFound = cacheEntry.inquiries.find((inq) => inq.id === selectedInquiryId);
-      if (cachedFound) return cachedFound;
-    }
-    return undefined;
-  };
-  const selectedInquiry = findSelectedInquiry();
+  const selectedInquiry = selectedInquiryDetail || undefined;
   const effectiveVisibleSelectedIds = selectedInquiryIds;
   const selectedBatchCount = selectedInquiryIds.size;
   const allVisibleSelected = inquiries.length > 0 && inquiries.every((inquiry) => selectedInquiryIds.has(inquiry.id));
@@ -1441,6 +1497,10 @@ export const App: React.FC = () => {
   };
 
 
+  if (isNaverLogin) {
+    return <NaverLoginRenewPage />;
+  }
+
   return (
     <div className="dashboard-container" style={{ position: 'relative' }}>
       {/* Left Sidebar */}
@@ -1454,7 +1514,7 @@ export const App: React.FC = () => {
           alignItems: isSidebarCollapsed ? 'center' : undefined,
           overflowX: isSidebarCollapsed ? 'visible' : 'hidden',
           overflowY: isSidebarCollapsed ? 'visible' : 'auto',
-          transition: 'width 0.2s ease',
+          transition: isResizingSidebar ? 'none' : 'width 0.2s ease',
           gap: isSidebarCollapsed ? '8px' : undefined
         }}
       >
@@ -1662,7 +1722,7 @@ export const App: React.FC = () => {
           padding: isListCollapsed ? '20px 0' : '20px 8px 8px 8px',
           alignItems: isListCollapsed ? 'center' : undefined,
           overflow: 'hidden',
-          transition: 'width 0.2s ease',
+          transition: isResizingList ? 'none' : 'width 0.2s ease',
           position: 'relative'
         }}
       >
@@ -1738,12 +1798,43 @@ export const App: React.FC = () => {
                 </span>
               </div>
               <div className="list-header-actions">
+                {/* Auto Refresh Controls */}
+                <div className="auto-refresh-container">
+                  <button
+                    type="button"
+                    onClick={() => handleRefresh(false)}
+                    className="auto-refresh-btn action-tooltip"
+                    data-tooltip="즉시 새로고침"
+                    disabled={loading || isRefreshing}
+                  >
+                    <RefreshCw size={12} className={isRefreshing ? 'spin' : ''} />
+                  </button>
+                  <div className="auto-refresh-divider" />
+                  <div className="action-tooltip" data-tooltip="자동 새로고침 주기" style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+                    <select
+                      value={refreshInterval}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setRefreshInterval(val);
+                        localStorage.setItem('admin_cs_refresh_interval', String(val));
+                      }}
+                      className={`auto-refresh-select${refreshInterval > 0 ? ' active' : ''}`}
+                    >
+                      <option value={0}>Off</option>
+                      <option value={10}>10s</option>
+                      <option value={30}>30s</option>
+                      <option value={60}>1m</option>
+                      <option value={300}>5m</option>
+                    </select>
+                  </div>
+                </div>
+
                 {inquiries.length > 0 && !loading && !isBatchSelectionMode && (
                   <button
                     type="button"
-                    className="batch-mode-btn"
+                    className="batch-mode-btn action-tooltip tooltip-left"
                     onClick={handleStartBatchSelection}
-                    title="여러 문의를 선택해 상태를 일괄 변경"
+                    data-tooltip="배치 처리 (일괄 상태 변경)"
                   >
                     <ListChecks size={14} />
                     <span>배치 처리</span>
@@ -1752,7 +1843,8 @@ export const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsListCollapsed(true)}
-                  title="목록 접기"
+                  className="action-tooltip tooltip-left"
+                  data-tooltip="목록 접기"
                   style={{ 
                     background: 'transparent', 
                     border: 'none', 
@@ -1773,8 +1865,6 @@ export const App: React.FC = () => {
                 </button>
               </div>
             </div>
-
-
 
             {/* Filter Bar Component Container */}
             <div style={{ flexShrink: 0, width: '100%', padding: '0 4px' }}>
