@@ -5,19 +5,19 @@ const { execSync } = require('child_process');
 const WORKFLOWS = [
   {
     id: 'nsbvUUSzjjH2zFic',
-    localPath: path.join(__dirname, '../scratch_workflow.json'),
+    localPath: path.join(__dirname, './scratch_workflow.json'),
     tempName: 'scratch_workflow_temp.json',
     containerTempPath: '/home/node/.n8n/scratch_workflow_temp.json',
-    sharedTempPath: path.join(__dirname, '../data/n8n/scratch_workflow_temp.json'),
+    sharedTempPath: path.join(__dirname, '../../data/n8n/scratch_workflow_temp.json'),
     displayName: 'CS 데이터 통합',
     lastFileMtime: 0
   },
   {
     id: 'error-handler-wf',
-    localPath: path.join(__dirname, '../error_workflow.json'),
+    localPath: path.join(__dirname, './error_workflow.json'),
     tempName: 'error_workflow_temp.json',
     containerTempPath: '/home/node/.n8n/error_workflow_temp.json',
-    sharedTempPath: path.join(__dirname, '../data/n8n/error_workflow_temp.json'),
+    sharedTempPath: path.join(__dirname, '../../data/n8n/error_workflow_temp.json'),
     displayName: 'CS 데이터 통합 에러 처리',
     lastFileMtime: 0
   }
