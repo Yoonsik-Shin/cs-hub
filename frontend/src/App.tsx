@@ -1846,12 +1846,12 @@ export const App: React.FC = () => {
                   </div>
                 </div>
 
-                {inquiries.length > 0 && !loading && !isBatchSelectionMode && (
+                {inquiries.length > 0 && !loading && (
                   <button
                     type="button"
-                    className="batch-mode-btn action-tooltip tooltip-left"
-                    onClick={handleStartBatchSelection}
-                    data-tooltip="배치 처리 (일괄 상태 변경)"
+                    className={`batch-mode-btn action-tooltip tooltip-left${isBatchSelectionMode ? ' active' : ''}`}
+                    onClick={isBatchSelectionMode ? handleCancelBatchSelection : handleStartBatchSelection}
+                    data-tooltip={isBatchSelectionMode ? "선택 종료" : "배치 처리 (일괄 상태 변경)"}
                   >
                     <ListChecks size={14} />
                     <span>배치 처리</span>
