@@ -1524,11 +1524,11 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 </div>
                             )}
 
-                            {isContentLong ? (
-                                /* Long Content Layout: Left Column (Content), Right Column (Images + Metadata + Device Info) */
+                            {(isContentLong || activeImageUrl) ? (
+                                /* Long Content Layout / 3-Column Layout: Left Column (Content), Right Column (Images + Metadata + Device Info) */
                                 <div style={{
                                     display: 'flex',
-                                    gap: activeImageUrl ? '0px' : '20px',
+                                    gap: '20px',
                                     alignItems: 'flex-start',
                                     width: '100%',
                                     transition: 'gap 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
@@ -1542,12 +1542,12 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             display: 'flex',
                                             flexDirection: 'column',
                                             gap: '20px',
-                                            flex: activeImageUrl ? 0 : 1,
-                                            maxWidth: activeImageUrl ? '0px' : '100%',
-                                            maxHeight: activeImageUrl ? '0px' : 'none',
-                                            opacity: activeImageUrl ? 0 : 1,
+                                            flex: 1,
+                                            maxWidth: '100%',
+                                            maxHeight: 'none',
+                                            opacity: 1,
                                             overflow: 'hidden',
-                                            pointerEvents: activeImageUrl ? 'none' : 'auto',
+                                            pointerEvents: 'auto',
                                             transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                                             position: 'sticky',
                                             top: '0px'
