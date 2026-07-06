@@ -532,8 +532,8 @@ export const inquiryApi = {
     return response.json();
   },
 
-  async issueN8nAccess(): Promise<void> {
-    const response = await fetch("/api/v1/auth/n8n-access", {
+  async issueAdminAccess(): Promise<void> {
+    const response = await fetch("/api/v1/auth/admin-access", {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -541,7 +541,7 @@ export const inquiryApi = {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to issue n8n access token: ${response.status}`);
+      throw new Error(`Failed to issue admin access token: ${response.status}`);
     }
   },
 };

@@ -428,7 +428,7 @@ export const App: React.FC = () => {
 
   const handleOpenN8n = async () => {
     try {
-      await inquiryApi.issueN8nAccess();
+      await inquiryApi.issueAdminAccess();
       setIsOperatorMenuOpen(false);
       window.open(`${window.location.origin}/n8n/`, '_blank', 'noopener,noreferrer');
     } catch (err) {
@@ -1372,7 +1372,7 @@ export const App: React.FC = () => {
                 type="button"
                 onClick={async () => {
                   try {
-                    await inquiryApi.issueN8nAccess();
+                    await inquiryApi.issueAdminAccess();
                     setIsOperatorMenuOpen(false);
                     window.open('/docs', '_blank', 'noopener,noreferrer');
                   } catch (err) {
@@ -1389,7 +1389,7 @@ export const App: React.FC = () => {
                 type="button"
                 onClick={async () => {
                   try {
-                    await inquiryApi.issueN8nAccess();
+                    await inquiryApi.issueAdminAccess();
                     setIsOperatorMenuOpen(false);
                     window.open('/minio/', '_blank', 'noopener,noreferrer');
                   } catch (err) {
@@ -1406,7 +1406,7 @@ export const App: React.FC = () => {
                 type="button"
                 onClick={async () => {
                   try {
-                    await inquiryApi.issueN8nAccess();
+                    await inquiryApi.issueAdminAccess();
                     setIsOperatorMenuOpen(false);
                     window.open('/grafana/', '_blank', 'noopener,noreferrer');
                   } catch (err) {
