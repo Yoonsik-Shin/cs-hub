@@ -533,7 +533,7 @@ export const inquiryApi = {
   },
 
   async issueAdminAccess(): Promise<void> {
-    const response = await fetch("/api/v1/auth/admin-access", {
+    const response = await fetch("/api/v1/auth/admin-tool-access", {
       method: "POST",
       headers: {
         Accept: "application/json",

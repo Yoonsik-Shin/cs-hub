@@ -97,11 +97,11 @@ public class NginxHeaderAuthFilter extends OncePerRequestFilter {
             return false;
         }
 
-        return !isAdminAuthCheck(request);
+        return !isAdminToolAuthCheck(request);
     }
 
-    private boolean isAdminAuthCheck(HttpServletRequest request) {
-        return "GET".equals(request.getMethod()) && "/api/v1/auth/admin-check".equals(request.getRequestURI());
+    private boolean isAdminToolAuthCheck(HttpServletRequest request) {
+        return "GET".equals(request.getMethod()) && "/api/v1/auth/admin-tool-check".equals(request.getRequestURI());
     }
 
     private boolean hasText(String value) {

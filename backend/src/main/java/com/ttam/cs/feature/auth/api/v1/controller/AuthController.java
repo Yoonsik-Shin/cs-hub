@@ -50,10 +50,10 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/admin-access")
+    @PostMapping("/admin-tool-access")
     @RequireRoles(AdminRole.ADMIN)
     @Operation(summary = "어드민 툴 접근 쿠키 발급", description = "ADMIN 사용자에게 어드민 툴 접근용 임시 쿠키(cs_admin_access)를 발급합니다. 이 쿠키는 어드민 전용 경로에서 사용되며 기본 유효 시간은 43200초(12시간)입니다.")
-    public ResponseEntity<Void> issueAdminAccess(
+    public ResponseEntity<Void> issueAdminToolAccess(
             @RequestHeader(value = "X-Remote-User", required = false) String remoteUser) {
         if (remoteUser == null || remoteUser.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -65,9 +65,9 @@ public class AuthController {
         return ResponseEntity.noContent().headers(headers).build();
     }
 
-    @GetMapping("/admin-check")
+    @GetMapping("/admin-tool-check")
     @Operation(summary = "어드민 툴 접근 쿠키 검증", description = "nginx auth_request 전용 API입니다. cs_admin_access 쿠키가 유효하면 204를 반환하고, 유효하지 않으면 403을 반환합니다.")
-    public ResponseEntity<Void> adminCheck(
+    public ResponseEntity<Void> adminToolCheck(
             @CookieValue(value = "cs_admin_access", required = false) String adminAccessToken) {
         if (adminAccessTokenUseCase.isValidAdminToken(adminAccessToken)) {
             return ResponseEntity.noContent().build();
