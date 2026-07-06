@@ -7,7 +7,4 @@ public record SessionSaveRequest(
         @NotBlank(message = "cookiesJson은 필수입니다.")
         String cookiesJson
 ) {
-    public String normalizedId() {
-        return id == null || id.isBlank() ? "default" : id.trim();
-    }
 }

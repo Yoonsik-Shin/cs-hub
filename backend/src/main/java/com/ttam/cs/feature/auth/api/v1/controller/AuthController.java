@@ -61,7 +61,7 @@ public class AuthController {
 
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.SET_COOKIE, "cs_n8n_access=" + n8nAccessTokenUseCase.issue(remoteUser.trim())
-                + "; Max-Age=900; Path=/n8n; HttpOnly; Secure; SameSite=Lax");
+                + "; Max-Age=900; Path=/; HttpOnly; Secure; SameSite=Lax");
         return ResponseEntity.noContent().headers(headers).build();
     }
 

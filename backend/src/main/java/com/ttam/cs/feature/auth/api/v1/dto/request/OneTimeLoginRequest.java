@@ -8,7 +8,4 @@ public record OneTimeLoginRequest(
         String code,
         String token
 ) {
-    public String normalizedId() {
-        return id == null || id.isBlank() ? "default" : id.trim();
-    }
 }

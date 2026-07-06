@@ -2,7 +2,7 @@
   "updatedAt": "2026-06-25T05:22:29.183Z",
   "createdAt": "2026-06-18T04:28:10.651Z",
   "id": "nsbvUUSzjjH2zFic",
-  "name": "My workflow",
+  "name": "CS 데이터 통합",
   "description": null,
   "active": false,
   "isArchived": false,
@@ -43,7 +43,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -53,7 +55,13 @@
       ],
       "id": "1340af88-3407-4c66-b0ad-0e8134916171",
       "name": "Webhook API 전송",
-      "executeOnce": false
+      "executeOnce": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CsInternalApiTok",
+          "name": "CS Internal API Token"
+        }
+      }
     },
     {
       "parameters": {
@@ -388,25 +396,14 @@
     },
     {
       "parameters": {
-        "options": {}
-      },
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [
-        1072,
-        560
-      ],
-      "id": "421aa221-2a6a-4a4c-91ca-c26e593130c4",
-      "name": "Loop Over Items"
-    },
-    {
-      "parameters": {
         "method": "POST",
         "url": "http://cs-api:8080/webhooks/n8n",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -416,7 +413,13 @@
       ],
       "id": "34105f6a-e782-480f-b1b3-713402ce3dae",
       "name": "Webhook API 전송1",
-      "executeOnce": false
+      "executeOnce": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CsInternalApiTok",
+          "name": "CS Internal API Token"
+        }
+      }
     },
     {
       "parameters": {},
@@ -432,13 +435,28 @@
     },
     {
       "parameters": {
-        "url": "=https://apis.naver.com/cafe-web/cafe2/ArticleListV3dot1.json?search.clubid=31741615&search.queryType=lastArticle&search.menuid=1&search.page={{ $runIndex + 1 }}&search.perPage=50",
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "processedArticles",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2480,
+        576
+      ],
+      "id": "aggregate-page-naver-cafe",
+      "name": "페이지 수집 합치기"
+    },
+    {
+      "parameters": {
+        "url": "=https://apis.naver.com/cafe-web/cafe2/ArticleListV3dot1.json?search.clubid=28580947&search.queryType=lastArticle&search.menuid=36&search.page={{ $runIndex + 1 }}&search.perPage=50",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Cookie",
-              "value": "={{ $node[\"네이버 세션 조회\"].json.headers[\"x-naver-cookie\"] }}"
+              "value": "={{ $('네이버 세션 조회').first().json.headers[\"x-naver-cookie\"] }}"
             },
             {
               "name": "User-Agent",
@@ -477,13 +495,13 @@
     },
     {
       "parameters": {
-        "url": "=https://apis.naver.com/cafe-web/cafe-articleapi/v2.1/cafes/31741615/articles/{{ $json.articleId }}",
+        "url": "=https://apis.naver.com/cafe-web/cafe-articleapi/v2.1/cafes/28580947/articles/{{ $json.articleId }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Cookie",
-              "value": "={{ $node[\"네이버 세션 조회\"].json.headers[\"x-naver-cookie\"] }}"
+              "value": "={{ $('네이버 세션 조회').first().json.headers[\"x-naver-cookie\"] }}"
             },
             {
               "name": "User-Agent",
@@ -510,7 +528,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const rawData = $('데이터 파싱').item.json;\n\nconst objectKeys = rawData.originalImageUrls && rawData.originalImageUrls.length > 0 \n  ? $('이미지 정보 페어링').all().map(item => item.json.objectName)\n  : [];\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: objectKeys,\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: objectKeys\n          }\n        }\n      ]\n    }\n  }\n};"
+        "jsCode": "const rawData = $('데이터 파싱').first().json;\n\nconst images = $input.item.json.images || [];\nconst objectKeys = images.map(img => img.objectName).filter(Boolean);\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: objectKeys,\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: objectKeys\n          }\n        }\n      ]\n    }\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -520,6 +538,20 @@
       ],
       "id": "14e81e6e-83ee-4bce-bff2-2c1c6cf28129",
       "name": "RequestDTO 변환1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const rawData = $('데이터 파싱').first().json;\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: [],\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: []\n          }\n        }\n      ]\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        736
+      ],
+      "id": "request-dto-no-image-naver-cafe",
+      "name": "RequestDTO 변환 (이미지 없음)"
     },
     {
       "parameters": {
@@ -672,23 +704,16 @@
     },
     {
       "parameters": {
-        "url": "http://cs-api:8080/api/v1/naver/sessions",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "changeme"
-            }
-          ]
-        },
+        "url": "http://cs-api:8080/api/v1/naver/sessions?id=9f2b4d68-4d2c-4db6-a9ec-285809470036",
         "options": {
           "response": {
             "response": {
               "fullResponse": true
             }
           }
-        }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -697,13 +722,21 @@
         592
       ],
       "id": "5683d0c3-d201-49c4-8f24-87eafb34c2f5",
-      "name": "네이버 세션 조회"
+      "name": "네이버 세션 조회",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CsInternalApiTok",
+          "name": "CS Internal API Token"
+        }
+      }
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://cs-api:8080/api/v1/naver/sessions/sync",
-        "options": {}
+        "url": "http://cs-api:8080/api/v1/naver/sessions/sync?id=9f2b4d68-4d2c-4db6-a9ec-285809470036",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -712,7 +745,13 @@
         592
       ],
       "id": "c3756c72-3348-4a7b-90a0-f87823583387",
-      "name": "네이버 세션 유효 검증"
+      "name": "네이버 세션 유효 검증",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CsInternalApiTok",
+          "name": "CS Internal API Token"
+        }
+      }
     },
     {
       "parameters": {
@@ -856,19 +895,12 @@
       "parameters": {
         "method": "POST",
         "url": "http://cs-api:8080/api/v1/files/presigned-urls",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "changeme"
-            }
-          ]
-        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"objectNames\": {{ JSON.stringify($json.objectNames) }},\n  \"contentType\": \"image/jpeg\"\n}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -877,7 +909,13 @@
         304
       ],
       "id": "b5b6d10c-65d6-4621-95d5-edbf445f50b5",
-      "name": "Presigned URLs 발급"
+      "name": "Presigned URLs 발급",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CsInternalApiTok",
+          "name": "CS Internal API Token"
+        }
+      }
     },
     {
       "parameters": {
@@ -901,6 +939,23 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Cookie",
+              "value": "={{ $('네이버 세션 조회').first().json.headers[\"x-naver-cookie\"] }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Linux; Android 13; SM-S918N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
+            },
+            {
+              "name": "Referer",
+              "value": "https://m.cafe.naver.com/"
+            }
+          ]
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -915,7 +970,7 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "={{ $('Loop Over Images').item.json.uploadUrl }}",
+        "url": "={{ $('이미지 정보 페어링').item.json.uploadUrl }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -941,21 +996,8 @@
     },
     {
       "parameters": {
-        "options": {}
-      },
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [
-        1808,
-        496
-      ],
-      "id": "8bbc3f2f-331b-46f2-baf3-fb91010f9a31",
-      "name": "Loop Over Images"
-    },
-    {
-      "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const detail = $input.item.json.result.article; \nconst listData = $('Loop Over Items').item.json;\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/\\[\\[\\[.*?\\]\\]\\]/g, \"\");\n  text = text.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\"); \n  text = text.replace(/[ \\t]+/g, \" \"); \n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst content = stripAndCleanHtml(detail.contentHtml || detail.content || \"\");\nconst timestamp = detail.writeDate ? new Date(detail.writeDate).toISOString() : new Date().toISOString();\n\nconst originalImageUrls = [];\n\n// 1. Extract from official imageList\nif (detail.imageList && Array.isArray(detail.imageList)) {\n  detail.imageList.forEach(img => {\n    if (img.url) {\n      originalImageUrls.push(img.url);\n    }\n  });\n}\n\n// 2. Parse inline <img> tags from contentHtml or content\nconst htmlContent = detail.contentHtml || detail.content || \"\";\nconst imgRegex = /<img[^>]+src=[\"']([^\"']+)[\"']/g;\nlet match;\nwhile ((match = imgRegex.exec(htmlContent)) !== null) {\n  const url = match[1];\n  // Avoid duplicates\n  if (!originalImageUrls.includes(url)) {\n    originalImageUrls.push(url);\n  }\n}\n\n// 3. Fallback to representImage if originalImageUrls is still empty\nif (originalImageUrls.length === 0 && detail.representImage && detail.representImage.url) {\n  originalImageUrls.push(detail.representImage.url);\n}\n\nconst objectNames = originalImageUrls.map((url, index) => {\n  return `naver-cafe/${listData.cafeId}_${listData.articleId}/image_${index}.jpg`;\n});\n\nreturn {\n  cafeId: listData.cafeId,\n  articleId: listData.articleId,\n  menuId: listData.menuId,\n  menuName: listData.menuName,\n  writerId: listData.maskedMemberId,\n  writerNickname: listData.writerNickname,\n  readCount: detail.readCount || 0,\n  commentCount: detail.commentCount || listData.commentCount || 0,\n  likeCount: detail.likeItCount || 0,\n  content: content,\n  timestamp: timestamp,\n  originalImageUrls: originalImageUrls,\n  objectNames: objectNames\n};"
+        "jsCode": "const result = $input.item.json?.result || {};\nconst detail = result.article || {};\nconst listData = $('게시글 상세 조회를 위한 데이터 파싱').item?.json || {};\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/\\[\\[\\[.*?\\]\\]\\]/g, \"\");\n  text = text.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\"); \n  text = text.replace(/[ \\t]+/g, \" \"); \n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst content = stripAndCleanHtml(detail.contentHtml || detail.content || \"\");\nconst timestamp = detail.writeDate ? new Date(detail.writeDate).toISOString() : new Date().toISOString();\n\nconst originalImageUrls = [];\n\n// 1. Extract from official imageList\nif (detail.imageList && Array.isArray(detail.imageList)) {\n  detail.imageList.forEach(img => {\n    if (img.url) {\n      originalImageUrls.push(img.url);\n    }\n  });\n}\n\n// 2. Parse inline <img> tags from contentHtml or content\nconst htmlContent = detail.contentHtml || detail.content || \"\";\nconst imgRegex = /<img[^>]+src=[\"']([^\"']+)[\"']/g;\nlet match;\nwhile ((match = imgRegex.exec(htmlContent)) !== null) {\n  const url = match[1];\n  // Avoid duplicates\n  if (!originalImageUrls.includes(url)) {\n    originalImageUrls.push(url);\n  }\n}\n\n// 3. Fallback to representImage if originalImageUrls is still empty\nif (originalImageUrls.length === 0 && detail.representImage && detail.representImage.url) {\n  originalImageUrls.push(detail.representImage.url);\n}\n\nconst normalizedImageUrls = originalImageUrls.map(url => {\n  if (typeof url !== \"string\") return url;\n  return url.replace(\"://cafepthumb-phinf.pstatic.net\", \"://cafeptthumb-phinf.pstatic.net\");\n});\n\nconst clubId = listData.cafeId || listData.clubId || \"unknown\";\nconst articleId = listData.articleId || detail.articleId || \"unknown\";\n\nconst objectNames = normalizedImageUrls.map((url, index) => {\n  return `naver-cafe/${clubId}_${articleId}/image_${index}.jpg`;\n});\n\nreturn {\n  cafeId: clubId,\n  articleId: articleId,\n  menuId: listData.menuId,\n  menuName: listData.menuName,\n  writerId: listData.maskedMemberId || (detail.writer ? detail.writer.id : null),\n  writerNickname: listData.writerNickname || (detail.writer ? detail.writer.nickname : null),\n  readCount: detail.readCount || 0,\n  commentCount: detail.commentCount || listData.commentCount || 0,\n  likeCount: detail.likeItCount || 0,\n  content: content,\n  timestamp: timestamp,\n  originalImageUrls: normalizedImageUrls,\n  objectNames: objectNames\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1026,7 +1068,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -1036,25 +1080,24 @@
       ],
       "id": "2670e11f-a328-4b49-995e-be37ea982725",
       "name": "Webhook API 전송2",
-      "executeOnce": false
+      "executeOnce": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CsInternalApiTok",
+          "name": "CS Internal API Token"
+        }
+      }
     },
     {
       "parameters": {
         "method": "POST",
         "url": "http://cs-api:8080/api/v1/files/presigned-urls",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "changeme"
-            }
-          ]
-        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"objectNames\": {{ JSON.stringify($json.objectNames) }},\n  \"contentType\": \"image/jpeg\"\n}",
-        "options": {}
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -1063,7 +1106,13 @@
         1216
       ],
       "id": "230b948b-5336-4ca8-a169-dc17b9901622",
-      "name": "Presigned URLs 발급1"
+      "name": "Presigned URLs 발급1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CsInternalApiTok",
+          "name": "CS Internal API Token"
+        }
+      }
     },
     {
       "parameters": {
@@ -1100,7 +1149,16 @@
         "sendBody": true,
         "specifyBody": "binary",
         "inputDataFieldName": "data",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "image/jpeg"
+            }
+          ]
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
@@ -1175,7 +1233,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const rawData = $('데이터 파싱1').item.json;\n\nconst objectKeys = rawData.originalImageUrls && rawData.originalImageUrls.length > 0 \n  ? $('이미지 정보 페어링1').all().map(item => item.json.objectName)\n  : [];\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"EMAIL\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: rawData.userCode,\n          content: rawData.content,\n          imageUrls: objectKeys,\n          channelMetadata: {\n            from: rawData.from,\n            to: rawData.to,\n            subject: rawData.subject,\n            date: rawData.date,\n            headers: rawData.headers,\n            attributes: rawData.attributes\n          }\n        }\n      ]\n    }\n  }\n};"
+        "jsCode": "const rawData = $('데이터 파싱1').item.json;\n\nlet objectKeys = [];\nif (rawData.originalImageUrls && rawData.originalImageUrls.length > 0) {\n  try {\n    const allUploaded = $('이메일 이미지 업로드 완료 정보').all()\n      .map(item => item.json.objectName)\n      .filter(Boolean);\n    objectKeys = allUploaded.filter(name => rawData.objectNames.includes(name));\n  } catch (error) {\n    objectKeys = [];\n  }\n}\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"EMAIL\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: rawData.userCode,\n          content: rawData.content,\n          imageUrls: objectKeys,\n          channelMetadata: {\n            from: rawData.from,\n            to: rawData.to,\n            subject: rawData.subject,\n            date: rawData.date,\n            headers: rawData.headers,\n            attributes: rawData.attributes\n          }\n        }\n      ]\n    }\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1199,6 +1257,49 @@
       ],
       "id": "e3cbdf01-d77c-4731-9a7f-d5b73e51f890",
       "name": "Loop Over Emails"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const uploaded = $('이미지 정보 페어링').item?.json || $input.item.json || {};\n\nreturn {\n  json: {\n    originalImageUrl: uploaded.originalImageUrl || \"\",\n    objectName: uploaded.objectName || \"\",\n    downloadUrl: uploaded.downloadUrl || \"\"\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        784
+      ],
+      "id": "cafecafe-2858-4947-9000-upload-ok",
+      "name": "이미지 업로드 완료 정보"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "images",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2144,
+        784
+      ],
+      "id": "aggregate-images-naver-cafe",
+      "name": "이미지 업로드 합치기"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const uploaded = $('Loop Over Images1').item.json;\n\nreturn {\n  json: {\n    originalUrl: uploaded.originalUrl,\n    objectName: uploaded.objectName,\n    downloadUrl: uploaded.downloadUrl\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        1392
+      ],
+      "id": "email-upload-ok-2858-0947-9000-000000000001",
+      "name": "이메일 이미지 업로드 완료 정보"
     }
   ],
   "connections": {
@@ -1353,24 +1454,6 @@
         ]
       ]
     },
-    "Loop Over Items": {
-      "main": [
-        [
-          {
-            "node": "게시글 조회",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "게시글 상세 조회",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Webhook API 전송1": {
       "main": [
         [
@@ -1386,7 +1469,18 @@
       "main": [
         [
           {
-            "node": "Loop Over Items",
+            "node": "페이지 수집 합치기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "페이지 수집 합치기": {
+      "main": [
+        [
+          {
+            "node": "게시글 조회",
             "type": "main",
             "index": 0
           }
@@ -1408,7 +1502,7 @@
       "main": [
         [
           {
-            "node": "Loop Over Items",
+            "node": "게시글 상세 조회",
             "type": "main",
             "index": 0
           }
@@ -1427,6 +1521,17 @@
       ]
     },
     "RequestDTO 변환1": {
+      "main": [
+        [
+          {
+            "node": "Webhook API 전송1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RequestDTO 변환 (이미지 없음)": {
       "main": [
         [
           {
@@ -1557,7 +1662,7 @@
       "main": [
         [
           {
-            "node": "Loop Over Images",
+            "node": "이미지 다운로드",
             "type": "main",
             "index": 0
           }
@@ -1579,25 +1684,7 @@
       "main": [
         [
           {
-            "node": "Loop Over Images",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Loop Over Images": {
-      "main": [
-        [
-          {
-            "node": "RequestDTO 변환1",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "이미지 다운로드",
+            "node": "이미지 업로드 완료 정보",
             "type": "main",
             "index": 0
           }
@@ -1626,7 +1713,7 @@
         ],
         [
           {
-            "node": "RequestDTO 변환1",
+            "node": "RequestDTO 변환 (이미지 없음)",
             "type": "main",
             "index": 0
           }
@@ -1681,7 +1768,7 @@
       "main": [
         [
           {
-            "node": "Loop Over Images1",
+            "node": "이메일 이미지 업로드 완료 정보",
             "type": "main",
             "index": 0
           }
@@ -1774,6 +1861,39 @@
         [
           {
             "node": "Loop Over Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "이미지 업로드 완료 정보": {
+      "main": [
+        [
+          {
+            "node": "이미지 업로드 합치기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "이미지 업로드 합치기": {
+      "main": [
+        [
+          {
+            "node": "RequestDTO 변환1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "이메일 이미지 업로드 완료 정보": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Images1",
             "type": "main",
             "index": 0
           }

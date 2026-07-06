@@ -9,7 +9,7 @@ import { CreateTicketModal } from './components/CreateTicketModal';
 import { inquiryApi } from './api/inquiryApi';
 import type { BatchUpdateInquiryStatusTarget, OperatorInfo } from './api/inquiryApi';
 import type { CustomFilterEntity, CustomerInquiry, InquiryStatus } from './types/inquiry';
-import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark, X, ListChecks, Shield, Info, LogOut } from 'lucide-react';
+import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark, X, ListChecks, Shield, Info, LogOut, FileText, Database } from 'lucide-react';
 import { NaverLoginRenewPage } from './components/NaverLoginRenewPage';
 import { InquiryDetailPanel } from './components/InquiryDetailPanel';
 import { AccountManagementModal } from './components/AccountManagementModal';
@@ -1311,6 +1311,40 @@ export const App: React.FC = () => {
               >
                 <ExternalLink size={14} />
                 워크플로우 관리 (n8n)
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await inquiryApi.issueN8nAccess();
+                    setIsOperatorMenuOpen(false);
+                    window.open('/docs', '_blank', 'noopener,noreferrer');
+                  } catch (err) {
+                    console.error('Failed to open docs:', err);
+                    alert('API 문서 접근 권한을 확인하지 못했습니다. 관리자 계정으로 다시 로그인한 뒤 시도해주세요.');
+                  }
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(34, 197, 94, 0.28)', background: 'rgba(34, 197, 94, 0.12)', color: '#bbf7d0', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}
+              >
+                <FileText size={14} />
+                API 문서 (Swagger)
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await inquiryApi.issueN8nAccess();
+                    setIsOperatorMenuOpen(false);
+                    window.open('/minio/', '_blank', 'noopener,noreferrer');
+                  } catch (err) {
+                    console.error('Failed to open MinIO:', err);
+                    alert('MinIO 관리 접근 권한을 확인하지 못했습니다. 관리자 계정으로 다시 로그인한 뒤 시도해주세요.');
+                  }
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(249, 115, 22, 0.28)', background: 'rgba(249, 115, 22, 0.12)', color: '#fed7aa', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}
+              >
+                <Database size={14} />
+                MinIO 관리
               </button>
             </>
           )}

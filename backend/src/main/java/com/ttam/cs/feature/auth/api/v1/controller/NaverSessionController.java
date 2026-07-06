@@ -55,7 +55,7 @@ public class NaverSessionController {
     public ResponseEntity<Void> saveSession(@RequestBody @Valid SessionSaveRequest request) {
         String encrypted = encryptionUtils.encrypt(request.cookiesJson());
 
-        naverSessionUseCase.saveSession(request.normalizedId(), encrypted);
+        naverSessionUseCase.saveSession(request.id(), encrypted);
 
         return ResponseEntity.ok().build();
     }
@@ -63,14 +63,15 @@ public class NaverSessionController {
     @Operation(summary = "일회용 로그인 코드로 세션 갱신", description = "네이버 로그인 시 8자리 일회용 코드를 사용하여 쿠키 세션을 갱신합니다.")
     @PostMapping("/one-time-login")
     public ResponseEntity<Void> oneTimeLogin(@RequestBody @Valid OneTimeLoginRequest request) {
-        naverSessionUseCase.renewSessionWithOneTimeCode(request.normalizedId(), request.code());
+        naverSessionUseCase.renewSessionWithOneTimeCode(request.id(), request.code());
         return ResponseEntity.ok().build();
     }
 
     @Operation(summary = "암호화된 네이버 세션 조회", description = "ID에 매칭되는 네이버 세션 쿠키 정보를 복호화하여 헤더 및 응답 바디에 담아 반환합니다. 내부 시스템 토큰 인증이 필요합니다.")
     @GetMapping
     @RequireInternalAuth
-    public ResponseEntity<SessionResponse> getSession(@RequestParam(name = "id", defaultValue = "default") String id) {
+    public ResponseEntity<SessionResponse> getSession(@RequestParam(name = "id", required = false) String id) {
+        id = naverSessionUseCase.normalizeSessionId(id);
         NaverCafeSession session = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
 
@@ -133,7 +134,8 @@ public class NaverSessionController {
 
     @Operation(summary = "네이버 세션 명시적 만료 처리", description = "운영자가 특정 ID의 세션을 강제로 만료 상태(EXPIRED)로 변경합니다.")
     @PostMapping("/expire")
-    public ResponseEntity<Void> expireSession(@RequestParam(name = "id", defaultValue = "default") String id) {
+    public ResponseEntity<Void> expireSession(@RequestParam(name = "id", required = false) String id) {
+        id = naverSessionUseCase.normalizeSessionId(id);
         NaverCafeSession session = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
         session.markExpired(OffsetDateTime.now(ZoneOffset.UTC));
@@ -145,7 +147,8 @@ public class NaverSessionController {
     @Operation(summary = "네이버 세션 상태 동기화", description = "실제 네이버 서버와 세션 상태를 검사하여 DB를 동기화하고 알림 여부를 판단합니다.")
     @PostMapping("/sync")
     public ResponseEntity<SessionStatusResponse> syncSession(
-            @RequestParam(name = "id", defaultValue = "default") String id) {
+            @RequestParam(name = "id", required = false) String id) {
+        id = naverSessionUseCase.normalizeSessionId(id);
         try {
             NaverCafeSession sessionBefore = repository.findById(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
@@ -197,7 +200,8 @@ public class NaverSessionController {
     @Operation(summary = "네이버 세션 상태 획득", description = "특정 ID의 세션 상태(ACTIVE, EXPIRED 등)를 조회합니다.")
     @GetMapping("/status")
     public ResponseEntity<SessionStatusResponse> getSessionStatus(
-            @RequestParam(name = "id", defaultValue = "default") String id) {
+            @RequestParam(name = "id", required = false) String id) {
+        id = naverSessionUseCase.normalizeSessionId(id);
         NaverCafeSession session = repository.findById(id)
                 .orElse(null);
 

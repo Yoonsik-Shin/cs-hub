@@ -18,6 +18,8 @@ export type BatchUpdateInquiryStatusTarget =
       excludedInquiryIds: string[];
     };
 
+const NAVER_CAFE_SESSION_ID = "9f2b4d68-4d2c-4db6-a9ec-285809470036";
+
 /**
  * Helper to build query parameters string from object, omitting undefined/null values
  */
@@ -456,7 +458,7 @@ export const inquiryApi = {
         Accept: "application/json",
       },
       body: JSON.stringify({
-        id: "default",
+        id: NAVER_CAFE_SESSION_ID,
         code: code,
       }),
     });
@@ -473,7 +475,7 @@ export const inquiryApi = {
    * Get Naver session status and updated timestamp
    */
   async getNaverSessionStatus(): Promise<NaverSessionStatus> {
-    const response = await fetch("/api/v1/naver/sessions/status?id=default", {
+    const response = await fetch(`/api/v1/naver/sessions/status?id=${NAVER_CAFE_SESSION_ID}`, {
       method: "GET",
       headers: {
         Accept: "application/json",
@@ -494,7 +496,7 @@ export const inquiryApi = {
    * Synchronize Naver session status in real-time
    */
   async syncNaverSessionStatus(): Promise<NaverSessionStatus> {
-    const response = await fetch("/api/v1/naver/sessions/sync?id=default", {
+    const response = await fetch(`/api/v1/naver/sessions/sync?id=${NAVER_CAFE_SESSION_ID}`, {
       method: "POST",
       headers: {
         Accept: "application/json",

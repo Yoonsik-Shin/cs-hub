@@ -33,6 +33,7 @@ admin:
 
 naver:
   session:
+    id: ${NAVER_CAFE_SESSION_ID:9f2b4d68-4d2c-4db6-a9ec-285809470036}
     renew-trigger-url: ${NAVER_SESSION_RENEW_TRIGGER_URL:}
 
 s3:
@@ -50,7 +51,7 @@ logging:
   level:
     root: INFO
     org.springframework.web: INFO
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: INFO
 
 management:
   endpoints:

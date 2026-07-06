@@ -41,6 +41,9 @@ public class NaverSessionUseCase {
     @Value("${naver.session.renew-trigger-url:}")
     private String renewTriggerUrl;
 
+    @Value("${naver.session.id}")
+    private String defaultSessionId;
+
     public NaverSessionUseCase(NaverCafeSessionRepository repository,
             EncryptionUtils encryptionUtils,
             ObjectMapper objectMapper) {
@@ -60,13 +63,15 @@ public class NaverSessionUseCase {
     }
 
     public String saveSession(String id, String encrypted) {
-        NaverCafeSession session = repository.findById(id)
+        String sessionId = normalizeSessionId(id);
+
+        NaverCafeSession session = repository.findById(sessionId)
                 .map(existing -> {
                     existing.update(encrypted, "ACTIVE", OffsetDateTime.now(ZoneOffset.UTC));
                     return existing;
                 })
                 .orElseGet(() -> new NaverCafeSession(
-                        id,
+                        sessionId,
                         encrypted,
                         "ACTIVE",
                         OffsetDateTime.now(ZoneOffset.UTC)));
@@ -78,10 +83,8 @@ public class NaverSessionUseCase {
 
     @SuppressWarnings("unchecked")
     public void renewSessionWithOneTimeCode(String id, String code) {
+        id = normalizeSessionId(id);
         log.info("Requesting Naver one-time login for session ID: {}, code: {}", id, code);
-
-        NaverCafeSession session = repository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
 
         Map<String, String> requestBody = new HashMap<>();
         requestBody.put("code", code);
@@ -148,6 +151,7 @@ public class NaverSessionUseCase {
 
     @SuppressWarnings("unchecked")
     public boolean syncSessionStatus(String id) {
+        id = normalizeSessionId(id);
         log.info("Syncing Naver Cafe session status ID: {}", id);
 
         NaverCafeSession session = repository.findById(id)
@@ -207,6 +211,10 @@ public class NaverSessionUseCase {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Failed to connect to browser worker for sync: " + e.getMessage(), e);
         }
+    }
+
+    public String normalizeSessionId(String id) {
+        return id == null || id.isBlank() ? defaultSessionId : id.trim();
     }
 
     private void triggerN8nWorkflowAsync() {

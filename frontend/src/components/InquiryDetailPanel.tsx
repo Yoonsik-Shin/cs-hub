@@ -84,6 +84,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [editImageUrls, setEditImageUrls] = useState<string[]>([]);
     const [newImageFiles, setNewImageFiles] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
     const imageInputRef = useRef<HTMLInputElement>(null);
+    const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
+    const gutterRef = useRef<HTMLDivElement>(null);
 
     // Image preview state
     const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
@@ -304,6 +306,22 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             setActiveImageUrl(null);
         }
     }, [isEditing]);
+
+    const adjustTextareaHeight = () => {
+        if (contentTextareaRef.current) {
+            contentTextareaRef.current.style.height = 'auto';
+            const scrollHeight = contentTextareaRef.current.scrollHeight;
+            contentTextareaRef.current.style.height = `${Math.max(180, scrollHeight + 4)}px`;
+        }
+    };
+
+    useEffect(() => {
+        if (isEditing) {
+            adjustTextareaHeight();
+            const timer = setTimeout(adjustTextareaHeight, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [isEditing, editContent]);
 
     const handleRegisterWorkLogClick = (e: React.FormEvent) => {
         e.preventDefault();
@@ -983,6 +1001,352 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         });
     }
 
+    const isContentLong = (inquiry.content?.length || 0) > 250 || (inquiry.content?.split('\n').length || 0) > 6;
+
+    const handleTextareaScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+        if (gutterRef.current) {
+            gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+        }
+    };
+
+    const renderCustomerContent = () => {
+        const lines = (inquiry.content || '').split('\n');
+        const editLines = (editContent || '').split('\n');
+        return (
+            <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0, display: 'flex', flexDirection: 'column', height: 'auto', flex: 1, padding: 0, border: 'none', background: 'transparent' }}>
+                {isEditing ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                        <div style={{
+                            display: 'flex',
+                            position: 'relative',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-light)',
+                            background: '#f8fafc',
+                            fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+                            fontSize: '13px',
+                            lineHeight: '1.6',
+                            overflow: 'hidden',
+                            height: 'auto',
+                            minHeight: '150px',
+                            flex: 1
+                        }}>
+                            {/* Line Number Gutter (Scroll synchronized) */}
+                            <div
+                                ref={gutterRef}
+                                style={{
+                                    width: '45px',
+                                    minWidth: '45px',
+                                    background: '#f1f5f9',
+                                    borderRight: '1px solid #cbd5e1',
+                                    padding: '12px 0',
+                                    color: '#64748b',
+                                    textAlign: 'right',
+                                    paddingRight: '12px',
+                                    userSelect: 'none',
+                                    overflowY: 'hidden',
+                                    boxSizing: 'border-box'
+                                }}
+                            >
+                                {editLines.map((_, idx) => (
+                                    <div key={idx} style={{ height: '20.8px', fontSize: '12px', lineHeight: '20.8px' }}>
+                                        {idx + 1}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Textarea */}
+                            <textarea
+                                ref={contentTextareaRef}
+                                id="edit-content"
+                                className="form-textarea"
+                                value={editContent}
+                                onChange={(e) => setEditContent(e.target.value)}
+                                onScroll={handleTextareaScroll}
+                                wrap="off"
+                                placeholder="문의 내용을 입력하세요"
+                                style={{
+                                    flex: 1,
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#0f172a',
+                                    padding: '12px 16px',
+                                    margin: 0,
+                                    fontSize: '13px',
+                                    lineHeight: '1.6',
+                                    outline: 'none',
+                                    resize: 'vertical',
+                                    fontFamily: 'inherit',
+                                    overflowX: 'auto',
+                                    overflowY: 'auto',
+                                    boxSizing: 'border-box',
+                                    height: '100%',
+                                    minHeight: '130px'
+                                }}
+                            />
+                        </div>
+                        {editContent !== inquiry.content && (
+                            <input
+                                type="text"
+                                className="text-input"
+                                placeholder="문의 내용 수정 사유를 입력하세요 (필수)"
+                                value={reasons.content || ''}
+                                onChange={(e) => setReasons({ ...reasons, content: e.target.value })}
+                                style={{ marginTop: '6px', fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '6px 10px', height: '28px' }}
+                                required
+                            />
+                        )}
+                    </div>
+                ) : (
+                    <div style={{
+                        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+                        fontSize: '13px',
+                        lineHeight: '1.6',
+                        background: '#f8fafc',
+                        color: '#0f172a',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-light)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        padding: '12px 0',
+                        flex: 1
+                    }}>
+                        {lines.map((line, idx) => (
+                            <div
+                                key={idx}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    width: '100%',
+                                    padding: '0 16px 0 0',
+                                    transition: 'background-color 0.1s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                                <div
+                                    style={{
+                                        width: '45px',
+                                        minWidth: '45px',
+                                        textAlign: 'right',
+                                        paddingRight: '12px',
+                                        color: '#64748b',
+                                        userSelect: 'none',
+                                        borderRight: '1px solid #cbd5e1',
+                                        marginRight: '12px',
+                                        fontSize: '12px',
+                                        fontFamily: 'inherit'
+                                    }}
+                                >
+                                    {idx + 1}
+                                </div>
+                                <div
+                                    style={{
+                                        flex: 1,
+                                        whiteSpace: 'pre-wrap',
+                                        wordBreak: 'break-all',
+                                        fontFamily: 'inherit',
+                                        color: '#0f172a'
+                                    }}
+                                >
+                                    {line || '\u00A0'}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderCustomerContentSection = () => (
+        <div
+            className="detail-section"
+            style={{
+                gap: '8px',
+                display: 'flex',
+                flexDirection: 'column',
+                flex: activeImageUrl ? 1 : 1.3,
+                transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                height: '100%'
+            }}
+        >
+            <span className="detail-title">
+                <FileText size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                고객 접수 내용
+            </span>
+            {renderCustomerContent()}
+        </div>
+    );
+
+    const renderAttachedImagesSection = () => {
+        if (!((inquiry.imageUrls && inquiry.imageUrls.length > 0) || isEditing)) return null;
+        return (
+            <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
+                <span className="detail-title">
+                    <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                    첨부 이미지 {isEditing && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(최대 10개)</span>}
+                </span>
+                <div
+                    className="detail-query-images"
+                    style={{
+                        padding: '12px',
+                        background: 'var(--bg-tertiary)',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        gap: '10px',
+                        flexWrap: 'wrap',
+                        alignItems: 'flex-start',
+                        alignContent: 'flex-start',
+                        overflowY: 'auto',
+                        minHeight: '120px',
+                        flex: 1
+                    }}
+                >
+                    {isEditing ? (
+                        <>
+                            {editImageUrls.map((url: string, index: number) => (
+                                <div key={`exist-${index}`} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                                    <img src={getDisplayImageUrl(url)} alt={`exist-media-${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveExistingImage(url)}
+                                        style={{
+                                            position: 'absolute', top: '2px', right: '2px', width: '18px', height: '18px', borderRadius: '50%',
+                                            background: 'rgba(15,23,42,0.8)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                        }}
+                                    >
+                                        <XIcon size={10} style={{ color: '#fff' }} />
+                                    </button>
+                                </div>
+                            ))}
+                            {newImageFiles.map((img) => (
+                                <div key={img.id} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                                    <img src={img.previewUrl} alt={img.file.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveNewImage(img.id)}
+                                        style={{
+                                            position: 'absolute', top: '2px', right: '2px', width: '18px', height: '18px', borderRadius: '50%',
+                                            background: 'rgba(15,23,42,0.8)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                        }}
+                                    >
+                                        <XIcon size={10} style={{ color: '#fff' }} />
+                                    </button>
+                                </div>
+                            ))}
+                            {editImageUrls.length + newImageFiles.length < 10 && (
+                                <div
+                                    onClick={() => imageInputRef.current?.click()}
+                                    style={{
+                                        width: '80px', height: '80px', borderRadius: '8px', border: '2px dashed #cbd5e1',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                        cursor: 'pointer', background: '#ffffff', gap: '3px', transition: 'all 0.15s'
+                                    }}
+                                    onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--accent-indigo)'}
+                                    onMouseOut={(e) => e.currentTarget.style.borderColor = '#cbd5e1'}
+                                >
+                                    <ImagePlus size={18} style={{ color: '#94a3b8' }} />
+                                    <span style={{ fontSize: '9.5px', color: '#94a3b8', fontWeight: 600 }}>추가</span>
+                                </div>
+                            )}
+                            <input
+                                ref={imageInputRef}
+                                type="file"
+                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                multiple
+                                onChange={handleAddEditImages}
+                                style={{ display: 'none' }}
+                            />
+                        </>
+                    ) : (
+                        inquiry.imageUrls?.map((url: string, index: number) => {
+                            const isActive = activeImageUrl === url;
+                            return (
+                                <a
+                                    key={index}
+                                    href={getDisplayImageUrl(url)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ display: 'block' }}
+                                    onClick={(e) => {
+                                        if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                                            e.preventDefault();
+                                            setActiveImageUrl(isActive ? null : url);
+                                        }
+                                    }}
+                                >
+                                    <img
+                                        src={getDisplayImageUrl(url)}
+                                        alt={`inquiry-media-${index}`}
+                                        style={{
+                                            width: '80px',
+                                            height: '80px',
+                                            objectFit: 'cover',
+                                            borderRadius: '8px',
+                                            border: isActive ? '2px solid var(--accent-indigo)' : '1px solid var(--border-light)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease-in-out',
+                                            opacity: isActive ? 1 : 0.85
+                                        }}
+                                        onMouseOver={(e) => {
+                                            e.currentTarget.style.transform = 'scale(1.05)';
+                                            e.currentTarget.style.opacity = '1';
+                                            e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.08)';
+                                        }}
+                                        onMouseOut={(e) => {
+                                            e.currentTarget.style.transform = 'none';
+                                            e.currentTarget.style.opacity = isActive ? '1' : '0.85';
+                                            e.currentTarget.style.boxShadow = 'none';
+                                        }}
+                                    />
+                                </a>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderChannelMetadataSection = () => (
+        <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
+            <span className="detail-title">
+                <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                채널 메타데이터
+            </span>
+            <div className="detail-box" style={{ background: 'transparent', border: 'none', padding: 0, overflow: 'visible' }}>
+                {renderChannelMetadata(inquiry.channelMetadata)}
+                {inquiry.channelMetadata && inquiry.channelMetadata.articleUrl && (
+                    <div style={{ marginTop: '12px' }}>
+                        <a
+                            href={inquiry.channelMetadata.articleUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-primary"
+                            style={{ display: 'inline-flex', padding: '6px 12px', fontSize: '12px', borderRadius: '8px' }}
+                        >
+                            원문 게시글 바로가기 (새 창)
+                        </a>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    const renderDeviceInfoSection = () => (
+        <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
+            <span className="detail-title">
+                <Cpu size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                디바이스 정보
+            </span>
+            <div className="detail-box" style={{ background: 'transparent', border: 'none', padding: 0, overflow: 'visible' }}>
+                {renderDeviceInfo(inquiry.deviceInfo)}
+            </div>
+        </div>
+    );
+
     return (
         <div className="detail-pane-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <div className="detail-pane-header" style={getStatusHeaderStyle(inquiry.status)}>
@@ -1160,308 +1524,96 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 </div>
                             )}
 
-                            {((inquiry.imageUrls && inquiry.imageUrls.length > 0) || isEditing) ? (
+                            {isContentLong ? (
+                                /* Long Content Layout: Left Column (Content), Right Column (Images + Metadata + Device Info) */
                                 <div style={{
                                     display: 'flex',
                                     gap: activeImageUrl ? '0px' : '20px',
-                                    alignItems: 'stretch',
+                                    alignItems: 'flex-start',
                                     width: '100%',
                                     transition: 'gap 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                                 }}>
-                                    {/* Left Side: 고객 접수 내용 */}
-                                    <div
-                                        className="detail-section"
-                                        style={{
-                                            gap: '8px',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            flex: activeImageUrl ? 1 : 1.2,
-                                            transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                                        }}
-                                    >
-                                        <span className="detail-title">
-                                            <FileText size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                            고객 접수 내용
-                                        </span>
-                                        <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0, flex: 1, display: 'flex', flexDirection: 'column', height: 'auto' }}>
-                                            {isEditing ? (
-                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                                    <textarea
-                                                        id="edit-content"
-                                                        className="form-textarea"
-                                                        value={editContent}
-                                                        onChange={(e) => setEditContent(e.target.value)}
-                                                        placeholder="문의 내용을 입력하세요"
-                                                        style={{
-                                                            width: '100%',
-                                                            flex: 1,
-                                                            minHeight: '120px',
-                                                            padding: '8px 12px',
-                                                            fontSize: '13px',
-                                                            border: '1px solid var(--border-light)',
-                                                            borderRadius: '8px',
-                                                            resize: 'none',
-                                                            background: '#ffffff',
-                                                            fontFamily: 'inherit'
-                                                        }}
-                                                    />
-                                                    {editContent !== inquiry.content && (
-                                                        <input
-                                                            type="text"
-                                                            className="text-input"
-                                                            placeholder="문의 내용 수정 사유를 입력하세요 (필수)"
-                                                            value={reasons.content || ''}
-                                                            onChange={(e) => setReasons({ ...reasons, content: e.target.value })}
-                                                            style={{ marginTop: '6px', fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '6px 10px', height: '28px' }}
-                                                            required
-                                                        />
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <div className="detail-query-text" style={{ flex: 1, whiteSpace: 'pre-wrap', borderRadius: '12px', border: '1px solid var(--border-light)', borderLeftWidth: '4px', minHeight: '120px' }}>
-                                                    {inquiry.content || '(내용 없음)'}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                                    {/* Left Column */}
+                                    {renderCustomerContentSection()}
 
-                                    {/* Right Side: 첨부 이미지 */}
+                                    {/* Right Column */}
                                     <div
-                                        className="detail-section"
                                         style={{
-                                            gap: '8px',
-                                            flexShrink: 0,
                                             display: 'flex',
                                             flexDirection: 'column',
+                                            gap: '20px',
                                             flex: activeImageUrl ? 0 : 1,
                                             maxWidth: activeImageUrl ? '0px' : '100%',
                                             maxHeight: activeImageUrl ? '0px' : 'none',
                                             opacity: activeImageUrl ? 0 : 1,
                                             overflow: 'hidden',
                                             pointerEvents: activeImageUrl ? 'none' : 'auto',
-                                            transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                            transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            position: 'sticky',
+                                            top: '0px'
                                         }}
                                     >
-                                        <span className="detail-title">
-                                            <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                            첨부 이미지 {isEditing && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(최대 10개)</span>}
-                                        </span>
-                                        <div
-                                            className="detail-query-images"
-                                            style={{
-                                                padding: '12px',
-                                                background: 'var(--bg-tertiary)',
-                                                borderRadius: '12px',
-                                                border: '1px solid var(--border-light)',
-                                                display: 'flex',
-                                                gap: '10px',
-                                                flexWrap: 'wrap',
-                                                alignItems: 'flex-start',
-                                                alignContent: 'flex-start',
-                                                flex: 1,
-                                                overflowY: 'auto',
-                                                minHeight: '120px'
-                                            }}
-                                        >
-                                            {isEditing ? (
-                                                <>
-                                                    {/* Existing Images in editing state */}
-                                                    {editImageUrls.map((url: string, index: number) => (
-                                                        <div key={`exist-${index}`} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
-                                                            <img src={getDisplayImageUrl(url)} alt={`exist-media-${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveExistingImage(url)}
-                                                                style={{
-                                                                    position: 'absolute', top: '2px', right: '2px', width: '18px', height: '18px', borderRadius: '50%',
-                                                                    background: 'rgba(15,23,42,0.8)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                                                }}
-                                                            >
-                                                                <XIcon size={10} style={{ color: '#fff' }} />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-
-                                                    {/* New image files selected during editing */}
-                                                    {newImageFiles.map((img) => (
-                                                        <div key={img.id} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
-                                                            <img src={img.previewUrl} alt={img.file.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveNewImage(img.id)}
-                                                                style={{
-                                                                    position: 'absolute', top: '2px', right: '2px', width: '18px', height: '18px', borderRadius: '50%',
-                                                                    background: 'rgba(15,23,42,0.8)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                                                }}
-                                                            >
-                                                                <XIcon size={10} style={{ color: '#fff' }} />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-
-                                                    {/* Add more button */}
-                                                    {editImageUrls.length + newImageFiles.length < 10 && (
-                                                        <div
-                                                            onClick={() => imageInputRef.current?.click()}
-                                                            style={{
-                                                                width: '80px', height: '80px', borderRadius: '8px', border: '2px dashed #cbd5e1',
-                                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                                                cursor: 'pointer', background: '#ffffff', gap: '3px', transition: 'all 0.15s'
-                                                            }}
-                                                            onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--accent-indigo)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.borderColor = '#cbd5e1'}
-                                                        >
-                                                            <ImagePlus size={18} style={{ color: '#94a3b8' }} />
-                                                            <span style={{ fontSize: '9.5px', color: '#94a3b8', fontWeight: 600 }}>추가</span>
-                                                        </div>
-                                                    )}
-                                                    <input
-                                                        ref={imageInputRef}
-                                                        type="file"
-                                                        accept="image/jpeg,image/png,image/gif,image/webp"
-                                                        multiple
-                                                        onChange={handleAddEditImages}
-                                                        style={{ display: 'none' }}
-                                                    />
-                                                </>
-                                            ) : (
-                                                inquiry.imageUrls?.map((url: string, index: number) => {
-                                                    const isActive = activeImageUrl === url;
-                                                    return (
-                                                        <a
-                                                            key={index}
-                                                            href={getDisplayImageUrl(url)}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            style={{ display: 'block' }}
-                                                            onClick={(e) => {
-                                                                if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
-                                                                    e.preventDefault();
-                                                                    setActiveImageUrl(isActive ? null : url);
-                                                                }
-                                                            }}
-                                                        >
-                                                            <img
-                                                                src={getDisplayImageUrl(url)}
-                                                                alt={`inquiry-media-${index}`}
-                                                                style={{
-                                                                    width: '80px',
-                                                                    height: '80px',
-                                                                    objectFit: 'cover',
-                                                                    borderRadius: '8px',
-                                                                    border: isActive ? '2px solid var(--accent-indigo)' : '1px solid var(--border-light)',
-                                                                    cursor: 'pointer',
-                                                                    transition: 'all 0.2s ease-in-out',
-                                                                    opacity: isActive ? 1 : 0.85
-                                                                }}
-                                                                onMouseOver={(e) => {
-                                                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                                                    e.currentTarget.style.opacity = '1';
-                                                                    e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.08)';
-                                                                }}
-                                                                onMouseOut={(e) => {
-                                                                    e.currentTarget.style.transform = 'none';
-                                                                    e.currentTarget.style.opacity = isActive ? '1' : '0.85';
-                                                                    e.currentTarget.style.boxShadow = 'none';
-                                                                }}
-                                                            />
-                                                        </a>
-                                                    );
-                                                })
-                                            )}
-                                        </div>
+                                        {renderAttachedImagesSection()}
+                                        {renderChannelMetadataSection()}
+                                        {renderDeviceInfoSection()}
                                     </div>
                                 </div>
                             ) : (
-                                /* Full width message block when there are no images */
-                                <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
-                                    <span className="detail-title">
-                                        <FileText size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                        고객 접수 내용
-                                    </span>
-                                    <div className={`detail-query-box ${inquiry.status.toLowerCase()}`} style={{ margin: 0 }}>
-                                        {isEditing ? (
-                                            <div style={{ marginTop: '8px' }}>
-                                                <textarea
-                                                    id="edit-content"
-                                                    className="form-textarea"
-                                                    value={editContent}
-                                                    onChange={(e) => setEditContent(e.target.value)}
-                                                    placeholder="문의 내용을 입력하세요"
-                                                    style={{
-                                                        width: '100%',
-                                                        minHeight: '100px',
-                                                        height: '100px',
-                                                        padding: '8px 12px',
-                                                        fontSize: '13px',
-                                                        border: '1px solid var(--border-light)',
-                                                        borderRadius: '8px',
-                                                        resize: 'none',
-                                                        background: '#ffffff',
-                                                        fontFamily: 'inherit'
-                                                    }}
-                                                />
-                                                {editContent !== inquiry.content && (
-                                                    <input
-                                                        type="text"
-                                                        className="text-input"
-                                                        placeholder="문의 내용 수정 사유를 입력하세요 (필수)"
-                                                        value={reasons.content || ''}
-                                                        onChange={(e) => setReasons({ ...reasons, content: e.target.value })}
-                                                        style={{ marginTop: '6px', fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '6px 10px', height: '28px' }}
-                                                        required
-                                                    />
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="detail-query-text" style={{ whiteSpace: 'pre-wrap', borderRadius: '12px', border: '1px solid var(--border-light)', borderLeftWidth: '4px' }}>
-                                                {inquiry.content || '(내용 없음)'}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
+                                /* Short Content Layout: Row 1 (Content + Images) & Row 2 (Metadata Grid) */
+                                <>
+                                    <div style={{
+                                        display: 'flex',
+                                        gap: activeImageUrl ? '0px' : '20px',
+                                        alignItems: 'stretch',
+                                        width: '100%',
+                                        transition: 'gap 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                                    }}>
+                                        {/* Left Side */}
+                                        {renderCustomerContentSection()}
 
-                            {/* Metadata Tables */}
-                            <div style={{
-                                display: activeImageUrl ? 'flex' : 'grid',
-                                flexDirection: activeImageUrl ? 'column' : undefined,
-                                gridTemplateColumns: activeImageUrl ? undefined : '1.2fr 1fr',
-                                gap: '20px',
-                                flexShrink: 0
-                            }}>
-                                <div className="detail-section">
-                                    <span className="detail-title">
-                                        <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                        채널 메타데이터
-                                    </span>
-                                    <div className="detail-box" style={{ background: 'transparent', border: 'none', padding: 0, overflow: 'visible' }}>
-                                        {renderChannelMetadata(inquiry.channelMetadata)}
-                                        {inquiry.channelMetadata && inquiry.channelMetadata.articleUrl && (
-                                            <div style={{ marginTop: '12px' }}>
-                                                <a
-                                                    href={inquiry.channelMetadata.articleUrl}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="btn-primary"
-                                                    style={{ display: 'inline-flex', padding: '6px 12px', fontSize: '12px', borderRadius: '8px' }}
-                                                >
-                                                    원문 게시글 바로가기 (새 창)
-                                                </a>
+                                        {/* Right Side (Attached Images) */}
+                                        {((inquiry.imageUrls && inquiry.imageUrls.length > 0) || isEditing) && (
+                                            <div
+                                                style={{
+                                                    flex: activeImageUrl ? 0 : 1,
+                                                    maxWidth: activeImageUrl ? '0px' : '100%',
+                                                    maxHeight: activeImageUrl ? '0px' : 'none',
+                                                    opacity: activeImageUrl ? 0 : 1,
+                                                    overflow: 'hidden',
+                                                    pointerEvents: activeImageUrl ? 'none' : 'auto',
+                                                    transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                                }}
+                                            >
+                                                {renderAttachedImagesSection()}
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                                <div className="detail-section">
-                                    <span className="detail-title">
-                                        <Cpu size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                                        디바이스 정보
-                                    </span>
-                                    <div className="detail-box" style={{ background: 'transparent', border: 'none', padding: 0, overflow: 'visible' }}>
-                                        {renderDeviceInfo(inquiry.deviceInfo)}
+
+                                    {/* Metadata Tables: Grid side-by-side */}
+                                    <div style={{
+                                        display: activeImageUrl ? 'flex' : 'grid',
+                                        flexDirection: activeImageUrl ? 'column' : undefined,
+                                        gridTemplateColumns: activeImageUrl ? undefined : '1.2fr 1fr',
+                                        gap: '20px',
+                                        flexShrink: 0
+                                    }}>
+                                        <div style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            flex: 1
+                                        }}>
+                                            {renderChannelMetadataSection()}
+                                        </div>
+                                        <div style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            flex: 1
+                                        }}>
+                                            {renderDeviceInfoSection()}
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
+                                </>
+                            )}
                         </div>
                     </div>
 

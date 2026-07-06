@@ -156,7 +156,8 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
     }
 
     private BooleanExpression idNotIn(List<UUID> excludedIds) {
-        return excludedIds == null || excludedIds.isEmpty() ? null : QCustomerInquiry.customerInquiry.id.notIn(excludedIds);
+        return excludedIds == null || excludedIds.isEmpty() ? null
+                : QCustomerInquiry.customerInquiry.id.notIn(excludedIds);
     }
 
     private BooleanExpression parentIdIsNull() {
@@ -164,9 +165,10 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
     }
 
     private BooleanExpression channelIn(List<String> channels) {
-        List<String> normalizedChannels = channels == null ? List.of() : channels.stream()
-                .filter(StringUtils::hasText)
-                .toList();
+        List<String> normalizedChannels = channels == null ? List.of()
+                : channels.stream()
+                        .filter(StringUtils::hasText)
+                        .toList();
         return normalizedChannels.isEmpty() ? null : QCustomerInquiry.customerInquiry.channel.in(normalizedChannels);
     }
 
@@ -184,8 +186,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                 JPAExpressions
                         .select(bookmark.inquiryId)
                         .from(bookmark)
-                        .where(bookmark.operatorId.eq(operatorId.trim()))
-        );
+                        .where(bookmark.operatorId.eq(operatorId.trim())));
     }
 
     private BooleanExpression userCodeFilter(String userCode, Boolean userCodeMissing) {
