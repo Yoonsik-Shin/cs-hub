@@ -160,6 +160,7 @@ flowchart TB
     Controllers --> AppLogger
 
     AccessFilter --> AccessAppender --> AccessLog
+    AccessFilter --> ConsoleAppender
     WebhookLogger --> SkillAppender --> SkillLog
     WebhookLogger --> ValidationAppender --> ValidationLog
     WebhookLogger --> N8nAppender --> N8nLog
@@ -215,6 +216,8 @@ services:
 ## Access Log Policy
 
 모든 HTTP 요청은 metadata만 저장합니다. request body는 절대 읽거나 저장하지 않습니다.
+
+Loki 수집 및 파일 저장을 위해 JSON 형식의 Access log가 `logs/access/access.log`에 기록되며, 동시에 개발 편의성을 위해 콘솔(Standard Output)에는 읽기 쉬운 형태(예: `[HTTP] GET /api/v1/inquiries | Status: 200 | Time: 3ms`)로 포맷팅되어 출력됩니다.
 
 `RequestResponseLoggingFilter`는 다음 필드를 기록합니다.
 

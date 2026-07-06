@@ -57,6 +57,14 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
         } catch (Exception e) {
             log.warn("[RequestResponseLoggingFilter] Failed to serialize access log", e);
         }
+
+        String uri = request.getRequestURI();
+        String method = request.getMethod();
+        String queryString = request.getQueryString();
+        int status = response.getStatus();
+
+        log.info("[HTTP] {} {}{} | Status: {} | Time: {}ms",
+                method, uri, (queryString != null ? "?" + queryString : ""), status, duration);
     }
 
     private Map<String, Object> accessLog(
