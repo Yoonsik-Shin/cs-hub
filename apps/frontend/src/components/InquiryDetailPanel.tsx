@@ -1039,7 +1039,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             answer: isOperatorReply ? comment.content : '',
             previousStatus: null,
             currentStatus: null,
-            imageUrls: []
+            imageUrls: comment.imageUrls || []
         };
     });
 
@@ -2021,6 +2021,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                     {/* Image */}
                                     <img
                                         src={getDisplayImageUrl(displayUrl)}
+                                        referrerPolicy="no-referrer"
                                         alt="active-preview"
                                         style={{
                                             maxWidth: '100%',
