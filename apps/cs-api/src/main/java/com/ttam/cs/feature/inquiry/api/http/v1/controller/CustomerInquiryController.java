@@ -38,6 +38,7 @@ import com.ttam.cs.feature.inquiry.usecase.GetInquiryRepliesUseCase;
 import com.ttam.cs.feature.inquiry.usecase.SearchCustomerInquiriesUseCase;
 import com.ttam.cs.feature.inquiry.usecase.UpdateInquiryFieldsUseCase;
 import com.ttam.cs.feature.inquiry.usecase.UpdateInquiryStatusUseCase;
+import com.ttam.cs.feature.inquiry.usecase.RefreshInquiryUseCase;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -60,6 +61,7 @@ public class CustomerInquiryController {
     private final BatchUpdateInquiryStatusUseCase batchUpdateInquiryStatusUseCase;
     private final GetInquiryRepliesUseCase getInquiryRepliesUseCase;
     private final AdminUserResolver adminUserResolver;
+    private final RefreshInquiryUseCase refreshInquiryUseCase;
 
     @org.springframework.beans.factory.annotation.Value("${s3.external-url}")
     private String externalUrl;
@@ -134,6 +136,16 @@ public class CustomerInquiryController {
         return ResponseEntity.created(URI.create("/api/v1/inquiries/" + id)).build();
     }
 
+    @Operation(summary = "고객 문의 정보 최신화", description = "네이버 카페 채널의 경우, 해당 카페 게시글의 상세 정보 및 신규 댓글들을 네이버 API를 통해 즉시 동기화합니다.")
+    @PatchMapping(value = "/{id}", params = "refresh=true")
+    public ResponseEntity<SearchCustomerInquiryResponse.Content> refreshInquiry(
+            @PathVariable("id") UUID id) {
+        CustomerInquiry updated = refreshInquiryUseCase.execute(id);
+        String s3UrlPrefix = externalUrl.endsWith("/") ? externalUrl + bucketName : externalUrl + "/" + bucketName;
+        java.util.Map<UUID, Long> replyCounts = countInquiryRepliesUseCase.execute(List.of(id));
+        return ResponseEntity.ok(new SearchCustomerInquiryResponse.Content(updated, s3UrlPrefix, replyCounts.getOrDefault(id, 0L).intValue()));
+    }
+
     @Operation(summary = "고객 문의 정보 및 상태 수정", description = "고객 문의 리소스의 진행 상태 또는 세부 정보 필드들을 수정하고 이력을 남깁니다.")
     @PatchMapping("/{id}")
     public ResponseEntity<Void> updateInquiry(
@@ -202,6 +214,8 @@ public class CustomerInquiryController {
                 .toList();
         return ResponseEntity.ok(result);
     }
+
+
 
     private String getClientIp(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");

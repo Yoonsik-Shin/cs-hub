@@ -221,6 +221,10 @@ public class CustomerInquiry {
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
     }
 
+    public void updateChannelMetadata(ChannelMetadata channelMetadata) {
+        this.channelMetadata = channelMetadata;
+    }
+
     private static String requireText(String value, String name) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException(name + " must not be blank");

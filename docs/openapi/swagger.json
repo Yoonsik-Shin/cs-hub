@@ -1657,8 +1657,8 @@
     },
     "/api/v1/inquiries/{id}": {
       "patch": {
-        "description": "고객 문의 리소스의 진행 상태 또는 세부 정보 필드들을 수정하고 이력을 남깁니다.",
-        "operationId": "updateInquiry",
+        "description": "네이버 카페 채널의 경우, 해당 카페 게시글의 상세 정보 및 신규 댓글들을 네이버 API를 통해 즉시 동기화합니다.",
+        "operationId": "updateInquiry_1",
         "parameters": [
           {
             "in": "path",
@@ -1682,10 +1682,17 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Content"
+                }
+              }
+            },
             "description": "OK"
           }
         },
-        "summary": "고객 문의 정보 및 상태 수정",
+        "summary": "고객 문의 정보 최신화",
         "tags": [
           "Customer Inquiry API"
         ]

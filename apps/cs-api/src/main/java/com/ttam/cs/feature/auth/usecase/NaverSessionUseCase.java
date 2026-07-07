@@ -217,6 +217,52 @@ public class NaverSessionUseCase {
         return id == null || id.isBlank() ? defaultSessionId : id.trim();
     }
 
+    public String getDecryptedCookieHeader(String sessionId) {
+        String id = normalizeSessionId(sessionId);
+        NaverCafeSession session = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Naver session not found"));
+
+        if ("EXPIRED".equals(session.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.GONE, "Session has expired");
+        }
+
+        String decrypted;
+        try {
+            decrypted = encryptionUtils.decrypt(session.getEncryptedCookies());
+        } catch (BusinessException e) {
+            session.markExpired(OffsetDateTime.now(ZoneOffset.UTC));
+            repository.save(session);
+            throw new ResponseStatusException(HttpStatus.GONE,
+                    "Session encryption has expired. Please log in again.", e);
+        }
+
+        try {
+            List<Map<String, String>> cookiesList = objectMapper.readValue(decrypted,
+                    new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {
+                    });
+            StringBuilder cookieStr = new StringBuilder();
+            for (Map<String, String> cookieMap : cookiesList) {
+                String name = cookieMap.get("name");
+                if (!"NID_AUT".equals(name) && !"NID_SES".equals(name)) {
+                    continue;
+                }
+                String value = cookieMap.get("value");
+                if (value != null && value.contains(";")) {
+                    value = value.substring(0, value.indexOf(";")).trim();
+                }
+
+                if (!cookieStr.isEmpty()) {
+                    cookieStr.append("; ");
+                }
+                cookieStr.append(name).append("=").append(value);
+            }
+            return cookieStr.toString();
+        } catch (Exception e) {
+            log.error("Failed to parse session cookies JSON for ID: {}", id, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to parse session cookies");
+        }
+    }
+
     private void triggerN8nWorkflowAsync() {
         log.info("Triggering N8n crawl workflow asynchronously at: {}", renewTriggerUrl);
         CompletableFuture.runAsync(() -> {
