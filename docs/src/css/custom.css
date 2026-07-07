@@ -28,3 +28,9 @@
   --ifm-color-primary-lightest: #4fddbf;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
+
+/* 머메이드 다이어그램이 좁은 가로폭에 구겨지지 않고 온전한 본래 크기로 렌더링되도록 차단 해제 */
+.docusaurus-mermaid-container svg {
+  max-width: none !important;
+  height: auto !important;
+}
