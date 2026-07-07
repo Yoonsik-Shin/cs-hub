@@ -1900,28 +1900,31 @@
     "meta": {
       "templateCredsSetupCompleted": true
     },
+    "nodeGroups": [],
     "pinData": {},
-    "versionId": "c6c2ec6d-ec73-4b86-9244-9284597bdbce",
+    "versionId": "5238e608-eff5-4ed9-a21a-f820e20caf00",
     "activeVersionId": null,
     "versionCounter": 988,
     "triggerCount": 3,
+    "sourceWorkflowId": null,
     "tags": [],
     "shared": [
       {
-        "updatedAt": "2026-06-18T04:28:10.651Z",
-        "createdAt": "2026-06-18T04:28:10.651Z",
+        "updatedAt": "2026-07-06T10:24:58.406Z",
+        "createdAt": "2026-07-06T10:24:58.406Z",
         "role": "workflow:owner",
         "workflowId": "nsbvUUSzjjH2zFic",
-        "projectId": "XyP6KgL7wL6d92GF",
+        "projectId": "Tm387HFBIMcgw4qC",
         "project": {
-          "updatedAt": "2026-06-18T04:27:36.981Z",
-          "createdAt": "2026-06-18T04:26:08.435Z",
-          "id": "XyP6KgL7wL6d92GF",
-          "name": "shin yoonsik <aaa946@naver.com>",
+          "updatedAt": "2026-07-05T14:24:08.697Z",
+          "createdAt": "2026-07-05T13:28:02.074Z",
+          "id": "Tm387HFBIMcgw4qC",
+          "name": "yoonsik shin <aaa946@naver.com>",
           "type": "personal",
           "icon": null,
           "description": null,
-          "creatorId": "40f0b1ff-d5fa-482e-83da-d79b2145963d"
+          "customTelemetryTags": [],
+          "creatorId": "9358ee48-8e11-4841-8845-ff6660bf2a4e"
         }
       }
     ],
