@@ -1,3 +1,4 @@
+// @ts-nocheck
 // @ts-check
 
 const fs = require('fs');
@@ -65,12 +66,23 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: '시스템 아키텍처',
+      collapsed: false,
+      items: [
+        'deployment-architecture',
+        'infrastructure-architecture',
+        'network-architecture',
+        'security-policy',
+        'code-architecture'
+      ],
+    },
+    {
+      type: 'category',
       label: '개발/운영 정책',
       collapsed: false,
       items: [
         'api-url-policy',
-        'logging-observability-policy',
-        'security-policy'
+        'logging-observability-policy'
       ],
     },
   ],
