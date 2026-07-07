@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.ttam.cs.feature.auth.api.v1.dto.AdminUserResponse;
-import com.ttam.cs.feature.auth.usecase.AdminUserResolver;
 import com.ttam.cs.feature.auth.usecase.AdminAccessTokenUseCase;
+import com.ttam.cs.feature.auth.usecase.AdminUserResolver;
 import com.ttam.cs.infra.security.AdminRole;
 import com.ttam.cs.infra.security.RequireRoles;
 
@@ -61,7 +61,7 @@ public class AuthController {
 
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.SET_COOKIE, "cs_admin_access=" + adminAccessTokenUseCase.issue(remoteUser.trim())
-                + "; Max-Age=43200; Path=/; HttpOnly; Secure; SameSite=Lax");
+                + "; Max-Age=43200; Path=/; HttpOnly; SameSite=Lax");
         return ResponseEntity.noContent().headers(headers).build();
     }
 
