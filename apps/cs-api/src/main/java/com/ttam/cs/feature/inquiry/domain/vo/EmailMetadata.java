@@ -10,8 +10,14 @@ public record EmailMetadata(
     String subject,
     String date,
     Headers headers,
-    Attributes attributes
+    Attributes attributes,
+    String articleUrl
 ) implements ChannelMetadata {
+
+    public EmailMetadata(String from, String to, String subject, String date, Headers headers, Attributes attributes) {
+        this(from, to, subject, date, headers, attributes, null);
+    }
+
 
     @Override
     public String getUniqueKey() {

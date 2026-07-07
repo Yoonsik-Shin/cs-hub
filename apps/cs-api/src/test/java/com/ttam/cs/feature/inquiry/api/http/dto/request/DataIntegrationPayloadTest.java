@@ -7,6 +7,8 @@ import com.ttam.cs.feature.inquiry.domain.vo.GoogleSheetMetadata;
 import com.ttam.cs.feature.inquiry.domain.vo.NaverCafeMetadata;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.ttam.cs.infra.webhooks.handler.n8n.workflow.dto.DataIntegrationPayload;
+
 
 import static org.junit.jupiter.api.Assertions.*;
 

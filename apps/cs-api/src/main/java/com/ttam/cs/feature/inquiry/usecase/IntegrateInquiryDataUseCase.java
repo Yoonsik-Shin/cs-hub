@@ -10,6 +10,8 @@ import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import com.ttam.cs.infra.storage.StorageService;
+import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
+import org.springframework.beans.factory.annotation.Value;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -26,10 +28,23 @@ public class IntegrateInquiryDataUseCase {
     private final InquiryWorkLogRepository workLogRepository;
     private final InquiryUniqueKeyGenerator uniqueKeyGenerator;
     private final StorageService storageService;
+    private final AdminMemberRepository adminMemberRepository;
+
+    @Value("${cs.email.webmail-url:https://company.daouoffice.com/app/mail}")
+    private String webmailUrl;
 
     @Transactional
     public void execute(String channel, List<IntegrationItem> items) {
         List<CustomerInquiry> inquiries = items.stream()
+                .filter(item -> {
+                    if ("EMAIL".equalsIgnoreCase(channel) && item.channelMetadata() instanceof EmailMetadata emailMeta) {
+                        String fromEmail = extractEmailAddress(emailMeta.from());
+                        if (fromEmail != null && adminMemberRepository.existsByEmail(fromEmail)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
                 .map(item -> {
                     List<String> imageUrls = item.imageUrls();
                     if ((imageUrls == null || imageUrls.isEmpty())
@@ -40,18 +55,31 @@ public class IntegrateInquiryDataUseCase {
                             ? imageUrls.stream().map(storageService::extractObjectKey).toList()
                             : List.of();
 
+                    ChannelMetadata resolvedMetadata = item.channelMetadata();
+                    if ("EMAIL".equalsIgnoreCase(channel) && item.channelMetadata() instanceof EmailMetadata emailMeta) {
+                        resolvedMetadata = new EmailMetadata(
+                                emailMeta.from(),
+                                emailMeta.to(),
+                                emailMeta.subject(),
+                                emailMeta.date(),
+                                emailMeta.headers(),
+                                emailMeta.attributes(),
+                                webmailUrl
+                        );
+                    }
+
                     CustomerInquiry inquiry = CustomerInquiry.create(
                             uniqueKeyGenerator,
                             channel,
                             item.timestamp(),
                             item.userCode(),
-                            item.channelMetadata(),
+                            resolvedMetadata,
                             item.deviceInfo(),
                             item.content(),
                             relativeUrls,
                             false);
 
-                    UUID parentId = findParentInquiryId(channel, item.channelMetadata());
+                    UUID parentId = findParentInquiryId(channel, resolvedMetadata);
                     if (parentId != null) {
                         inquiry.updateParentId(parentId);
                         reopenResolvedParent(parentId);
@@ -61,6 +89,9 @@ public class IntegrateInquiryDataUseCase {
                 })
                 .toList();
 
+        if (inquiries.isEmpty()) {
+            return;
+        }
         repository.bulkInsert(inquiries);
     }
 
