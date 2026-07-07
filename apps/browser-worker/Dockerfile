@@ -1,5 +1,10 @@
 FROM mcr.microsoft.com/playwright:v1.44.1-jammy
 
+# Upgrade Node.js inside the container to v24
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
+    apt-get install -y nodejs
+
 # Set working directory
 WORKDIR /app
 
