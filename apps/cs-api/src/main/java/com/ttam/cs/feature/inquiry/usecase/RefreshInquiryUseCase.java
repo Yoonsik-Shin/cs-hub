@@ -118,13 +118,22 @@ public class RefreshInquiryUseCase {
                 // heuristic to identify operator: comment writer nickname differs from parent author's nickname
                 boolean isOperator = parentWriterNickname != null && !parentWriterNickname.equals(writerNickname);
 
+                List<String> commentImageUrls = new java.util.ArrayList<>();
+                if (commentNode.has("image") && !commentNode.path("image").path("url").isMissingNode()) {
+                    commentImageUrls.add(commentNode.path("image").path("url").asText());
+                }
+                if (commentNode.has("sticker") && !commentNode.path("sticker").path("url").isMissingNode()) {
+                    commentImageUrls.add(commentNode.path("sticker").path("url").asText());
+                }
+
                 NaverCafeMetadata.WriterInfo commentWriter = new NaverCafeMetadata.WriterInfo(writerId, writerNickname);
                 NaverCafeMetadata.CommentInfo parsedComment = new NaverCafeMetadata.CommentInfo(
                         commentId,
                         commentContent,
                         commentWriter,
                         writeDateStr,
-                        isOperator
+                        isOperator,
+                        commentImageUrls
                 );
 
                 parsedComments.add(parsedComment);

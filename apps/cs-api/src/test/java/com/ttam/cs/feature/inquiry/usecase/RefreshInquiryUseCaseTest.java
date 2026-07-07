@@ -122,6 +122,7 @@ class RefreshInquiryUseCaseTest {
         assertEquals(1, updatedMeta.comments().size());
         assertEquals("This is a comment", updatedMeta.comments().get(0).content());
         assertEquals("commenterNick", updatedMeta.comments().get(0).writer().nickname());
+        assertTrue(updatedMeta.comments().get(0).imageUrls().isEmpty());
 
         verify(repository, times(1)).save(inquiry);
         verify(repository, never()).bulkInsert(anyList());

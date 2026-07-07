@@ -46,6 +46,7 @@ public record NaverCafeMetadata(
         String content,
         WriterInfo writer,
         String writeDate,
-        Boolean isOperator
+        Boolean isOperator,
+        List<String> imageUrls
     ) {}
 }
