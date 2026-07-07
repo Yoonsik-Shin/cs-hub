@@ -1708,26 +1708,26 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                         className="cs-panel-section-title"
                                         style={{
                                             margin: 0,
-                                            padding: '10px 16px',
+                                            padding: previewWidth < 420 ? '10px 8px' : '10px 16px',
                                             borderBottom: '1px solid var(--border-light)',
                                             background: 'rgba(99, 102, 241, 0.02)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'space-between',
-                                            gap: '8px',
+                                            gap: previewWidth < 420 ? '4px' : '8px',
                                             whiteSpace: 'nowrap'
                                         }}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <Image size={16} style={{ color: 'var(--accent-indigo)' }} />
-                                            <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: previewWidth < 420 ? '4px' : '8px' }}>
+                                            {previewWidth >= 420 && <Image size={16} style={{ color: 'var(--accent-indigo)' }} />}
+                                            <span style={{ fontSize: previewWidth < 420 ? '11px' : '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                                 {previewWidth < 420
                                                     ? `미리보기 (${currentIndex + 1} / ${inquiry.imageUrls?.length})`
                                                     : `첨부 이미지 미리보기 (${currentIndex + 1} / ${inquiry.imageUrls?.length})`
                                                 }
                                             </span>
                                         </div>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', gap: previewWidth < 420 ? '4px' : '8px', alignItems: 'center' }}>
                                         {/* Zoom Controls */}
                                         <div style={{
                                             display: 'flex',
@@ -1735,9 +1735,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             background: '#ffffff',
                                             border: '1px solid var(--border-light)',
                                             borderRadius: '6px',
-                                            padding: '2px 4px',
-                                            marginRight: '4px',
-                                            gap: '4px'
+                                            padding: previewWidth < 420 ? '2px' : '2px 4px',
+                                            marginRight: previewWidth < 420 ? '0px' : '4px',
+                                            gap: previewWidth < 420 ? '2px' : '4px'
                                         }}>
                                             <button
                                                 type="button"
@@ -1756,9 +1756,11 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             >
                                                 <ZoomOut size={14} />
                                             </button>
-                                            <span style={{ fontSize: '11px', fontWeight: 600, minWidth: '36px', textAlign: 'center', color: 'var(--text-primary)' }}>
-                                                {Math.round(zoomScale * 100)}%
-                                            </span>
+                                            {previewWidth >= 420 && (
+                                                <span style={{ fontSize: '11px', fontWeight: 600, minWidth: '36px', textAlign: 'center', color: 'var(--text-primary)' }}>
+                                                    {Math.round(zoomScale * 100)}%
+                                                </span>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={handleZoomIn}
@@ -1788,9 +1790,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                                     alignItems: 'center',
                                                     color: zoomScale === 1 ? 'var(--text-muted)' : 'var(--accent-indigo)',
                                                     padding: '3px',
-                                                    borderLeft: '1px solid var(--border-light)',
-                                                    paddingLeft: '6px',
-                                                    marginLeft: '2px',
+                                                    borderLeft: previewWidth < 420 ? 'none' : '1px solid var(--border-light)',
+                                                    paddingLeft: previewWidth < 420 ? '3px' : '6px',
+                                                    marginLeft: previewWidth < 420 ? '0px' : '2px',
                                                     opacity: zoomScale === 1 ? 0.3 : 1,
                                                     transition: 'all 0.15s ease-in-out'
                                                 }}
