@@ -1,113 +1,13 @@
 [
   {
-    "updatedAt": "2026-07-06T11:37:52.580Z",
+    "updatedAt": "2026-07-07T00:29:44.309Z",
     "createdAt": "2026-06-18T04:28:10.651Z",
     "id": "nsbvUUSzjjH2zFic",
-    "name": "CS 데이터 통합(N8N 수정)",
+    "name": "CS 데이터 통합",
     "description": null,
     "active": false,
     "isArchived": false,
     "nodes": [
-      {
-        "parameters": {
-          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst items = $('구글시트에서 실제 데이터 가져오기').all();\nif (items.length > 0) {\n  staticData.lastRowProcessed = (staticData.lastRowProcessed || 1) + items.length;\n}\nreturn [{ json: { status: \"success\", lastRowProcessed: staticData.lastRowProcessed } }];"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          660,
-          -220
-        ],
-        "id": "google-sheets-update-row-id",
-        "name": "구글 시트 처리 행 갱신"
-      },
-      {
-        "parameters": {
-          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst currentBatchMaxId = $('더 처리할 글 있는지 확인').first().json.currentBatchMaxId;\nif (currentBatchMaxId > (staticData.lastArticleId || 0)) {\n  staticData.lastArticleId = currentBatchMaxId;\n}\nreturn $input.all();"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1950,
-          450
-        ],
-        "id": "naver-cafe-update-id",
-        "name": "네이버 카페 처리 ID 실시간 갱신"
-      },
-      {
-        "parameters": {
-          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst processedUids = staticData.processedEmailUids || [];\nconst uid = $json.attributes?.uid || $json.headers?.['message-id'];\nconst isProcessed = uid ? processedUids.includes(String(uid)) : false;\nreturn [{ json: { ...$json, isProcessed } }];"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          -20,
-          1380
-        ],
-        "id": "email-check-processed-id",
-        "name": "이미 처리된 이메일 필터 검사"
-      },
-      {
-        "parameters": {
-          "conditions": {
-            "options": {
-              "caseSensitive": true,
-              "leftValue": "",
-              "typeValidation": "loose",
-              "version": 3
-            },
-            "conditions": [
-              {
-                "id": "is-processed-check",
-                "leftValue": "={{ $json.isProcessed }}",
-                "rightValue": "",
-                "operator": {
-                  "type": "boolean",
-                  "operation": "true",
-                  "singleValue": true
-                }
-              }
-            ],
-            "combinator": "and"
-          },
-          "looseTypeValidation": true,
-          "options": {}
-        },
-        "type": "n8n-nodes-base.filter",
-        "typeVersion": 2.3,
-        "position": [
-          140,
-          1380
-        ],
-        "id": "email-duplicate-filter",
-        "name": "이미 처리된 이메일 필터"
-      },
-      {
-        "parameters": {
-          "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!staticData.processedEmailUids) {\n  staticData.processedEmailUids = [];\n}\nconst uid = $('데이터 파싱1').item.json.attributes?.uid || $('데이터 파싱1').item.json.headers?.['message-id'];\nif (uid && !staticData.processedEmailUids.includes(String(uid))) {\n  staticData.processedEmailUids.push(String(uid));\n}\nreturn $input.all();"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1550,
-          1520
-        ],
-        "id": "email-record-uid",
-        "name": "이메일 처리 UID 기록"
-      },
-      {
-        "parameters": {
-          "jsCode": "const staticData = $getWorkflowStaticData('global');\nstaticData.processedEmailUids = [];\nreturn [{ json: { status: \"success\", cleared: true } }];"
-        },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          -200,
-          1280
-        ],
-        "id": "email-clear-uids",
-        "name": "이메일 처리 기록 초기화"
-      },
       {
         "parameters": {
           "assignments": {
@@ -231,23 +131,131 @@
         "parameters": {
           "downloadAttachments": true,
           "options": {
-            "trackLastMessageId": true
+            "trackLastMessageId": false
           }
         },
         "type": "n8n-nodes-base.emailReadImap",
         "typeVersion": 2.1,
         "position": [
-          -544,
-          1488
+          -576,
+          1472
         ],
         "id": "34d1c79e-28c8-45e4-86ab-9f779b7dfcdc",
         "name": "Email Trigger (IMAP)",
         "credentials": {
           "imap": {
-            "id": "fpAvuj8yXgvUXtbg",
-            "name": "IMAP account"
+            "id": "DggKQ0KQFoAQfC3d",
+            "name": "다우오피스 IMAP"
           }
         }
+      },
+      {
+        "parameters": {
+          "url": "=https://itunes.apple.com/kr/rss/customerreviews/page={{ $json.page || 1 }}/sortBy=mostRecent/id=1042937618/json?cb={{ Date.now() }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -240,
+          2480
+        ],
+        "id": "6d192cd1-f2d8-46d2-9c84-ca5c293f9e5c",
+        "name": "HTTP Request"
+      },
+      {
+        "parameters": {
+          "jsCode": "// 1. 글로벌 기억장치 (테스트용 강제 초기화)\nconst staticData = $getWorkflowStaticData('global');\nstaticData.lastProcessedId = null; \nconst lastProcessedId = staticData.lastProcessedId; \n\nlet accumulated = [];\nlet foundLastId = false;\nlet page = 1;\n\n// [핵심 1] 하나의 실행 세션 안에서는 동일한 캐시 우회 키값을 사용하여 정상적인 페이징으로 위장\nconst sessionCacheKiller = Date.now(); \n\nwhile (!foundLastId && page <= 10) {\n  \n  const response = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `https://itunes.apple.com/kr/rss/customerreviews/page=${page}/id=1042937618/sortBy=mostRecent/json?session=${sessionCacheKiller}`,\n    headers: {\n      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',\n      'Accept': 'application/json'\n    }\n  });\n\n  let responseData = response;\n  if (typeof response === 'string') {\n    try { responseData = JSON.parse(response); } catch (e) { break; }\n  }\n\n  // 데이터 누락 확인 시 원인 로깅\n  if (!responseData.feed || !responseData.feed.entry) {\n    return [{\n      json: {\n        error: `페이지 ${page} 호출 중 애플 CDN Rate Limit 차단 발생. 5분 뒤 다시 시도해주세요.`,\n        rawData: responseData\n      }\n    }];\n  }\n\n  const entries = responseData.feed.entry.slice(1); \n  const currentNewEntries = [];\n\n  for (const entry of entries) {\n    const currentId = entry.id ? entry.id.label : null;\n    if (currentId === lastProcessedId) {\n      foundLastId = true;\n      break; \n    }\n    currentNewEntries.push(entry);\n  }\n\n  accumulated = accumulated.concat(currentNewEntries);\n\n  if (foundLastId || entries.length < 49) {\n    break; \n  }\n  \n  page++; \n\n  // 🚨 [핵심 2] 애플의 봇 차단을 피하기 위한 2초 지연 (Sleep)\n  await new Promise(resolve => setTimeout(resolve, 2000));\n}\n\n// 다음 실행을 위해 기억장치 갱신\nif (accumulated.length > 0) {\n  staticData.lastProcessedId = accumulated[0].id.label;\n}\n\nconst finalItems = accumulated.map((entry) => {\n  return {\n    json: {\n      timestamp: entry.updated ? new Date(entry.updated.label).toISOString() : new Date().toISOString(),\n      userCode: null,\n      channelMetadata: {\n        reviewId: entry.id ? entry.id.label : null,\n        authorName: entry.author && entry.author.name ? entry.author.name.label : \"익명유저\",\n        rating: entry['im:rating'] ? Number(entry['im:rating'].label) : 0,\n        title: entry.title ? entry.title.label : \"\"\n      },\n      content: entry.content ? entry.content.label : \"\",\n      deviceInfo: {\n        appVersion: entry['im:version'] ? entry['im:version'].label : null,\n        model: \"Apple Device\",\n        osVersion: null\n      }\n    }\n  };\n});\n\nreturn finalItems;"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -432,
+          2480
+        ],
+        "id": "43feaaec-a3b4-46f0-827a-19892ffb7288",
+        "name": "Code in JavaScript"
+      },
+      {
+        "parameters": {
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst lastProcessedId = staticData.lastProcessedId; \n\nconst inputJson = $input.all()[0].json;\n\n// 1. 애플 데이터 파싱 (문자열로 들어온 경우 JSON으로 변환)\nlet responseData;\ntry {\n  // inputJson.data가 있으면 파싱하고, 없으면 inputJson 자체를 사용\n  responseData = inputJson.data ? JSON.parse(inputJson.data) : inputJson;\n} catch (e) {\n  responseData = inputJson;\n}\n\n// 2. 루프 변수 확보 (HTTP 노드에서 세팅을 켜도 만약 누락될 경우를 대비한 안전장치 1)\nconst currentPage = inputJson.page || 1; \nlet accumulated = inputJson.accumulatedEntries || [];\n\n// 3. 파싱된 데이터에서 feed 추출\nif (!responseData.feed || !responseData.feed.entry) {\n  return { json: { loopNext: false, itemsToProcess: accumulated } };\n}\n\nconst entries = responseData.feed.entry.slice(1); \nlet foundLastId = false;\nconst currentNewEntries = [];\n\nfor (const entry of entries) {\n  const currentId = entry.id ? entry.id.label : null;\n  \n  if (currentId === lastProcessedId) {\n    foundLastId = true;\n    break;\n  }\n  currentNewEntries.push(entry);\n}\n\naccumulated = accumulated.concat(currentNewEntries);\n\nlet loopNext = false;\nlet nextPage = currentPage; \n\n// 애플 API는 가끔 49개만 줄 때도 있으므로 >= 49 로 유연하게 체크\nif (!foundLastId && entries.length >= 49 && currentPage < 10) { \n  loopNext = true;\n  nextPage = currentPage + 1;\n} else {\n  // 새 글이 있으면 가장 최신 ID를 기억장치에 저장\n  if (accumulated.length > 0) {\n    staticData.lastProcessedId = accumulated[0].id.label;\n  }\n}\n\nconst finalItems = accumulated.map((entry) => {\n  return {\n    timestamp: entry.updated ? new Date(entry.updated.label).toISOString() : new Date().toISOString(),\n    userCode: null,\n    channelMetadata: {\n      reviewId: entry.id ? entry.id.label : null,\n      authorName: entry.author && entry.author.name ? entry.author.name.label : \"익명유저\",\n      rating: entry['im:rating'] ? Number(entry['im:rating'].label) : 0,\n      title: entry.title ? entry.title.label : \"\"\n    },\n    content: entry.content ? entry.content.label : \"\",\n    deviceInfo: {\n      appVersion: entry['im:version'] ? entry['im:version'].label : null,\n      model: \"Apple Device\",\n      osVersion: null\n    }\n  };\n});\n\nreturn {\n  json: {\n    page: nextPage,\n    accumulatedEntries: accumulated,\n    loopNext: loopNext,\n    itemsToProcess: finalItems \n  }\n};"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -16,
+          2512
+        ],
+        "id": "3ad5960d-8e66-4045-af97-a4bf2f950852",
+        "name": "Code in JavaScript1"
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "loose",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "id": "08d27218-de3a-43ab-b165-78538fff30b6",
+                      "leftValue": "=={{ $json.loopNext }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "boolean",
+                        "operation": "false",
+                        "singleValue": true
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "all checked"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "loose",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "id": "7cf45127-e55c-4417-9aa7-edf00e41848d",
+                      "leftValue": "=={{ $json.loopNext }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "boolean",
+                        "operation": "true",
+                        "singleValue": true
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "need more search"
+              }
+            ]
+          },
+          "looseTypeValidation": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          144,
+          2496
+        ],
+        "id": "e4e8ad56-9760-4ba4-8343-3f3fe5bee7d5",
+        "name": "Switch"
       },
       {
         "parameters": {
@@ -332,7 +340,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const targetMenuIds = [49, 36, 37, 42, 12];\nconst initialLastId = $('기존 처리 정보 가져오기').first().json.lastArticleId;\nconst articles = $input.item.json.message?.result?.articleList || [];\n\n// 1. 수집 대상 게시판 중 과거 번호보다 '큰' 번호를 가진 새 글만 필터링\nconst newArticles = articles.filter(a => a.articleId > initialLastId && targetMenuIds.includes(a.menuId));\n\n// 2. 전체 글 기준 최대 글 번호를 트래킹하여 다음 증분 수집 시 중복 조회 방지\nconst currentBatchMaxId = articles.length > 0 ? Math.max(...articles.map(a => a.articleId)) : initialLastId;\n\n// 3. 카페 전체에 아직 처리되지 않은 새 글이 더 있는지 여부로 페이징 지속 판단\nconst shouldContinue = articles.some(a => a.articleId > initialLastId);\n\nreturn [{  json: {\n    newArticles: newArticles,\n    currentBatchMaxId: currentBatchMaxId,\n    shouldContinue: shouldContinue,\n    count: newArticles.length\n  }\n}];"
+          "jsCode": "const initialLastId = $('기존 처리 정보 가져오기').first().json.lastArticleId;\nconst articles = $input.item.json.message.result.articleList || [];\n\n// 과거 번호보다 '큰' 번호를 가진 새 글만 필터링\nconst newArticles = articles.filter(a => a.articleId > initialLastId);\n\n// 현재 수집된 것 중 가장 큰 글 번호\nconst currentBatchMaxId = articles.length > 0 ? Math.max(...articles.map(a => a.articleId)) : initialLastId;\n\n// ★ 문제의 로직 수정: 단 1개의 새 글이라도 존재하면 무조건 True (저장 루프로 진입)\nconst shouldContinue = newArticles.length > 0;\n\nreturn [{\n  json: {\n    newArticles: newArticles,\n    currentBatchMaxId: currentBatchMaxId,\n    shouldContinue: shouldContinue, // 이제 무조건 true가 됩니다.\n    count: newArticles.length\n  }\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -358,6 +366,35 @@
       },
       {
         "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "4166980c-eec5-44e0-b540-d1dba7420ac3",
+                "name": "workflow_name",
+                "value": "csDataIntegration",
+                "type": "string"
+              },
+              {
+                "id": "3d54feb8-ccb9-46a6-9ed1-fdbc3052b0af",
+                "name": "payload",
+                "value": "={{ { \"channel\": \"NAVER_CAFE\", \"items\": $json.items } }}",
+                "type": "object"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          1360,
+          2048
+        ],
+        "id": "e3310ba3-2ef2-48ee-8b5d-a82c900a996b",
+        "name": "RequestDTO 변환2"
+      },
+      {
+        "parameters": {
           "method": "POST",
           "url": "http://cs-api:8080/webhooks/n8n",
           "authentication": "genericCredentialType",
@@ -370,8 +407,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          1840,
-          560
+          2176,
+          576
         ],
         "id": "34105f6a-e782-480f-b1b3-713402ce3dae",
         "name": "Webhook API 전송1",
@@ -388,8 +425,8 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          2032,
-          560
+          2320,
+          576
         ],
         "id": "8a006ceb-9578-479c-9b99-4d4fa9687a26",
         "name": "Wait",
@@ -404,15 +441,15 @@
         "type": "n8n-nodes-base.aggregate",
         "typeVersion": 1,
         "position": [
-          2192,
-          560
+          2480,
+          576
         ],
         "id": "aggregate-page-naver-cafe",
         "name": "페이지 수집 합치기"
       },
       {
         "parameters": {
-          "url": "=https://apis.naver.com/cafe-web/cafe2/ArticleListV3dot1.json?search.clubid=28580947&search.queryType=lastArticle&search.page={{ $runIndex + 1 }}&search.perPage=50",
+          "url": "=https://apis.naver.com/cafe-web/cafe2/ArticleListV3dot1.json?search.clubid=28580947&search.queryType=lastArticle&search.menuid=36&search.page={{ $runIndex + 1 }}&search.perPage=50",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
@@ -480,8 +517,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          1072,
-          544
+          1248,
+          576
         ],
         "id": "c5b8ee0c-7de8-4dc0-af3f-5c24cab53e17",
         "name": "게시글 상세 조회",
@@ -490,13 +527,13 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const inputData = $input.item.json;\nconst articleId = inputData.articleId;\n\nconst matchedItem = $('데이터 파싱').all(0, $runIndex).find(item => String(item.json.articleId) === String(articleId));\nconst rawData = matchedItem ? matchedItem.json : {};\n\nconst images = inputData.images || [];\nconst objectKeys = images.map(img => img.objectName).filter(Boolean);\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: objectKeys,\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: objectKeys\n          }\n        }\n      ]\n    }\n  }\n};"
+          "jsCode": "const rawData = $('데이터 파싱').first().json;\n\nconst images = $input.item.json.images || [];\nconst objectKeys = images.map(img => img.objectName).filter(Boolean);\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: objectKeys,\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: objectKeys\n          }\n        }\n      ]\n    }\n  }\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2400,
-          288
+          2032,
+          576
         ],
         "id": "14e81e6e-83ee-4bce-bff2-2c1c6cf28129",
         "name": "RequestDTO 변환1"
@@ -504,13 +541,13 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const rawData = $input.item.json;\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: [],\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: []\n          }\n        }\n      ]\n    }\n  }\n};"
+          "jsCode": "const rawData = $('데이터 파싱').first().json;\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: [],\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: []\n          }\n        }\n      ]\n    }\n  }\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1552,
-          576
+          2128,
+          368
         ],
         "id": "request-dto-no-image-naver-cafe",
         "name": "RequestDTO 변환 (이미지 없음)"
@@ -753,7 +790,7 @@
         "webhookId": "ff6ec862-431a-4581-8319-260002eb60a0",
         "credentials": {
           "slackApi": {
-            "id": "qo6kGk286jowwzN0",
+            "id": "UnJxO17IJvSO7CAR",
             "name": "Slack account"
           }
         }
@@ -780,7 +817,7 @@
         "webhookId": "ff6ec862-431a-4581-8319-260002eb60a0",
         "credentials": {
           "slackApi": {
-            "id": "qo6kGk286jowwzN0",
+            "id": "UnJxO17IJvSO7CAR",
             "name": "Slack account"
           }
         }
@@ -867,8 +904,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          1520,
-          288
+          1664,
+          304
         ],
         "id": "b5b6d10c-65d6-4621-95d5-edbf445f50b5",
         "name": "Presigned URLs 발급",
@@ -881,13 +918,13 @@
       },
       {
         "parameters": {
-          "jsCode": "const allPresignedItems = $input.all();\nconst allArticles = $('데이터 파싱').all(0, $runIndex);\nconst pairedItems = [];\n\nfor (const item of allPresignedItems) {\n  const urls = item.json.urls || [];\n  if (urls.length === 0) continue;\n\n  const firstObjectName = urls[0].objectName || \"\";\n  const parts = firstObjectName.split('/');\n  if (parts.length < 2) continue;\n  const idParts = parts[1].split('_');\n  const cafeId = idParts[0];\n  const articleId = idParts[1];\n\n  const matchedArticle = allArticles.find(art => String(art.json.articleId) === String(articleId));\n  const originalUrls = matchedArticle ? (matchedArticle.json.originalImageUrls || []) : [];\n\n  urls.forEach((urlItem, index) => {\n    pairedItems.push({\n      json: {\n        cafeId: cafeId,\n        articleId: articleId,\n        originalImageUrl: originalUrls[index] || \"\",\n        objectName: urlItem.objectName,\n        uploadUrl: urlItem.uploadUrl,\n        downloadUrl: urlItem.downloadUrl\n      }\n    });\n  });\n}\n\nreturn pairedItems;"
+          "jsCode": "const originalUrls = $('데이터 파싱').item.json.originalImageUrls;\nconst presignedUrls = $json.urls;\n\nreturn presignedUrls.map((item, index) => {\n  return {\n    json: {\n      originalImageUrl: originalUrls[index],\n      objectName: item.objectName,\n      uploadUrl: item.uploadUrl,\n      downloadUrl: item.downloadUrl\n    }\n  };\n});"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1664,
-          288
+          1808,
+          304
         ],
         "id": "d5f2a2e2-f323-4948-bf2e-cdd7c873b9b0",
         "name": "이미지 정보 페어링"
@@ -923,8 +960,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          1792,
-          288
+          1648,
+          928
         ],
         "id": "6bc606a5-aee5-4979-8aac-fb8204acbb2e",
         "name": "이미지 다운로드"
@@ -950,8 +987,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          1936,
-          288
+          1824,
+          1024
         ],
         "id": "b4a8cdc5-7c5a-4c79-bb12-d32288bb9783",
         "name": "blob storage 이미지 업로드"
@@ -959,13 +996,13 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const result = $input.item.json?.result || {};\nconst detail = result.article || {};\nconst listData = $('게시글 상세 조회를 위한 데이터 파싱').item?.json || {};\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/\\[\\[\\[.*?\\]\\]\\]/g, \"\");\n  text = text.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\"); \n  text = text.replace(/[ \\t]+/g, \" \"); \n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst content = stripAndCleanHtml(detail.contentHtml || detail.content || \"\");\nconst timestamp = detail.writeDate ? new Date(detail.writeDate).toISOString() : new Date().toISOString();\n\nconst originalImageUrls = [];\n\n// 1. Extract from official imageList\nif (detail.imageList && Array.isArray(detail.imageList)) {\n  detail.imageList.forEach(img => {\n    if (img.url) {\n      originalImageUrls.push(img.url);\n    }\n  });\n}\n\n// 2. Parse inline <img> tags from contentHtml or content\nconst htmlContent = detail.contentHtml || detail.content || \"\";\nconst imgRegex = /<img[^>]+src=[\\\"']([^\\\"']+)[\\\"']/g;\nlet match;\nwhile ((match = imgRegex.exec(htmlContent)) !== null) {\n  const url = match[1];\n  // Avoid duplicates\n  if (!originalImageUrls.includes(url)) {\n    originalImageUrls.push(url);\n  }\n}\n\n// 3. Fallback to representImage if originalImageUrls is still empty\nif (originalImageUrls.length === 0 && detail.representImage && detail.representImage.url) {\n  originalImageUrls.push(detail.representImage.url);\n}\n\nconst normalizedImageUrls = originalImageUrls.map(url => {\n  if (typeof url !== \"string\") return url;\n  let cleanUrl = url\n    .replace(/&amp;/g, '&')\n    .replace(/&#x3D;/g, '=')\n    .replace(/&lt;/g, '<')\n    .replace(/&gt;/g, '>')\n    .replace(/&quot;/g, '\"')\n    .replace(/&#39;/g, \"'\")\n    .replace(/%22/g, '')\n    .replace(/\"/g, '')\n    .replace(/src==/g, 'src=')\n    .replace(/type==/g, 'type=');\n  return cleanUrl.replace(\"://cafepthumb-phinf.pstatic.net\", \"://cafeptthumb-phinf.pstatic.net\");\n});\n\nconst clubId = listData.cafeId || listData.clubId || \"unknown\";\nconst articleId = listData.articleId || detail.articleId || \"unknown\";\n\nconst objectNames = normalizedImageUrls.map((url, index) => {\n  return `naver-cafe/${clubId}_${articleId}/image_${index}.jpg`;\n});\n\nreturn {\n  cafeId: clubId,\n  articleId: articleId,\n  menuId: listData.menuId,\n  menuName: listData.menuName,\n  writerId: listData.maskedMemberId || (detail.writer ? detail.writer.id : null),\n  writerNickname: listData.writerNickname || (detail.writer ? detail.writer.nickname : null),\n  readCount: detail.readCount || 0,\n  commentCount: detail.commentCount || listData.commentCount || 0,\n  likeCount: detail.likeItCount || 0,\n  content: content,\n  timestamp: timestamp,\n  originalImageUrls: normalizedImageUrls,\n  objectNames: objectNames\n};"
+          "jsCode": "const result = $input.item.json?.result || {};\nconst detail = result.article || {};\nconst listData = $('게시글 상세 조회를 위한 데이터 파싱').item?.json || {};\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/\\[\\[\\[.*?\\]\\]\\]/g, \"\");\n  text = text.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\"); \n  text = text.replace(/[ \\t]+/g, \" \"); \n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst content = stripAndCleanHtml(detail.contentHtml || detail.content || \"\");\nconst timestamp = detail.writeDate ? new Date(detail.writeDate).toISOString() : new Date().toISOString();\n\nconst originalImageUrls = [];\n\n// 1. Extract from official imageList\nif (detail.imageList && Array.isArray(detail.imageList)) {\n  detail.imageList.forEach(img => {\n    if (img.url) {\n      originalImageUrls.push(img.url);\n    }\n  });\n}\n\n// 2. Parse inline <img> tags from contentHtml or content\nconst htmlContent = detail.contentHtml || detail.content || \"\";\nconst imgRegex = /<img[^>]+src=[\"']([^\"']+)[\"']/g;\nlet match;\nwhile ((match = imgRegex.exec(htmlContent)) !== null) {\n  const url = match[1];\n  // Avoid duplicates\n  if (!originalImageUrls.includes(url)) {\n    originalImageUrls.push(url);\n  }\n}\n\n// 3. Fallback to representImage if originalImageUrls is still empty\nif (originalImageUrls.length === 0 && detail.representImage && detail.representImage.url) {\n  originalImageUrls.push(detail.representImage.url);\n}\n\nconst normalizedImageUrls = originalImageUrls.map(url => {\n  if (typeof url !== \"string\") return url;\n  return url.replace(\"://cafepthumb-phinf.pstatic.net\", \"://cafeptthumb-phinf.pstatic.net\");\n});\n\nconst clubId = listData.cafeId || listData.clubId || \"unknown\";\nconst articleId = listData.articleId || detail.articleId || \"unknown\";\n\nconst objectNames = normalizedImageUrls.map((url, index) => {\n  return `naver-cafe/${clubId}_${articleId}/image_${index}.jpg`;\n});\n\nreturn {\n  cafeId: clubId,\n  articleId: articleId,\n  menuId: listData.menuId,\n  menuName: listData.menuName,\n  writerId: listData.maskedMemberId || (detail.writer ? detail.writer.id : null),\n  writerNickname: listData.writerNickname || (detail.writer ? detail.writer.nickname : null),\n  readCount: detail.readCount || 0,\n  commentCount: detail.commentCount || listData.commentCount || 0,\n  likeCount: detail.likeItCount || 0,\n  content: content,\n  timestamp: timestamp,\n  originalImageUrls: normalizedImageUrls,\n  objectNames: objectNames\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1232,
-          544
+          1392,
+          560
         ],
         "id": "a529e7d9-632c-43d3-8ddb-bd51b786e582",
         "name": "데이터 파싱"
@@ -997,11 +1034,31 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          1392,
-          544
+          1536,
+          560
         ],
         "id": "4060776f-406b-4b9e-9ca6-e254aa36c67c",
         "name": "이미지 존재 여부 확인"
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "hours"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.3,
+        "position": [
+          -640,
+          2480
+        ],
+        "id": "b9db7f72-c86d-49b3-94da-deabfb1fc21f",
+        "name": "IOS",
+        "disabled": true
       },
       {
         "parameters": {
@@ -1017,8 +1074,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          1360,
-          1520
+          1008,
+          1456
         ],
         "id": "2670e11f-a328-4b49-995e-be37ea982725",
         "name": "Webhook API 전송2",
@@ -1044,8 +1101,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          144,
-          1312
+          48,
+          1264
         ],
         "id": "230b948b-5336-4ca8-a169-dc17b9901622",
         "name": "Presigned URLs 발급1",
@@ -1058,14 +1115,13 @@
       },
       {
         "parameters": {
-          "mode": "runOnceForEachItem",
           "jsCode": "const originalUrls = $('데이터 파싱1').item.json.originalImageUrls;\nconst presignedUrls = $json.urls;\n\nreturn presignedUrls.map((item, index) => {\n  return {\n    json: {\n      originalUrl: originalUrls[index],\n      objectName: item.objectName,\n      uploadUrl: item.uploadUrl,\n      downloadUrl: item.downloadUrl\n    }\n  };\n});"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          304,
-          1312
+          208,
+          1264
         ],
         "id": "6fd611ee-9ab7-45da-8b27-2d1b74752882",
         "name": "이미지 정보 페어링1"
@@ -1078,8 +1134,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          496,
-          1760
+          208,
+          1696
         ],
         "id": "eeebc5a4-a799-4b93-8814-9e1fc952bcdd",
         "name": "이미지 다운로드1"
@@ -1104,8 +1160,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          688,
-          1760
+          400,
+          1696
         ],
         "id": "5c091cd8-2ea3-4678-b6cc-0bb47f245d15",
         "name": "blob storage 이미지 업로드1"
@@ -1117,8 +1173,8 @@
         "type": "n8n-nodes-base.splitInBatches",
         "typeVersion": 3,
         "position": [
-          464,
-          1392
+          384,
+          1264
         ],
         "id": "c67b0e35-b050-4b1d-ac09-b1efae0a623b",
         "name": "Loop Over Images1"
@@ -1151,8 +1207,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          -32,
-          1552
+          -96,
+          1472
         ],
         "id": "16123b0d-aa60-4f3b-bf2a-f52f359adbf5",
         "name": "이미지 존재 여부 확인1"
@@ -1165,8 +1221,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -176,
-          1552
+          -240,
+          1472
         ],
         "id": "e35f5a5a-20c0-4187-b358-8dfd7534f231",
         "name": "데이터 파싱1"
@@ -1179,8 +1235,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1152,
-          1520
+          864,
+          1456
         ],
         "id": "8afe3e17-3ab4-41b2-b7db-bc7312790d70",
         "name": "RequestDTO 변환3"
@@ -1192,34 +1248,37 @@
         "type": "n8n-nodes-base.splitInBatches",
         "typeVersion": 3,
         "position": [
-          -368,
-          1488
+          -400,
+          1472
         ],
         "id": "e3cbdf01-d77c-4731-9a7f-d5b73e51f890",
         "name": "Loop Over Emails"
       },
       {
         "parameters": {
-          "jsCode": "const allImages = $input.all();\nconst allPaired = $('이미지 정보 페어링').all(0, $runIndex);\n\nreturn allImages.map((item, index) => {\n  const paired = allPaired[index] ? allPaired[index].json : {};\n  return {\n    json: {\n      cafeId: paired.cafeId,\n      articleId: paired.articleId,\n      originalImageUrl: paired.originalImageUrl || \"\",\n      objectName: paired.objectName || \"\",\n      downloadUrl: paired.downloadUrl || \"\"\n    }\n  };\n});"
+          "mode": "runOnceForEachItem",
+          "jsCode": "const uploaded = $('이미지 정보 페어링').item?.json || $input.item.json || {};\n\nreturn {\n  json: {\n    originalImageUrl: uploaded.originalImageUrl || \"\",\n    objectName: uploaded.objectName || \"\",\n    downloadUrl: uploaded.downloadUrl || \"\"\n  }\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2096,
-          288
+          2112,
+          976
         ],
         "id": "cafecafe-2858-4947-9000-upload-ok",
         "name": "이미지 업로드 완료 정보"
       },
       {
         "parameters": {
-          "jsCode": "const items = $input.all();\nconst groups = {};\n\nfor (const item of items) {\n  const data = item.json || {};\n  const articleId = data.articleId;\n  if (!articleId) continue;\n\n  if (!groups[articleId]) {\n    groups[articleId] = {\n      cafeId: data.cafeId,\n      articleId: articleId,\n      images: []\n    };\n  }\n\n  groups[articleId].images.push({\n    originalUrl: data.originalImageUrl || \"\",\n    objectName: data.objectName || \"\",\n    downloadUrl: data.downloadUrl || \"\"\n  });\n}\n\nreturn Object.values(groups).map(group => ({ json: group }));"
+          "aggregate": "aggregateAllItemData",
+          "destinationFieldName": "images",
+          "options": {}
         },
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
+        "type": "n8n-nodes-base.aggregate",
+        "typeVersion": 1,
         "position": [
-          2256,
-          288
+          2288,
+          1088
         ],
         "id": "aggregate-images-naver-cafe",
         "name": "이미지 업로드 합치기"
@@ -1232,22 +1291,11 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          896,
-          1760
+          592,
+          1696
         ],
         "id": "email-upload-ok-2858-0947-9000-000000000001",
         "name": "이메일 이미지 업로드 완료 정보"
-      },
-      {
-        "parameters": {},
-        "type": "n8n-nodes-base.merge",
-        "typeVersion": 3,
-        "position": [
-          1696,
-          480
-        ],
-        "id": "merge-naver-cafe-branches",
-        "name": "데이터 합치기"
       }
     ],
     "connections": {
@@ -1297,16 +1345,43 @@
       },
       "배치 처리": {
         "main": [
-          [
-            {
-              "node": "구글 시트 처리 행 갱신",
-              "type": "main",
-              "index": 0
-            }
-          ],
+          [],
           [
             {
               "node": "Aggregate",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code in JavaScript": {
+        "main": [
+          []
+        ]
+      },
+      "HTTP Request": {
+        "main": [
+          []
+        ]
+      },
+      "Code in JavaScript1": {
+        "main": [
+          [
+            {
+              "node": "Switch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Switch": {
+        "main": [
+          [],
+          [
+            {
+              "node": "HTTP Request",
               "type": "main",
               "index": 0
             }
@@ -1379,17 +1454,6 @@
         "main": [
           [
             {
-              "node": "네이버 카페 처리 ID 실시간 갱신",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "네이버 카페 처리 ID 실시간 갱신": {
-        "main": [
-          [
-            {
               "node": "Wait",
               "type": "main",
               "index": 0
@@ -1456,7 +1520,7 @@
         "main": [
           [
             {
-              "node": "데이터 합치기",
+              "node": "Webhook API 전송1",
               "type": "main",
               "index": 0
             }
@@ -1464,17 +1528,6 @@
         ]
       },
       "RequestDTO 변환 (이미지 없음)": {
-        "main": [
-          [
-            {
-              "node": "데이터 합치기",
-              "type": "main",
-              "index": 1
-            }
-          ]
-        ]
-      },
-      "데이터 합치기": {
         "main": [
           [
             {
@@ -1663,6 +1716,17 @@
           ]
         ]
       },
+      "IOS": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
       "Presigned URLs 발급1": {
         "main": [
           [
@@ -1747,35 +1811,6 @@
         "main": [
           [
             {
-              "node": "이미 처리된 이메일 필터 검사",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "이미 처리된 이메일 필터 검사": {
-        "main": [
-          [
-            {
-              "node": "이미 처리된 이메일 필터",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "이미 처리된 이메일 필터": {
-        "main": [
-          [
-            {
-              "node": "Loop Over Emails",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
               "node": "이미지 존재 여부 확인1",
               "type": "main",
               "index": 0
@@ -1807,13 +1842,7 @@
       },
       "Loop Over Emails": {
         "main": [
-          [
-            {
-              "node": "이메일 처리 기록 초기화",
-              "type": "main",
-              "index": 0
-            }
-          ],
+          [],
           [
             {
               "node": "데이터 파싱1",
@@ -1824,17 +1853,6 @@
         ]
       },
       "Webhook API 전송2": {
-        "main": [
-          [
-            {
-              "node": "이메일 처리 UID 기록",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "이메일 처리 UID 기록": {
         "main": [
           [
             {
@@ -1881,8 +1899,7 @@
     },
     "settings": {
       "executionOrder": "v1",
-      "binaryMode": "separate",
-      "errorWorkflow": "error-handler-wf"
+      "binaryMode": "separate"
     },
     "staticData": {
       "node:네이버 카페글 수집": {
@@ -1898,31 +1915,28 @@
     "meta": {
       "templateCredsSetupCompleted": true
     },
-    "nodeGroups": [],
     "pinData": {},
-    "versionId": "91a2f7a0-9e1f-4e7f-ae96-d43d12ee5ccb",
+    "versionId": "1b466669-c9d3-4bb3-a988-2229444305f5",
     "activeVersionId": null,
-    "versionCounter": 985,
+    "versionCounter": 936,
     "triggerCount": 3,
-    "sourceWorkflowId": null,
     "tags": [],
     "shared": [
       {
-        "updatedAt": "2026-07-06T10:24:58.406Z",
-        "createdAt": "2026-07-06T10:24:58.406Z",
+        "updatedAt": "2026-06-18T04:28:10.651Z",
+        "createdAt": "2026-06-18T04:28:10.651Z",
         "role": "workflow:owner",
         "workflowId": "nsbvUUSzjjH2zFic",
-        "projectId": "Tm387HFBIMcgw4qC",
+        "projectId": "XyP6KgL7wL6d92GF",
         "project": {
-          "updatedAt": "2026-07-05T14:24:08.697Z",
-          "createdAt": "2026-07-05T13:28:02.074Z",
-          "id": "Tm387HFBIMcgw4qC",
-          "name": "yoonsik shin <aaa946@naver.com>",
+          "updatedAt": "2026-06-18T04:27:36.981Z",
+          "createdAt": "2026-06-18T04:26:08.435Z",
+          "id": "XyP6KgL7wL6d92GF",
+          "name": "shin yoonsik <aaa946@naver.com>",
           "type": "personal",
           "icon": null,
           "description": null,
-          "customTelemetryTags": [],
-          "creatorId": "9358ee48-8e11-4841-8845-ff6660bf2a4e"
+          "creatorId": "40f0b1ff-d5fa-482e-83da-d79b2145963d"
         }
       }
     ],

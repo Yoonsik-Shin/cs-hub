@@ -88,7 +88,7 @@
         "name": "Slack Alert",
         "credentials": {
           "slackApi": {
-            "id": "qo6kGk286jowwzN0",
+            "id": "UnJxO17IJvSO7CAR",
             "name": "Slack account"
           }
         }
@@ -136,31 +136,28 @@
     "meta": {
       "templateCredsSetupCompleted": true
     },
-    "nodeGroups": [],
     "pinData": null,
-    "versionId": "99699684-4b9e-4b13-84b0-992c2c848ac6",
+    "versionId": "375e0e23-1e26-4179-b09e-2e7c1399900e",
     "activeVersionId": null,
     "versionCounter": 1,
     "triggerCount": 0,
-    "sourceWorkflowId": null,
     "tags": [],
     "shared": [
       {
-        "updatedAt": "2026-07-06T12:23:07.240Z",
-        "createdAt": "2026-07-06T12:23:07.240Z",
+        "updatedAt": "2026-07-07T00:28:15.242Z",
+        "createdAt": "2026-07-07T00:28:15.242Z",
         "role": "workflow:owner",
         "workflowId": "error-handler-wf",
-        "projectId": "Tm387HFBIMcgw4qC",
+        "projectId": "XyP6KgL7wL6d92GF",
         "project": {
-          "updatedAt": "2026-07-05T14:24:08.697Z",
-          "createdAt": "2026-07-05T13:28:02.074Z",
-          "id": "Tm387HFBIMcgw4qC",
-          "name": "yoonsik shin <aaa946@naver.com>",
+          "updatedAt": "2026-06-18T04:27:36.981Z",
+          "createdAt": "2026-06-18T04:26:08.435Z",
+          "id": "XyP6KgL7wL6d92GF",
+          "name": "shin yoonsik <aaa946@naver.com>",
           "type": "personal",
           "icon": null,
           "description": null,
-          "customTelemetryTags": [],
-          "creatorId": "9358ee48-8e11-4841-8845-ff6660bf2a4e"
+          "creatorId": "40f0b1ff-d5fa-482e-83da-d79b2145963d"
         }
       }
     ],
