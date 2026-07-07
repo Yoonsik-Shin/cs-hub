@@ -4,7 +4,7 @@ import {
     Cpu, Info, Calendar, Clock, User, ArrowRight, History,
     FileText, CheckCircle, Inbox, MessageSquare, Pin, RefreshCw, AlertCircle,
     ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit, ImagePlus, Loader2, Star, X as XIcon,
-    Image, ZoomIn, ZoomOut, Mail
+    Image, ZoomIn, ZoomOut, Mail, ExternalLink
 } from 'lucide-react';
 import type { CustomerInquiry, InquiryWorkLog, OperatorInfo } from '../types/inquiry';
 import { inquiryApi } from '../api/inquiryApi';
@@ -27,6 +27,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     // Resizable columns states
     const [leftWidth, setLeftWidth] = useState(75); // Left Pane % (default 75)
     const [isResizingLeft, setIsResizingLeft] = useState(false);
+    const [previewWidth, setPreviewWidth] = useState(500); // Image Preview Card width in pixels (default 500)
+    const [isResizingPreview, setIsResizingPreview] = useState(false);
 
     // Collapsible states
     const [isActionsCollapsed, setIsActionsCollapsed] = useState(false);
@@ -174,6 +176,28 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
 
         const onMouseUp = () => {
             setIsResizingLeft(false);
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    const startResizingPreview = (mouseDownEvent: React.MouseEvent) => {
+        mouseDownEvent.preventDefault();
+        setIsResizingPreview(true);
+        const startX = mouseDownEvent.clientX;
+        const startPreviewWidth = previewWidth;
+
+        const onMouseMove = (mouseMoveEvent: MouseEvent) => {
+            const deltaX = mouseMoveEvent.clientX - startX;
+            const newPreviewWidth = Math.max(280, Math.min(800, startPreviewWidth - deltaX));
+            setPreviewWidth(newPreviewWidth);
+        };
+
+        const onMouseUp = () => {
+            setIsResizingPreview(false);
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
         };
@@ -1421,16 +1445,15 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                     <div style={{
                         flex: 1,
                         display: 'flex',
-                        gap: activeImageUrl ? '12px' : '0px',
+                        gap: 0,
                         minHeight: 0,
-                        width: '100%',
-                        transition: 'gap 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                        width: '100%'
                     }}>
                         {/* Left Side: Ticket Reference */}
                         <div
                             className="cs-card"
                             style={{
-                                flex: activeImageUrl ? 1.25 : 1,
+                                flex: activeImageUrl ? 1 : 1,
                                 display: 'flex',
                                 flexDirection: 'column',
                                 background: '#ffffff',
@@ -1439,7 +1462,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
                                 overflow: 'hidden',
                                 minHeight: 0,
-                                transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                                transition: isResizingPreview ? 'none' : 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                             }}
                         >
                         {/* Fixed Header */}
@@ -1647,46 +1670,63 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         const isOpen = !!activeImageUrl;
 
                         return (
-                            <div
-                                className="cs-card"
-                                style={{
-                                    flex: isOpen ? 1 : 0,
-                                    maxWidth: isOpen ? '800px' : '0px',
-                                    minWidth: isOpen ? '280px' : '0px',
-                                    opacity: isOpen ? 1 : 0,
-                                    pointerEvents: isOpen ? 'auto' : 'none',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    background: '#ffffff',
-                                    border: isOpen ? '1px solid var(--border-light)' : '0px solid transparent',
-                                    borderRadius: '12px',
-                                    boxShadow: isOpen ? '0 4px 16px rgba(0, 0, 0, 0.12)' : 'none',
-                                    overflow: 'hidden',
-                                    minHeight: 0,
-                                    transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), border 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                                }}
-                            >
-                                {/* Header bar / Toolbar */}
+                            <>
+                                {isOpen && (
+                                    <div
+                                        className={`resize-divider ${isResizingPreview ? 'active' : ''}`}
+                                        onMouseDown={startResizingPreview}
+                                        style={{
+                                            height: '100%',
+                                            margin: '0 6px',
+                                        }}
+                                    />
+                                )}
                                 <div
-                                    className="cs-panel-section-title"
+                                    className="cs-card"
                                     style={{
-                                        margin: 0,
-                                        padding: '10px 16px',
-                                        borderBottom: '1px solid var(--border-light)',
-                                        background: 'rgba(99, 102, 241, 0.02)',
+                                        flex: isOpen ? '0 0 auto' : 0,
+                                        width: isOpen ? `${previewWidth}px` : '0px',
+                                        maxWidth: isOpen ? '800px' : '0px',
+                                        minWidth: isOpen ? '280px' : '0px',
+                                        opacity: isOpen ? 1 : 0,
+                                        pointerEvents: isOpen ? 'auto' : 'none',
                                         display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        gap: '8px',
-                                        whiteSpace: 'nowrap'
+                                        flexDirection: 'column',
+                                        background: '#ffffff',
+                                        border: isOpen ? '1px solid var(--border-light)' : '0px solid transparent',
+                                        borderRadius: '12px',
+                                        boxShadow: isOpen ? '0 4px 16px rgba(0, 0, 0, 0.12)' : 'none',
+                                        overflow: 'hidden',
+                                        minHeight: 0,
+                                        transition: isResizingPreview
+                                            ? 'none'
+                                            : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), border 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                                     }}
                                 >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Image size={16} style={{ color: 'var(--accent-indigo)' }} />
-                                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                            첨부 이미지 미리보기 ({currentIndex + 1} / {inquiry.imageUrls?.length})
-                                        </span>
-                                    </div>
+                                    {/* Header bar / Toolbar */}
+                                    <div
+                                        className="cs-panel-section-title"
+                                        style={{
+                                            margin: 0,
+                                            padding: '10px 16px',
+                                            borderBottom: '1px solid var(--border-light)',
+                                            background: 'rgba(99, 102, 241, 0.02)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            gap: '8px',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <Image size={16} style={{ color: 'var(--accent-indigo)' }} />
+                                            <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                {previewWidth < 420
+                                                    ? `미리보기 (${currentIndex + 1} / ${inquiry.imageUrls?.length})`
+                                                    : `첨부 이미지 미리보기 (${currentIndex + 1} / ${inquiry.imageUrls?.length})`
+                                                }
+                                            </span>
+                                        </div>
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                         {/* Zoom Controls */}
                                         <div style={{
@@ -1760,28 +1800,56 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             </button>
                                         </div>
 
-                                        <a
-                                            href={getDisplayImageUrl(displayUrl)}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="btn-secondary"
-                                            style={{
-                                                fontSize: '11px',
-                                                color: 'var(--accent-indigo)',
-                                                textDecoration: 'none',
-                                                fontWeight: 600,
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                height: '28px',
-                                                padding: '0 10px',
-                                                borderRadius: '6px',
-                                                border: '1px solid var(--border-light)',
-                                                background: '#ffffff'
-                                            }}
-                                        >
-                                            새 탭에서 열기
-                                        </a>
+                                        {previewWidth < 420 ? (
+                                            <a
+                                                href={getDisplayImageUrl(displayUrl)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="btn-secondary action-tooltip tooltip-left"
+                                                data-tooltip="새 탭에서 열기"
+                                                style={{
+                                                    fontSize: '11px',
+                                                    color: 'var(--accent-indigo)',
+                                                    textDecoration: 'none',
+                                                    fontWeight: 600,
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    height: '28px',
+                                                    width: '28px',
+                                                    padding: 0,
+                                                    borderRadius: '6px',
+                                                    border: '1px solid var(--border-light)',
+                                                    background: '#ffffff'
+                                                }}
+                                                title="새 탭에서 열기"
+                                            >
+                                                <ExternalLink size={14} />
+                                            </a>
+                                        ) : (
+                                            <a
+                                                href={getDisplayImageUrl(displayUrl)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="btn-secondary"
+                                                style={{
+                                                    fontSize: '11px',
+                                                    color: 'var(--accent-indigo)',
+                                                    textDecoration: 'none',
+                                                    fontWeight: 600,
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px',
+                                                    height: '28px',
+                                                    padding: '0 10px',
+                                                    borderRadius: '6px',
+                                                    border: '1px solid var(--border-light)',
+                                                    background: '#ffffff'
+                                                }}
+                                            >
+                                                새 탭에서 열기
+                                            </a>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={() => setActiveImageUrl(null)}
@@ -1955,7 +2023,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                     })}
                                 </div>
                             </div>
-                        );
+                        </>
+                    );
                     })()}
                 </div>
 
