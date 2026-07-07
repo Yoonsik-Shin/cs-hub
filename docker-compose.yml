@@ -55,6 +55,9 @@ services:
       - n8n_network
     depends_on:
       - postgres-db
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
 
   minio:
     image: minio/minio:latest
@@ -148,6 +151,9 @@ services:
       - cs-api
     networks:
       - n8n_network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
 
   frontend:
     image: nginx:alpine
@@ -191,4 +197,22 @@ services:
       - n8n
     networks:
       - n8n_network
+
+  wiki:
+    image: node:22-alpine
+    container_name: cs-wiki
+    restart: always
+    working_dir: /app
+    command: sh -c "npm install && npm run start -- --host 0.0.0.0 --port 80"
+    volumes:
+      - ./docs:/app
+      - /app/node_modules
+      - /app/.docusaurus
+    environment:
+      - BACKEND_API_URL=http://cs-api:8080/v3/api-docs
+    depends_on:
+      - cs-api
+    networks:
+      - n8n_network
+
 

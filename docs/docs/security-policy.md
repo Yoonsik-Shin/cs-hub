@@ -1,4 +1,8 @@
-# Security Policy
+---
+sidebar_label: 보안 정책
+---
+
+# 보안 정책
 
 ## 배포 전제
 

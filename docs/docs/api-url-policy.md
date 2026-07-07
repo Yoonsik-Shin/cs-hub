@@ -1,4 +1,8 @@
-# API URL Policy
+---
+sidebar_label: API URL 정책
+---
+
+# API URL 정책
 
 ## 기본 원칙
 
@@ -139,7 +143,7 @@ infra/webhooks/handler/n8n/workflow/dto
 
 n8n workflow handler는 workflow payload를 해석하고 애플리케이션 이벤트를 발행합니다. 실제 문의 처리 usecase 호출은 feature inquiry의 event listener가 담당합니다.
 
-## Files API
+## 파일 API
 
 파일 업로드 URL 발급은 `/api/v1/files` 아래에 둡니다.
 
@@ -149,7 +153,7 @@ n8n workflow handler는 workflow payload를 해석하고 애플리케이션 이�
 
 파일 업로드 URL 발급은 문의 aggregate에 종속된 기능이 아니므로 `feature/inquiry`가 아니라 `feature/file`에 둡니다. S3/MinIO presigned URL 생성 자체는 기술 구현이므로 `infra/storage`의 `StorageService`가 담당하고, `feature/file`은 애플리케이션 API와 usecase만 담당합니다.
 
-## Webhooks
+## 웹훅
 
 ```text
 POST /webhooks/n8n
@@ -179,7 +183,7 @@ Kakao server
   -> /webhooks/kakao/**
 ```
 
-## Docs
+## API 문서
 
 ```text
 GET /docs

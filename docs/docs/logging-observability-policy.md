@@ -1,6 +1,10 @@
-# Logging and Observability Policy
+---
+sidebar_label: 로그 및 모니터링 정책
+---
 
-## Deployment Assumption
+# 로그 및 관측(Observability) 정책
+
+## 배포 전제 조건
 
 이 프로젝트는 하나의 컴퓨터에 Docker Compose로 배포합니다. 서비스는 LAN 내부 IP로만 노출하고, 같은 네트워크를 사용하는 사용자만 접근합니다.
 
@@ -51,7 +55,7 @@ flowchart TB
     Loki --> Grafana
 ```
 
-## Final Decision
+## 최종 결정 사항
 
 이번 단계에서는 Logback을 유지하고 `logback-spring.xml`을 사용합니다.
 
@@ -67,7 +71,7 @@ flowchart TB
 - Actuator는 운영 상태와 metrics 확인에 적극 활용
 - Grafana 조회는 `Grafana + Loki + Grafana Alloy`를 Docker Compose에 함께 올려 처리
 
-## What Logback Does
+## Logback의 구현 역할
 
 Logback은 JVM 애플리케이션에서 로그를 실제로 출력하고 저장하는 logging backend입니다. Spring Boot는 기본적으로 SLF4J API 위에 Logback을 붙여 사용합니다.
 
@@ -93,7 +97,7 @@ Logback이 맡지 않을 일:
 - 검색 엔진
 - Loki/Grafana로 전송하는 수집기 역할
 
-## Previous Structure
+## 이전 로깅 구조
 
 ```mermaid
 flowchart LR
@@ -118,7 +122,7 @@ flowchart LR
 - Docker volume이 `/app/logs/webhooks`에만 붙어 있어 access/app/error 로그 확장이 어려웠습니다.
 - 민감정보 masking, payload size 제한, 보존 정책이 명확하지 않았습니다.
 
-## Target Structure
+## 개선 목표 로깅 구조
 
 ```mermaid
 flowchart TB
@@ -173,7 +177,7 @@ flowchart TB
     Loki --> Grafana
 ```
 
-## Docker Volume Policy
+## Docker 볼륨 정책
 
 `webhook_logs`는 `app_logs`로 변경합니다. webhook 전용 볼륨이 아니라 전체 애플리케이션 로그 루트를 보존합니다.
 
@@ -202,7 +206,7 @@ services:
     error.log
 ```
 
-## Log Categories
+## 로그 카테고리 정의
 
 | Category | Scope | Body 저장 | File | Retention |
 | --- | --- | --- | --- | --- |
@@ -213,7 +217,7 @@ services:
 | Application log | 일반 앱 이벤트 | No by default | `logs/app/application.log` | 14 days / 50MB each / 1GB total |
 | Error log | WARN/ERROR 이상 | Exception only | `logs/app/error.log` | 30 days / 50MB each / 1GB total |
 
-## Access Log Policy
+## Access 로그 정책
 
 모든 HTTP 요청은 metadata만 저장합니다. request body는 절대 읽거나 저장하지 않습니다.
 
@@ -258,7 +262,7 @@ com.ttam.cs.infra.logging.AccessLogger
 }
 ```
 
-## Webhook Payload Policy
+## 웹훅 페이로드(Payload) 정책
 
 request body 저장은 `WebhookLoggerService`에서만 허용합니다. 필터 레벨에서 body를 읽지 않습니다.
 
@@ -294,7 +298,7 @@ type: skill | validation | workflow
 4. size 제한 이하이면 masked payload 저장
 5. size 초과이면 payload는 저장하지 않고 metadata만 저장
 
-## Sensitive Data Masking
+## 민감 정보 마스킹(Masking)
 
 아래 key는 대소문자 구분 없이 masking합니다.
 
@@ -321,7 +325,7 @@ email
 ***MASKED***
 ```
 
-## Payload Size Limit
+## 페이로드 크기 제한
 
 기본 payload log 제한:
 
@@ -367,7 +371,7 @@ email
 }
 ```
 
-## Actuator Policy
+## Spring Actuator 정책
 
 Actuator는 단일 PC 배포에서도 운영 상태 확인에 사용합니다.
 
@@ -401,7 +405,7 @@ management:
 - `/internal/actuator/**`는 admin 권한 필요
 - LAN 내부 노출이어도 actuator는 일반 사용자에게 공개하지 않습니다.
 
-## Grafana Log Viewing
+## Grafana 로그 시각화
 
 이번 구현 범위에는 Grafana, Loki, Grafana Alloy를 포함합니다. Grafana가 파일을 직접 읽지는 않고, Grafana Alloy가 `app_logs` volume의 파일 로그를 tailing해서 Loki로 전송하면 Grafana가 Loki datasource로 조회합니다.
 
@@ -454,7 +458,7 @@ JSON access log 조회 예시:
 {service="cs-api", log_type="access"} | json | durationMs > 1000
 ```
 
-## Not In Scope
+## 범위 외 사항 (제외)
 
 이번 단계에서 하지 않는 것:
 
@@ -465,7 +469,7 @@ JSON access log 조회 예시:
 - 인증/세션/토큰 관련 body 저장
 - 외부 로그 플랫폼 연동
 
-## Implementation Plan
+## 구체적 구현 계획
 
 1. `docs/logging-observability-policy.md`를 현재 결정 기준으로 정리
 2. `docker-compose.yml`에서 `webhook_logs`를 `app_logs`로 변경
@@ -483,7 +487,7 @@ JSON access log 조회 예시:
 14. Grafana Loki datasource provisioning 추가
 15. build와 compose config 검증
 
-## Expected Changed Files
+## 변경 대상 파일 목록
 
 ```text
 docs/logging-observability-policy.md
@@ -499,7 +503,7 @@ infra/grafana/provisioning/datasources/loki.yml
 .env.example
 ```
 
-## Verification
+## 검증 및 기동 방법
 
 ```bash
 gradle clean build

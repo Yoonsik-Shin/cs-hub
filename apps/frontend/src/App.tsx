@@ -9,7 +9,7 @@ import { CreateTicketModal } from './components/CreateTicketModal';
 import { inquiryApi } from './api/inquiryApi';
 import type { BatchUpdateInquiryStatusTarget, OperatorInfo } from './api/inquiryApi';
 import type { CustomFilterEntity, CustomerInquiry, InquiryStatus } from './types/inquiry';
-import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark, X, ListChecks, Shield, Info, LogOut, FileText, Database, Activity } from 'lucide-react';
+import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark, X, ListChecks, Shield, Info, LogOut, FileText, Database, Activity, BookOpen } from 'lucide-react';
 import { NaverLoginRenewPage } from './components/NaverLoginRenewPage';
 import { InquiryDetailPanel } from './components/InquiryDetailPanel';
 import { AccountManagementModal } from './components/AccountManagementModal';
@@ -1384,6 +1384,23 @@ export const App: React.FC = () => {
               >
                 <FileText size={14} />
                 API 문서 (Swagger)
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await inquiryApi.issueAdminAccess();
+                    setIsOperatorMenuOpen(false);
+                    window.open('/wiki/', '_blank', 'noopener,noreferrer');
+                  } catch (err) {
+                    console.error('Failed to open wiki:', err);
+                    alert('개발팀 위키 접근 권한을 확인하지 못했습니다. 관리자 계정으로 다시 로그인한 뒤 시도해주세요.');
+                  }
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(6, 182, 212, 0.28)', background: 'rgba(6, 182, 212, 0.12)', color: '#cffafe', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}
+              >
+                <BookOpen size={14} />
+                개발팀 위키 (Docusaurus)
               </button>
               <button
                 type="button"
