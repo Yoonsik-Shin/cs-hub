@@ -2,6 +2,7 @@ package com.ttam.cs.feature.inquiry.domain.vo;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record EmailMetadata(
@@ -11,11 +12,16 @@ public record EmailMetadata(
     String date,
     Headers headers,
     Attributes attributes,
-    String articleUrl
+    String articleUrl,
+    Map<String, Object> customFields
 ) implements ChannelMetadata {
 
     public EmailMetadata(String from, String to, String subject, String date, Headers headers, Attributes attributes) {
-        this(from, to, subject, date, headers, attributes, null);
+        this(from, to, subject, date, headers, attributes, null, null);
+    }
+
+    public EmailMetadata(String from, String to, String subject, String date, Headers headers, Attributes attributes, String articleUrl) {
+        this(from, to, subject, date, headers, attributes, articleUrl, null);
     }
 
 
@@ -28,6 +34,11 @@ public record EmailMetadata(
             return "uid_" + attributes.uid();
         }
         return null;
+    }
+
+    @Override
+    public EmailMetadata withCustomFields(Map<String, Object> customFields) {
+        return new EmailMetadata(from, to, subject, date, headers, attributes, articleUrl, customFields);
     }
 
     public String getMessageId() {

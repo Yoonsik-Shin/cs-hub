@@ -23,4 +23,8 @@ public interface ChannelMetadata {
 
     @JsonIgnore
     String getUniqueKey();
+
+    Map<String, Object> customFields();
+
+    ChannelMetadata withCustomFields(Map<String, Object> customFields);
 }

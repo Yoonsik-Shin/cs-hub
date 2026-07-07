@@ -14,6 +14,7 @@ public record UpdateInquiryFieldsRequest(
     DeviceInfo deviceInfo,
     String content,
     List<String> imageUrls,
+    Map<String, Object> customFields,
     Map<String, String> reasons
 ) {}
 

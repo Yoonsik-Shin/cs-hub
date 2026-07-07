@@ -278,11 +278,13 @@ export const inquiryApi = {
       } | null;
       content?: string;
       imageUrls?: string[];
+      customFields?: Record<string, unknown>;
       reasons: {
         channel?: string;
         userCode?: string;
         deviceInfo?: string;
         content?: string;
+        customFields?: string;
       };
     },
   ): Promise<void> {

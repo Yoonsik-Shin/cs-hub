@@ -52,7 +52,7 @@ class RefreshInquiryUseCaseTest {
         UUID inquiryId = UUID.randomUUID();
         NaverCafeMetadata.WriterInfo writer = new NaverCafeMetadata.WriterInfo("writerId", "writerNick");
         NaverCafeMetadata.MetricsInfo metrics = new NaverCafeMetadata.MetricsInfo(10, 2, 1);
-        NaverCafeMetadata metadata = new NaverCafeMetadata(28580947L, 1001L, null, "http://cafe...", writer, metrics, null, List.of());
+        NaverCafeMetadata metadata = new NaverCafeMetadata(28580947L, 1001L, null, "http://cafe...", writer, metrics, null, List.of(), null);
 
         CustomerInquiry inquiry = CustomerInquiry.reconstitute(
                 inquiryId,

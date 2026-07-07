@@ -64,7 +64,8 @@ public class IntegrateInquiryDataUseCase {
                                 emailMeta.date(),
                                 emailMeta.headers(),
                                 emailMeta.attributes(),
-                                webmailUrl
+                                webmailUrl,
+                                emailMeta.customFields()
                         );
                     }
 

@@ -3,6 +3,7 @@ package com.ttam.cs.feature.inquiry.domain.vo;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record NaverCafeMetadata(
@@ -13,12 +14,18 @@ public record NaverCafeMetadata(
     WriterInfo writer,
     MetricsInfo metrics,
     List<String> imageUrls,
-    List<CommentInfo> comments
+    List<CommentInfo> comments,
+    Map<String, Object> customFields
 ) implements ChannelMetadata {
 
     @Override
     public String getUniqueKey() {
         return cafeId + "_" + articleId;
+    }
+
+    @Override
+    public NaverCafeMetadata withCustomFields(Map<String, Object> customFields) {
+        return new NaverCafeMetadata(cafeId, articleId, menu, articleUrl, writer, metrics, imageUrls, comments, customFields);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

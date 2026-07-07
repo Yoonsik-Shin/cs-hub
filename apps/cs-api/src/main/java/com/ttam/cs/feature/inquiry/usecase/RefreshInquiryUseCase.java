@@ -150,7 +150,8 @@ public class RefreshInquiryUseCase {
                 parentMeta.writer(),
                 newMetrics,
                 parentMeta.imageUrls(),
-                parsedComments
+                parsedComments,
+                parentMeta.customFields()
         );
 
         inquiry.updateContent(cleanedContent);

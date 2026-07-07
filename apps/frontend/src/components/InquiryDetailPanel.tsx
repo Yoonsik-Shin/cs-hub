@@ -82,7 +82,13 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         userCode?: string;
         deviceInfo?: string;
         content?: string;
+        customFields?: string;
     }>({});
+
+    // Custom fields (channel metadata dynamic attributes) editing state
+    const [editCustomFields, setEditCustomFields] = useState<{ key: string; value: string }[]>([]);
+    const [newCustomFieldKey, setNewCustomFieldKey] = useState('');
+    const [newCustomFieldValue, setNewCustomFieldValue] = useState('');
 
     // Image editing state
     const [editImageUrls, setEditImageUrls] = useState<string[]>([]);
@@ -487,7 +493,32 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         setEditError(null);
         setEditImageUrls(inquiry.imageUrls || []);
         setNewImageFiles([]);
+        const customFields = inquiry.channelMetadata?.customFields || {};
+        setEditCustomFields(Object.entries(customFields).map(([key, value]) => ({ key, value: String(value) })));
+        setNewCustomFieldKey('');
+        setNewCustomFieldValue('');
         setIsEditing(true);
+    };
+
+    const handleAddCustomField = () => {
+        const key = newCustomFieldKey.trim();
+        const value = newCustomFieldValue.trim();
+        if (!key || !value) {
+            setEditError('속성명과 속성값을 모두 입력해 주세요.');
+            return;
+        }
+        if (editCustomFields.some(f => f.key.toLowerCase() === key.toLowerCase())) {
+            setEditError('이미 존재하는 속성명입니다.');
+            return;
+        }
+        setEditCustomFields(prev => [...prev, { key, value }]);
+        setNewCustomFieldKey('');
+        setNewCustomFieldValue('');
+        setEditError(null);
+    };
+
+    const handleRemoveCustomField = (key: string) => {
+        setEditCustomFields(prev => prev.filter(f => f.key !== key));
     };
 
     const handleToggleBookmark = () => {
@@ -623,6 +654,21 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             hasChanges = true;
         }
 
+        // Check customFields changes
+        const originalCustomFields = inquiry.channelMetadata?.customFields || {};
+        const newCustomFieldsObj: Record<string, string> = {};
+        editCustomFields.forEach(f => { newCustomFieldsObj[f.key] = f.value; });
+        const customFieldsChanged = JSON.stringify(originalCustomFields) !== JSON.stringify(newCustomFieldsObj);
+        if (customFieldsChanged) {
+            if (!reasons.customFields || !reasons.customFields.trim()) {
+                setEditError('임의 속성 수정 사유를 입력해주세요.');
+                return;
+            }
+            changes.customFields = newCustomFieldsObj;
+            reqReasons.customFields = reasons.customFields.trim();
+            hasChanges = true;
+        }
+
         // Check imageUrls changes
         const originalUrls = inquiry.imageUrls || [];
         const removedUrls = originalUrls.filter(u => !editImageUrls.includes(u));
@@ -672,7 +718,10 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         appVersion: editAppVersion.trim() || undefined,
                         model: editModel.trim() || undefined,
                         osVersion: editOsVersion.trim() || undefined
-                    } : inquiry.deviceInfo
+                    } : inquiry.deviceInfo,
+                    channelMetadata: customFieldsChanged
+                        ? { ...(inquiry.channelMetadata || {}), customFields: newCustomFieldsObj }
+                        : inquiry.channelMetadata
                 });
             }
 
@@ -857,25 +906,69 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             } else if (isPhone) {
                 if (meta.phoneNumber) metadataRows.push(<tr key="phoneNumber"><th>전화번호</th><td style={{ wordBreak: 'break-all' }}>{meta.phoneNumber}</td></tr>);
                 if (meta.memo) metadataRows.push(<tr key="memo"><th>상담 메모</th><td style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{meta.memo}</td></tr>);
-                if (meta.customFields && typeof meta.customFields === 'object') {
-                    Object.entries(meta.customFields).forEach(([key, val]) => {
-                        metadataRows.push(
-                            <tr key={`custom_${key}`}>
-                                <th>{key}</th>
-                                <td style={{ wordBreak: 'break-all' }}>{String(val)}</td>
-                            </tr>
-                        );
-                    });
-                }
             } else {
                 Object.entries(meta).forEach(([key, val]) => {
-                    if (key === 'metadataType' || key === 'imageUrls' || key === 'articleUrl') return;
+                    if (key === 'metadataType' || key === 'imageUrls' || key === 'articleUrl' || key === 'customFields') return;
                     metadataRows.push(
                         <tr key={key}>
                             <th style={{ textTransform: 'capitalize' }}>{key}</th>
                             <td style={{ wordBreak: 'break-all' }}>
                                 {typeof val === 'object' ? JSON.stringify(val) : String(val)}
                             </td>
+                        </tr>
+                    );
+                });
+            }
+
+            // Dynamic custom fields row: supported by every channel's metadata
+            if (isEditing) {
+                const hasCustomFieldsChanged = reasons.customFields !== undefined || (() => {
+                    const original = meta.customFields || {};
+                    const current: Record<string, string> = {};
+                    editCustomFields.forEach(f => { current[f.key] = f.value; });
+                    return JSON.stringify(original) !== JSON.stringify(current);
+                })();
+
+                metadataRows.push(
+                    <tr key="customFields-edit">
+                        <th>임의 속성</th>
+                        <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {editCustomFields.map(field => (
+                                    <div key={field.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-secondary, #f8fafc)', padding: '4px 8px', borderRadius: '6px', gap: '8px' }}>
+                                        <span style={{ fontSize: '11px', fontWeight: 700 }}>{field.key}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                            <span style={{ fontSize: '11.5px', wordBreak: 'break-all' }}>{field.value}</span>
+                                            <button type="button" onClick={() => handleRemoveCustomField(field.key)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>×</button>
+                                        </div>
+                                    </div>
+                                ))}
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                    <input type="text" placeholder="속성명" value={newCustomFieldKey} onChange={(e) => setNewCustomFieldKey(e.target.value)} className="text-input" style={{ flex: 1, fontSize: '11px', padding: '4px 8px', height: '26px' }} />
+                                    <input type="text" placeholder="속성값" value={newCustomFieldValue} onChange={(e) => setNewCustomFieldValue(e.target.value)} className="text-input" style={{ flex: 1, fontSize: '11px', padding: '4px 8px', height: '26px' }} />
+                                    <button type="button" onClick={handleAddCustomField} className="btn-secondary" style={{ fontSize: '11px', padding: '4px 10px', height: '26px' }}>추가</button>
+                                </div>
+                                {hasCustomFieldsChanged && (
+                                    <input
+                                        type="text"
+                                        className="text-input"
+                                        placeholder="임의 속성 수정 사유 (필수)"
+                                        value={reasons.customFields || ''}
+                                        onChange={(e) => setReasons({ ...reasons, customFields: e.target.value })}
+                                        style={{ fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '4px 8px', height: '24px' }}
+                                        required
+                                    />
+                                )}
+                            </div>
+                        </td>
+                    </tr>
+                );
+            } else if (meta.customFields && typeof meta.customFields === 'object') {
+                Object.entries(meta.customFields).forEach(([key, val]) => {
+                    metadataRows.push(
+                        <tr key={`custom_${key}`}>
+                            <th>{key}</th>
+                            <td style={{ wordBreak: 'break-all' }}>{String(val)}</td>
                         </tr>
                     );
                 });

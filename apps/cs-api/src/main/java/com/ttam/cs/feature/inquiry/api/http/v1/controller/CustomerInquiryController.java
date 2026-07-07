@@ -174,7 +174,8 @@ public class CustomerInquiryController {
                 request.userCode() != null ||
                 request.deviceInfo() != null ||
                 request.content() != null ||
-                request.imageUrls() != null) {
+                request.imageUrls() != null ||
+                request.customFields() != null) {
 
             UpdateInquiryFieldsRequest fieldsRequest = new UpdateInquiryFieldsRequest(
                     request.operatorInfo(),
@@ -183,6 +184,7 @@ public class CustomerInquiryController {
                     request.deviceInfo(),
                     request.content(),
                     request.imageUrls(),
+                    request.customFields(),
                     request.reasons());
             String ipAddress = getClientIp(servletRequest);
             updateInquiryFieldsUseCase.execute(id, fieldsRequest, ipAddress);

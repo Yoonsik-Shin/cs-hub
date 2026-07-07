@@ -1,5 +1,6 @@
 package com.ttam.cs.feature.inquiry.usecase;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.UpdateInquiryFieldsRequest;
 import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
 import com.ttam.cs.feature.inquiry.domain.vo.FieldModification;
@@ -25,6 +26,7 @@ public class UpdateInquiryFieldsUseCase {
     private final CustomerInquiryRepository repository;
     private final InquiryWorkLogRepository workLogRepository;
     private final StorageService storageService;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public void execute(UUID inquiryId, UpdateInquiryFieldsRequest request, String ipAddress) {
@@ -97,6 +99,23 @@ public class UpdateInquiryFieldsUseCase {
             }
         }
 
+        if (request.customFields() != null) {
+            if (inquiry.getChannelMetadata() == null) {
+                throw new IllegalArgumentException("접수 정보(channelMetadata)가 없는 문의는 임의 속성을 추가할 수 없습니다.");
+            }
+            Map<String, Object> currentCustomFields = inquiry.getChannelMetadata().customFields() != null
+                    ? inquiry.getChannelMetadata().customFields()
+                    : Map.of();
+            if (!currentCustomFields.equals(request.customFields())) {
+                String reason = requireReason(reasons, "customFields", "customFields 수정 사유를 입력해주세요.");
+                modifications.add(new FieldModification("customFields",
+                        writeAsJson(currentCustomFields),
+                        writeAsJson(request.customFields()),
+                        reason));
+                inquiry.updateChannelMetadata(inquiry.getChannelMetadata().withCustomFields(request.customFields()));
+            }
+        }
+
         if (modifications.isEmpty()) {
             return;
         }
@@ -118,5 +137,13 @@ public class UpdateInquiryFieldsUseCase {
             throw new IllegalArgumentException(message);
         }
         return reason.trim();
+    }
+
+    private String writeAsJson(Map<String, Object> value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            return String.valueOf(value);
+        }
     }
 }

@@ -40,6 +40,7 @@ export interface ChannelMetadata {
   title?: string;
   author?: string;
   imageUrls?: string[];
+  customFields?: Record<string, any>;
   [key: string]: any;
 }
 

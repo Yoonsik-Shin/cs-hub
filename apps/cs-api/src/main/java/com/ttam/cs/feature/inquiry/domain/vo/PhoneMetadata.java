@@ -14,4 +14,9 @@ public record PhoneMetadata(
     public String getUniqueKey() {
         return null;
     }
+
+    @Override
+    public PhoneMetadata withCustomFields(Map<String, Object> customFields) {
+        return new PhoneMetadata(phoneNumber, memo, customFields);
+    }
 }
