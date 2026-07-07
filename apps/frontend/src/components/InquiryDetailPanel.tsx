@@ -15,9 +15,10 @@ interface InquiryDetailPanelProps {
     onUpdateInquiry?: (id: string, updatedFields: Partial<CustomerInquiry>) => void;
     isBookmarked?: boolean;
     onToggleBookmark?: (id: string) => Promise<void> | void;
+    onRequireNaverSessionRenew?: () => void;
 }
 
-export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry, operator, onUpdateInquiry, isBookmarked = false, onToggleBookmark }) => {
+export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry, operator, onUpdateInquiry, isBookmarked = false, onToggleBookmark, onRequireNaverSessionRenew }) => {
     const [workLogs, setWorkLogs] = useState<InquiryWorkLog[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [logError, setLogError] = useState<string | null>(null);
@@ -42,6 +43,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [statusChanging, setStatusChanging] = useState(false);
     const [isEditingAnswer, setIsEditingAnswer] = useState(false);
     const [bookmarkChanging, setBookmarkChanging] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     // Scroll ref for timeline
     const timelineEndRef = useRef<HTMLDivElement>(null);
@@ -306,6 +308,39 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             setLoadingReplies(false);
         }
     }, [inquiry.id]);
+
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        try {
+            const updated = await inquiryApi.refreshInquiry(inquiry.id);
+            if (onUpdateInquiry) {
+                onUpdateInquiry(inquiry.id, updated);
+            }
+            await fetchReplies();
+            await fetchWorkLogs();
+        } catch (e: any) {
+            console.error('Failed to refresh inquiry:', e);
+            const errStr = String(e.message || e);
+            if (
+                errStr.includes('410') ||
+                errStr.includes('401') ||
+                errStr.includes('GONE') ||
+                errStr.includes('Unauthorized') ||
+                errStr.includes('Session has expired') ||
+                errStr.includes('로그인하지 않았습니다')
+            ) {
+                if (onRequireNaverSessionRenew) {
+                    onRequireNaverSessionRenew();
+                } else {
+                    alert('네이버 세션이 만료되었습니다. 상단 메뉴나 로그인 페이지에서 세션을 갱신해 주세요.');
+                }
+            } else {
+                alert('데이터 갱신에 실패했습니다: ' + errStr);
+            }
+        } finally {
+            setRefreshing(false);
+        }
+    }, [inquiry.id, onUpdateInquiry, fetchReplies, fetchWorkLogs, onRequireNaverSessionRenew]);
 
     useEffect(() => {
         fetchWorkLogs();
@@ -983,25 +1018,59 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         currentStatus: 'OPEN'
     });
 
-    const replyTimelineItems = replies.map(reply => {
-        const fromEmail = (reply.channelMetadata as any)?.from || '';
-        const isOperatorReply = fromEmail.includes('runday@ttam.ai');
+    const isParentNaverCafe = inquiry.channel.toUpperCase() === 'NAVER_CAFE';
+    const commentsList = (isParentNaverCafe && (inquiry.channelMetadata as any)?.comments) || [];
+
+    const parsedCommentsTimelineItems = commentsList.map((comment: any) => {
+        const isOperatorReply = comment.isOperator === true;
+        const writerNick = comment.writer?.nickname || '네이버 카페 유저';
         return {
-            id: reply.id,
+            id: `comment_${comment.commentId}`,
             actionType: isOperatorReply ? 'ANSWER_SUBMITTED' : 'CUSTOMER_REPLY',
-            createdAt: reply.timestamp,
+            createdAt: comment.writeDate,
             operatorInfo: {
                 id: isOperatorReply ? 'operator' : 'customer',
-                nickname: isOperatorReply ? 'CS 매니저' : (reply.userCode || '고객(익명)'),
-                email: fromEmail
+                nickname: isOperatorReply
+                    ? `CS 매니저 (${writerNick})`
+                    : writerNick,
+                email: ''
             },
-            memo: isOperatorReply ? '' : reply.content,
-            answer: isOperatorReply ? reply.content : '',
+            memo: isOperatorReply ? '' : comment.content,
+            answer: isOperatorReply ? comment.content : '',
             previousStatus: null,
             currentStatus: null,
-            imageUrls: reply.imageUrls
+            imageUrls: []
         };
     });
+
+    const replyTimelineItems = [
+        ...replies.map(reply => {
+            const fromEmail = (reply.channelMetadata as any)?.from || '';
+            const isNaverCafe = reply.channel.toUpperCase() === 'NAVER_CAFE';
+            const isOperatorReply = isNaverCafe
+                ? (reply.channelMetadata as any)?.isOperator === true
+                : fromEmail.includes('runday@ttam.ai');
+
+            return {
+                id: reply.id,
+                actionType: isOperatorReply ? 'ANSWER_SUBMITTED' : 'CUSTOMER_REPLY',
+                createdAt: reply.timestamp,
+                operatorInfo: {
+                    id: isOperatorReply ? 'operator' : 'customer',
+                    nickname: isOperatorReply
+                        ? (isNaverCafe ? `CS 매니저 (${reply.userCode || '네이버 카페'})` : 'CS 매니저')
+                        : (reply.userCode || '고객(익명)'),
+                    email: fromEmail
+                },
+                memo: isOperatorReply ? '' : reply.content,
+                answer: isOperatorReply ? reply.content : '',
+                previousStatus: null,
+                currentStatus: null,
+                imageUrls: reply.imageUrls
+            };
+        }),
+        ...parsedCommentsTimelineItems
+    ];
 
     // 2. Interleave workLogs and replies chronologically
     const middleItems = [
@@ -1347,7 +1416,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             <div className="detail-box" style={{ background: 'transparent', border: 'none', padding: 0, overflow: 'visible' }}>
                 {renderChannelMetadata(inquiry.channelMetadata)}
                 {inquiry.channelMetadata && inquiry.channelMetadata.articleUrl && (
-                    <div style={{ marginTop: '12px' }}>
+                    <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center' }}>
                         <a
                             href={inquiry.channelMetadata.articleUrl}
                             target="_blank"
@@ -1357,6 +1426,30 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         >
                             {inquiry.channel.toUpperCase() === 'EMAIL' ? '이메일 바로가기 (새 창)' : '원문 게시글 바로가기 (새 창)'}
                         </a>
+                        {inquiry.channel.toUpperCase() === 'NAVER_CAFE' && (
+                            <button
+                                onClick={handleRefresh}
+                                disabled={refreshing}
+                                className="btn-secondary"
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '6px 12px',
+                                    fontSize: '12px',
+                                    borderRadius: '8px',
+                                    marginLeft: '8px',
+                                    cursor: refreshing ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                {refreshing ? (
+                                    <Loader2 size={12} className="animate-spin" />
+                                ) : (
+                                    <RefreshCw size={12} />
+                                )}
+                                데이터 갱신
+                            </button>
+                        )}
                     </div>
                 )}
             </div>

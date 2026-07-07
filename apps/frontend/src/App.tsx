@@ -625,22 +625,107 @@ export const App: React.FC = () => {
     refreshingRef.current = isRefreshing;
   }, [loading, isRefreshing]);
 
+  // Refs for tracking page and cache to prevent timer hook re-initialization
+  const currentPageRef = useRef(currentPage);
+  const pageCacheRef = useRef(pageCache);
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+    pageCacheRef.current = pageCache;
+  }, [currentPage, pageCache]);
+
   // Unified refresh handler
   const handleRefresh = useCallback(async (silent: boolean = false) => {
     if (loadingRef.current || refreshingRef.current) return;
     setIsRefreshing(true);
     try {
-      await Promise.all([
+      const promises: Promise<any>[] = [
         fetchStats(),
         fetchNaverSessionStatus(),
-        fetchPage(null, true, silent)
+      ];
+
+      const refreshPages = async () => {
+        if (!silent) {
+          setLoading(true);
+        }
+        setError(null);
+        try {
+          let currentCursor: string | null = null;
+          let targetPage = currentPageRef.current;
+
+          // 2페이지 이상인 경우 이전 페이지의 마지막 커서 획득 시도
+          if (targetPage > 1) {
+            const prevPageCache = pageCacheRef.current[targetPage - 1];
+            if (prevPageCache) {
+              currentCursor = prevPageCache.nextCursor;
+            } else {
+              // 이전 페이지의 캐시가 없다면 안전하게 1페이지로 대체
+              targetPage = 1;
+            }
+          }
+
+          const searchParams = buildCurrentSearchParams(currentCursor);
+          const res = await inquiryApi.searchInquiries({
+            ...searchParams,
+            size: 20,
+          });
+
+          // 캐시의 해당 페이지 정보 업데이트
+          setPageCache((prev) => ({
+            ...prev,
+            [targetPage]: {
+              inquiries: res.content,
+              nextCursor: res.nextCursor,
+              hasNext: res.hasNext
+            }
+          }));
+
+          // 현재 페이지 설정
+          setCurrentPage(targetPage);
+
+          // 현재 리스트에 보여줄 상태들 업데이트
+          setInquiries(res.content);
+          setHasNext(res.hasNext);
+          setNextCursor(res.nextCursor);
+
+          // 현재 페이지에서 사라진 아이템은 selectedInquiryIds에서 제거 (유효한 선택 유지)
+          setSelectedInquiryIds((prev) => {
+            const next = new Set<string>();
+            const newContentIds = new Set(res.content.map(inq => inq.id));
+            prev.forEach((id) => {
+              if (newContentIds.has(id)) {
+                next.add(id);
+              }
+            });
+            return next;
+          });
+
+          // 필터 조건에 매칭되는 전체 건수 갱신
+          const countRes = await inquiryApi.countInquiries({
+            ...buildCurrentSearchParams(null),
+            limit: MAX_FILTER_BATCH_COUNT
+          });
+          setTotalListCount(countRes.count);
+          setTotalListHasMore(countRes.hasMore);
+        } catch (err) {
+          console.error(err);
+          setError('데이터를 새로고침하는 중 문제가 발생했습니다.');
+        } finally {
+          if (!silent) {
+            setLoading(false);
+          }
+        }
+      };
+
+      await Promise.all([
+        ...promises,
+        refreshPages()
       ]);
     } catch (err) {
       console.error('Refresh error:', err);
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchStats, fetchNaverSessionStatus, fetchPage]);
+  }, [fetchStats, fetchNaverSessionStatus, buildCurrentSearchParams]);
 
   // Auto-refresh timer hook
   useEffect(() => {
@@ -2144,6 +2229,7 @@ export const App: React.FC = () => {
             onUpdateInquiry={handleUpdateInquiry}
             isBookmarked={bookmarkedIds.has(selectedInquiry.id)}
             onToggleBookmark={handleToggleBookmark}
+            onRequireNaverSessionRenew={() => setIsNaverRenewModalOpen(true)}
           />
         ) : (
           <div
@@ -2320,7 +2406,10 @@ export const App: React.FC = () => {
       {isNaverRenewModalOpen && createPortal(
         <NaverLoginRenewPage
           isModal
-          onClose={() => setIsNaverRenewModalOpen(false)}
+          onClose={() => {
+            setIsNaverRenewModalOpen(false);
+            fetchNaverSessionStatus();
+          }}
         />,
         document.body
       )}

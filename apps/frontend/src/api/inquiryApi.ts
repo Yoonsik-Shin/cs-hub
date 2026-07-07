@@ -512,6 +512,24 @@ export const inquiryApi = {
 
     return response.json();
   },
+
+  async refreshInquiry(id: string): Promise<CustomerInquiry> {
+    const response = await fetch(`/api/v1/inquiries/${id}?refresh=true`, {
+      method: "PATCH",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(
+        `Failed to refresh inquiry: ${response.status} ${errorMsg}`,
+      );
+    }
+
+    return response.json();
+  },
   /**
    * Nginx Basic Auth로 인증된 현재 관리자 계정 정보를 조회합니다.
    * Nginx가 proxy_set_header X-Remote-User $remote_user 를 통해 전달한 값을
