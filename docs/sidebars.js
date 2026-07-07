@@ -12,7 +12,9 @@ function cleanSidebarLinks(items) {
   if (!Array.isArray(items)) return;
   for (const item of items) {
     if (item.type === 'category') {
-      delete item.link; // generated-index 링크 삭제하여 폴더 접기/펼치기로만 동작하게 변경
+      if (item.link && item.link.type === 'generated-index') {
+        delete item.link;
+      }
       if (item.items) {
         cleanSidebarLinks(item.items);
       }
