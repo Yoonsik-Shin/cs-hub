@@ -959,21 +959,25 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         currentStatus: 'OPEN'
     });
 
-    const replyTimelineItems = replies.map(reply => ({
-        id: reply.id,
-        actionType: 'CUSTOMER_REPLY',
-        createdAt: reply.timestamp,
-        operatorInfo: {
-            id: 'customer',
-            nickname: reply.userCode || '고객(익명)',
-            email: (reply.channelMetadata as any)?.from || ''
-        },
-        memo: reply.content,
-        answer: '',
-        previousStatus: null,
-        currentStatus: null,
-        imageUrls: reply.imageUrls
-    }));
+    const replyTimelineItems = replies.map(reply => {
+        const fromEmail = (reply.channelMetadata as any)?.from || '';
+        const isOperatorReply = fromEmail.includes('runday@ttam.ai');
+        return {
+            id: reply.id,
+            actionType: isOperatorReply ? 'ANSWER_SUBMITTED' : 'CUSTOMER_REPLY',
+            createdAt: reply.timestamp,
+            operatorInfo: {
+                id: isOperatorReply ? 'operator' : 'customer',
+                nickname: isOperatorReply ? 'CS 매니저' : (reply.userCode || '고객(익명)'),
+                email: fromEmail
+            },
+            memo: isOperatorReply ? '' : reply.content,
+            answer: isOperatorReply ? reply.content : '',
+            previousStatus: null,
+            currentStatus: null,
+            imageUrls: reply.imageUrls
+        };
+    });
 
     // 2. Interleave workLogs and replies chronologically
     const middleItems = [
@@ -1327,7 +1331,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             className="btn-primary"
                             style={{ display: 'inline-flex', padding: '6px 12px', fontSize: '12px', borderRadius: '8px' }}
                         >
-                            원문 게시글 바로가기 (새 창)
+                            {inquiry.channel.toUpperCase() === 'EMAIL' ? '이메일 바로가기 (새 창)' : '원문 게시글 바로가기 (새 창)'}
                         </a>
                     </div>
                 )}
