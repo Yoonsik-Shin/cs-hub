@@ -21,7 +21,6 @@ public class SearchCustomerInquiriesUseCase {
             List<String> channels,
             String userCode,
             List<CustomerInquiry.Status> statuses,
-            String keyword,
             OffsetDateTime start,
             OffsetDateTime end,
             Boolean isManual,
@@ -30,7 +29,7 @@ public class SearchCustomerInquiriesUseCase {
             String operatorId,
             UUID cursor,
             int size) {
-        return repository.searchInquiries(channels, userCode, statuses, keyword, start, end, isManual,
+        return repository.searchInquiries(channels, userCode, statuses, start, end, isManual,
                 bookmarkedOnly, userCodeMissing, operatorId, cursor, size);
     }
 }

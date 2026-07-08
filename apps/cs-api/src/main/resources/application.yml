@@ -44,6 +44,10 @@ s3:
   region: ${S3_REGION:ap-northeast-2}
   external-url: ${S3_EXTERNAL_URL:http://localhost:9000}
 
+pii:
+  migration:
+    enabled: ${PII_MIGRATION_ENABLED:false}
+
 server:
   port: 8080
 

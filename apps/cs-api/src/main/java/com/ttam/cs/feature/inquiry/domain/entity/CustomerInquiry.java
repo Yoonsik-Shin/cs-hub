@@ -3,11 +3,13 @@ package com.ttam.cs.feature.inquiry.domain.entity;
 import jakarta.persistence.Access;
 import jakarta.persistence.AccessType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import com.ttam.cs.infra.security.crypto.EncryptedStringConverter;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -80,8 +82,12 @@ public class CustomerInquiry {
     @Column(name = "status", nullable = false, length = 20)
     private Status status;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "content", nullable = false, columnDefinition = "text")
     private String content;
+
+    @Column(name = "email_sender_hash", length = 64)
+    private String emailSenderHash;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -215,6 +221,10 @@ public class CustomerInquiry {
 
     public void updateParentId(UUID parentId) {
         this.parentId = parentId;
+    }
+
+    public void updateEmailSenderHash(String emailSenderHash) {
+        this.emailSenderHash = emailSenderHash;
     }
 
     public void updateTimestamp(OffsetDateTime updatedAt) {

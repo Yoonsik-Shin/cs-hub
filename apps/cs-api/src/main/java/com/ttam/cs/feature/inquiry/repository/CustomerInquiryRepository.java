@@ -21,10 +21,10 @@ public interface CustomerInquiryRepository extends
 
     @Query(value = "SELECT * FROM customer_inquiries " +
             "WHERE channel = 'EMAIL' " +
-            "AND channel_metadata->>'from' LIKE CONCAT('%', :sender, '%') " +
+            "AND email_sender_hash = :senderHash " +
             "AND timestamp >= :since " +
             "ORDER BY timestamp DESC", nativeQuery = true)
-    List<CustomerInquiry> findEmailCandidatesBySender(@Param("sender") String sender, @Param("since") OffsetDateTime since);
+    List<CustomerInquiry> findEmailCandidatesBySender(@Param("senderHash") String senderHash, @Param("since") OffsetDateTime since);
 
     @Query(value = "SELECT parent_id, COUNT(*) FROM customer_inquiries WHERE parent_id IN :parentIds GROUP BY parent_id", nativeQuery = true)
     List<Object[]> countRepliesByParentIds(@Param("parentIds") List<UUID> parentIds);

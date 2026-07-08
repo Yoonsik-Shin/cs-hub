@@ -12,7 +12,8 @@ final class ErrorCodeHttpStatusMapper {
             case INVALID_INPUT -> HttpStatus.BAD_REQUEST;
             case INQUIRY_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case DECRYPTION_FAILED -> HttpStatus.GONE;
-            case ENCRYPTION_FAILED, HTPASSWD_IO_ERROR, STORAGE_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+            case ENCRYPTION_FAILED, HTPASSWD_IO_ERROR, STORAGE_ERROR,
+                    PII_ENCRYPTION_FAILED, PII_DECRYPTION_FAILED -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
     }
 }

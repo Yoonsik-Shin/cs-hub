@@ -36,7 +36,6 @@ public class BatchUpdateInquiryStatusUseCase {
                 filters.channel(),
                 filters.userCode(),
                 filters.status(),
-                filters.keyword(),
                 filters.start(),
                 filters.end(),
                 filters.isManual(),

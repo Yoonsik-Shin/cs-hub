@@ -8,6 +8,7 @@ import com.ttam.cs.feature.inquiry.domain.vo.EmailMetadata;
 import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
+import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
 import com.ttam.cs.infra.storage.StorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,9 @@ class IntegrateInquiryDataUseCaseTest {
 
     @Mock
     private AdminMemberRepository adminMemberRepository;
+
+    @Mock
+    private PiiEncryptionUtils piiEncryptionUtils;
 
     @InjectMocks
     private IntegrateInquiryDataUseCase useCase;

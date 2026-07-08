@@ -1,7 +1,6 @@
 package com.ttam.cs.feature.inquiry.repository;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQuery;
@@ -10,6 +9,8 @@ import com.ttam.cs.common.dto.CursorPage;
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.entity.QCustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.entity.QInquiryBookmark;
+import com.ttam.cs.infra.security.crypto.PiiAwareObjectMapper;
+import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.StringUtils;
@@ -27,7 +28,8 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
 
     private final JPAQueryFactory queryFactory;
     private final JdbcTemplate jdbcTemplate;
-    private final ObjectMapper objectMapper;
+    private final PiiAwareObjectMapper piiAwareObjectMapper;
+    private final PiiEncryptionUtils piiEncryptionUtils;
 
     // ─── 조회 (QueryDSL) ────────────────────────────────────────────
 
@@ -36,7 +38,6 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             List<String> channels,
             String userCode,
             List<CustomerInquiry.Status> statuses,
-            String contentKeyword,
             OffsetDateTime startDateTime,
             OffsetDateTime endDateTime,
             Boolean isManual,
@@ -60,7 +61,6 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                         channelIn(channels),
                         userCodeFilter(userCode, userCodeMissing),
                         statusIn(statuses),
-                        contentContains(contentKeyword),
                         timestampBetween(startDateTime, endDateTime),
                         isManualEq(isManual),
                         bookmarkedByOperator(bookmarkedOnly, operatorId),
@@ -77,7 +77,6 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             List<String> channels,
             String userCode,
             List<CustomerInquiry.Status> statuses,
-            String contentKeyword,
             OffsetDateTime startDateTime,
             OffsetDateTime endDateTime,
             Boolean isManual,
@@ -102,7 +101,6 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                         channelIn(channels),
                         userCodeFilter(userCode, userCodeMissing),
                         statusIn(statuses),
-                        contentContains(contentKeyword),
                         timestampBetween(startDateTime, endDateTime),
                         isManualEq(isManual),
                         bookmarkedByOperator(bookmarkedOnly, operatorId))
@@ -117,7 +115,6 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             List<String> channels,
             String userCode,
             List<CustomerInquiry.Status> statuses,
-            String contentKeyword,
             OffsetDateTime startDateTime,
             OffsetDateTime endDateTime,
             Boolean isManual,
@@ -141,7 +138,6 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                         channelIn(channels),
                         userCodeFilter(userCode, userCodeMissing),
                         statusIn(statuses),
-                        contentContains(contentKeyword),
                         timestampBetween(startDateTime, endDateTime),
                         isManualEq(isManual),
                         bookmarkedByOperator(bookmarkedOnly, operatorId),
@@ -204,10 +200,6 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
         return statuses == null || statuses.isEmpty() ? null : QCustomerInquiry.customerInquiry.status.in(statuses);
     }
 
-    private BooleanExpression contentContains(String keyword) {
-        return StringUtils.hasText(keyword) ? QCustomerInquiry.customerInquiry.content.contains(keyword) : null;
-    }
-
     private BooleanExpression timestampBetween(OffsetDateTime start, OffsetDateTime end) {
         if (start != null && end != null) {
             return QCustomerInquiry.customerInquiry.timestamp.between(start, end);
@@ -229,7 +221,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
 
         StringBuilder sql = new StringBuilder(
                 "INSERT INTO customer_inquiries " +
-                        "(id, unique_key, parent_id, channel, timestamp, user_code, channel_metadata, device_info, status, content, image_urls, is_manual, created_at, updated_at) "
+                        "(id, unique_key, parent_id, channel, timestamp, user_code, channel_metadata, device_info, status, content, image_urls, is_manual, email_sender_hash, created_at, updated_at) "
                         +
                         "VALUES ");
 
@@ -238,7 +230,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         for (CustomerInquiry inquiry : inquiries) {
-            valuesJoiner.add("(?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, ?, ?)");
+            valuesJoiner.add("(?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?::jsonb, ?, ?, ?, ?)");
 
             params.add(inquiry.getId().toString());
             params.add(inquiry.getUniqueKey().toString());
@@ -249,9 +241,10 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             params.add(toJson(inquiry.getChannelMetadata()));
             params.add(toJson(inquiry.getDeviceInfo()));
             params.add(inquiry.getStatus().name());
-            params.add(inquiry.getContent());
+            params.add(piiEncryptionUtils.encrypt(inquiry.getContent()));
             params.add(toJson(inquiry.getImageUrls()));
             params.add(inquiry.isManual());
+            params.add(inquiry.getEmailSenderHash());
             params.add(Timestamp.from(now.toInstant()));
             params.add(Timestamp.from(now.toInstant()));
         }
@@ -266,7 +259,7 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             return null;
         }
         try {
-            return objectMapper.writeValueAsString(value);
+            return piiAwareObjectMapper.unwrap().writeValueAsString(value);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("Failed to serialize to JSON", e);
         }

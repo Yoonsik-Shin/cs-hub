@@ -352,9 +352,6 @@
           "isManual": {
             "type": "boolean"
           },
-          "keyword": {
-            "type": "string"
-          },
           "start": {
             "format": "date-time",
             "type": "string"
@@ -749,6 +746,12 @@
           },
           "content": {
             "type": "string"
+          },
+          "customFields": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object"
           },
           "deviceInfo": {
             "$ref": "#/components/schemas/DeviceInfo"
@@ -1191,7 +1194,7 @@
     },
     "/api/v1/inquiries": {
       "get": {
-        "description": "채널, 유저 코드, 상태, 검색 키워드, 시작/종료 시간 및 커서를 조합하여 고객 문의 내역 목록을 조회합니다.",
+        "description": "채널, 유저 코드, 상태, 시작/종료 시간 및 커서를 조합하여 고객 문의 내역 목록을 조회합니다.",
         "operationId": "search",
         "parameters": [
           {
@@ -1235,14 +1238,6 @@
                 "type": "string"
               },
               "type": "array"
-            }
-          },
-          {
-            "in": "query",
-            "name": "keyword",
-            "required": false,
-            "schema": {
-              "type": "string"
             }
           },
           {
@@ -1465,14 +1460,6 @@
                 "type": "string"
               },
               "type": "array"
-            }
-          },
-          {
-            "in": "query",
-            "name": "keyword",
-            "required": false,
-            "schema": {
-              "type": "string"
             }
           },
           {

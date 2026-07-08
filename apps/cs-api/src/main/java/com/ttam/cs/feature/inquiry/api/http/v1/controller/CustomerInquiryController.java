@@ -76,7 +76,6 @@ public class CustomerInquiryController {
             @RequestParam(name = "channel", required = false) List<String> channels,
             @RequestParam(name = "userCode", required = false) String userCode,
             @RequestParam(name = "status", required = false) List<CustomerInquiry.Status> statuses,
-            @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime start,
             @RequestParam(name = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
             @RequestParam(name = "isManual", required = false) Boolean isManual,
@@ -88,21 +87,20 @@ public class CustomerInquiryController {
         }
 
         int boundedLimit = Math.max(1, limit);
-        long cappedCount = countCustomerInquiriesUseCase.execute(channels, userCode, statuses, keyword, start, end,
+        long cappedCount = countCustomerInquiriesUseCase.execute(channels, userCode, statuses, start, end,
                 isManual,
                 bookmarkedOnly, userCodeMissing, remoteUser, boundedLimit + 1);
         boolean hasMore = cappedCount > boundedLimit;
         return ResponseEntity.ok(new InquiryCountResponse(Math.min(cappedCount, boundedLimit), hasMore));
     }
 
-    @Operation(summary = "고객 문의 내역 검색 및 조회", description = "채널, 유저 코드, 상태, 검색 키워드, 시작/종료 시간 및 커서를 조합하여 고객 문의 내역 목록을 조회합니다.")
+    @Operation(summary = "고객 문의 내역 검색 및 조회", description = "채널, 유저 코드, 상태, 시작/종료 시간 및 커서를 조합하여 고객 문의 내역 목록을 조회합니다.")
     @GetMapping("")
     public ResponseEntity<SearchCustomerInquiryResponse> search(
             @RequestHeader(value = "X-Remote-User", required = false) String remoteUser,
             @RequestParam(name = "channel", required = false) List<String> channels,
             @RequestParam(name = "userCode", required = false) String userCode,
             @RequestParam(name = "status", required = false) List<CustomerInquiry.Status> statuses,
-            @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime start,
             @RequestParam(name = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
             @RequestParam(name = "isManual", required = false) Boolean isManual,
@@ -115,7 +113,7 @@ public class CustomerInquiryController {
         }
 
         CursorPage<CustomerInquiry> result = searchCustomerInquiriesUseCase.execute(channels,
-                userCode, statuses, keyword, start, end, isManual, bookmarkedOnly, userCodeMissing, remoteUser, cursor,
+                userCode, statuses, start, end, isManual, bookmarkedOnly, userCodeMissing, remoteUser, cursor,
                 size);
 
         String s3UrlPrefix = externalUrl.endsWith("/") ? externalUrl + bucketName : externalUrl + "/" + bucketName;

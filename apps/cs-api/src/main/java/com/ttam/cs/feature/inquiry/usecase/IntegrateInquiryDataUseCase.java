@@ -11,6 +11,8 @@ import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import com.ttam.cs.infra.storage.StorageService;
 import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
+import com.ttam.cs.common.util.EmailAddressUtils;
+import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
 import org.springframework.beans.factory.annotation.Value;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -29,6 +31,7 @@ public class IntegrateInquiryDataUseCase {
     private final InquiryUniqueKeyGenerator uniqueKeyGenerator;
     private final StorageService storageService;
     private final AdminMemberRepository adminMemberRepository;
+    private final PiiEncryptionUtils piiEncryptionUtils;
 
     @Value("${cs.email.webmail-url:https://company.daouoffice.com/app/mail}")
     private String webmailUrl;
@@ -38,7 +41,7 @@ public class IntegrateInquiryDataUseCase {
         List<CustomerInquiry> inquiries = items.stream()
                 .filter(item -> {
                     if ("EMAIL".equalsIgnoreCase(channel) && item.channelMetadata() instanceof EmailMetadata emailMeta) {
-                        String fromEmail = extractEmailAddress(emailMeta.from());
+                        String fromEmail = EmailAddressUtils.extractEmailAddress(emailMeta.from());
                         if (fromEmail != null && adminMemberRepository.existsByEmail(fromEmail)) {
                             return false;
                         }
@@ -84,6 +87,10 @@ public class IntegrateInquiryDataUseCase {
                     if (parentId != null) {
                         inquiry.updateParentId(parentId);
                         reopenResolvedParent(parentId);
+                    }
+
+                    if (resolvedMetadata instanceof EmailMetadata emailMeta) {
+                        inquiry.updateEmailSenderHash(computeEmailSenderHash(emailMeta.from()));
                     }
 
                     return inquiry;
@@ -160,10 +167,10 @@ public class IntegrateInquiryDataUseCase {
         String from = emailMeta.from();
         if (subject != null && !subject.isBlank() && from != null && !from.isBlank()) {
             String normalizedSubject = subject.replaceAll("^(?i)(re\\s*:\\s*|re\\s*:\\s*|fw\\s*:\\s*|fwd\\s*:\\s*|회신\\s*:\\s*)+", "").trim();
-            String fromEmail = extractEmailAddress(from);
-            if (fromEmail != null && !fromEmail.isBlank()) {
+            String senderHash = computeEmailSenderHash(from);
+            if (senderHash != null) {
                 OffsetDateTime since = OffsetDateTime.now(ZoneOffset.UTC).minusDays(7);
-                List<CustomerInquiry> candidates = repository.findEmailCandidatesBySender(fromEmail, since);
+                List<CustomerInquiry> candidates = repository.findEmailCandidatesBySender(senderHash, since);
                 for (CustomerInquiry candidate : candidates) {
                     if (candidate.getChannelMetadata() instanceof EmailMetadata candMeta) {
                         String candSubject = candMeta.subject();
@@ -181,14 +188,8 @@ public class IntegrateInquiryDataUseCase {
         return null;
     }
 
-    private String extractEmailAddress(String from) {
-        if (from == null) {
-            return null;
-        }
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("<([^>]+)>").matcher(from);
-        if (matcher.find()) {
-            return matcher.group(1).trim();
-        }
-        return from.trim();
+    private String computeEmailSenderHash(String from) {
+        String normalized = EmailAddressUtils.normalizeForHash(from);
+        return normalized != null ? piiEncryptionUtils.hmacHex(normalized) : null;
     }
 }

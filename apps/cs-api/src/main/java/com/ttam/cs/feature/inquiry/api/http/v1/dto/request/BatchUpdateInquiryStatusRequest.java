@@ -27,7 +27,6 @@ public record BatchUpdateInquiryStatusRequest(
             List<String> channel,
             String userCode,
             List<CustomerInquiry.Status> status,
-            String keyword,
             OffsetDateTime start,
             OffsetDateTime end,
             Boolean isManual,

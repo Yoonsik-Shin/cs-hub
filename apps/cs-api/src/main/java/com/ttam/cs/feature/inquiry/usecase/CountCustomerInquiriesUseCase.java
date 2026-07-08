@@ -19,7 +19,6 @@ public class CountCustomerInquiriesUseCase {
             List<String> channels,
             String userCode,
             List<CustomerInquiry.Status> statuses,
-            String keyword,
             OffsetDateTime start,
             OffsetDateTime end,
             Boolean isManual,
@@ -27,7 +26,7 @@ public class CountCustomerInquiriesUseCase {
             Boolean userCodeMissing,
             String operatorId,
             int limit) {
-        return repository.countInquiries(channels, userCode, statuses, keyword, start, end, isManual,
+        return repository.countInquiries(channels, userCode, statuses, start, end, isManual,
                 bookmarkedOnly, userCodeMissing, operatorId, limit);
     }
 }

@@ -3,6 +3,7 @@ package com.ttam.cs.feature.inquiry.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
+import com.ttam.cs.infra.security.crypto.PiiAwareObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -15,6 +16,7 @@ import org.springframework.core.type.filter.AssignableTypeFilter;
 public class IntegrationJacksonConfig {
 
     private final ObjectMapper objectMapper;
+    private final PiiAwareObjectMapper piiAwareObjectMapper;
 
     @PostConstruct
     public void registerChannelMetadataSubtypes() {
@@ -37,6 +39,7 @@ public class IntegrationJacksonConfig {
                             .replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase();
                     
                     objectMapper.registerSubtypes(new NamedType(clazz, name));
+                    piiAwareObjectMapper.unwrap().registerSubtypes(new NamedType(clazz, name));
                     ChannelMetadata.register(name, (Class<? extends ChannelMetadata>) clazz);
                 });
     }

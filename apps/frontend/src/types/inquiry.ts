@@ -79,7 +79,6 @@ export interface SearchInquiriesParams {
   userCode?: string;
   userCodeMissing?: boolean;
   status?: InquiryStatus | InquiryStatus[];
-  keyword?: string;
   start?: string; // ISO 8601 string
   end?: string;   // ISO 8601 string
   isManual?: boolean;

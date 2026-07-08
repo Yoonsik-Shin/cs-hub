@@ -9,17 +9,17 @@ import java.util.UUID;
 
 public interface CustomerInquiryRepositoryCustom {
     CursorPage<CustomerInquiry> searchInquiries(List<String> channels, String userCode,
-            List<CustomerInquiry.Status> statuses, String contentKeyword,
+            List<CustomerInquiry.Status> statuses,
             OffsetDateTime startDateTime, OffsetDateTime endDateTime,
             Boolean isManual, Boolean bookmarkedOnly, Boolean userCodeMissing, String operatorId, UUID cursor, int size);
 
     long countInquiries(List<String> channels, String userCode,
-            List<CustomerInquiry.Status> statuses, String contentKeyword,
+            List<CustomerInquiry.Status> statuses,
             OffsetDateTime startDateTime, OffsetDateTime endDateTime,
             Boolean isManual, Boolean bookmarkedOnly, Boolean userCodeMissing, String operatorId, int limit);
 
     List<UUID> findInquiryIds(List<String> channels, String userCode,
-            List<CustomerInquiry.Status> statuses, String contentKeyword,
+            List<CustomerInquiry.Status> statuses,
             OffsetDateTime startDateTime, OffsetDateTime endDateTime,
             Boolean isManual, Boolean bookmarkedOnly, Boolean userCodeMissing, String operatorId,
             List<UUID> excludedIds, int limit);
