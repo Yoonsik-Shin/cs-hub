@@ -102,11 +102,9 @@ Docker Compose 내부 사설 브릿지 네트워크 내에 있어도 서비스 �
 
 ```mermaid
 graph LR
-    API[cs-api Backend] -->|HTTP Post 요청| Worker[browser-worker Playwright]
-    Note over API,Worker: X-Internal-Token: {INTERNAL_API_TOKEN}
+    API[cs-api Backend] -->|HTTP POST 요청<br/>X-Internal-Token 사용| Worker[browser-worker Playwright]
     
-    n8n[n8n Workflow] -->|HTTP Webhook 호출| API
-    Note over n8n,API: X-Internal-Token: {INTERNAL_API_TOKEN}
+    n8n[n8n Workflow] -->|HTTP Webhook 호출<br/>X-Internal-Token 사용| API
 ```
 
 * **토큰 정보**: `.env`에 정의된 `${INTERNAL_API_TOKEN}` 환경변수 값을 활용합니다.

@@ -4,23 +4,26 @@ import Mermaid from '@theme-original/Mermaid';
 export default function MermaidWrapper(props) {
   const containerRef = useRef(null);
   const [scale, setScale] = useState(1);
+  const [fitScale, setFitScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [optimalHeight, setOptimalHeight] = useState(250); // Fallback height
   const dragStart = useRef({ x: 0, y: 0 });
+  const hasInitializedScale = useRef(false);
+  const maxZoomScale = Math.max(4, fitScale * 8);
 
   // Reset function
   const handleReset = () => {
-    setScale(1);
+    setScale(fitScale);
     setPosition({ x: 0, y: 0 });
   };
 
   // Zoom In / Out handlers
   const handleZoomIn = () => {
-    setScale(prev => Math.min(prev + 0.15, 3));
+    setScale(prev => Math.min(prev + 0.2, maxZoomScale));
   };
   const handleZoomOut = () => {
-    setScale(prev => Math.max(prev - 0.15, 0.5));
+    setScale(prev => Math.max(prev - 0.2, fitScale));
   };
 
   // Wheel zoom handler
@@ -30,8 +33,179 @@ export default function MermaidWrapper(props) {
     const direction = e.deltaY < 0 ? 1 : -1;
     setScale(prev => {
       const nextScale = prev + direction * zoomFactor;
-      return Math.max(0.5, Math.min(nextScale, 3));
+      return Math.max(fitScale, Math.min(nextScale, maxZoomScale));
     });
+  };
+
+  const handleOpenLargeView = () => {
+    const svg = containerRef.current?.querySelector('svg');
+    if (!svg) return;
+
+    const popup = window.open('', '_blank', 'width=1200,height=900');
+    if (!popup) return;
+    popup.opener = null;
+
+    const clonedSvg = svg.cloneNode(true);
+    const viewBox = clonedSvg.getAttribute('viewBox');
+    const [, , vbWidth = 1200, vbHeight = 800] = viewBox
+      ? viewBox.split(/\s+/).map(Number)
+      : [0, 0, 1200, 800];
+    clonedSvg.setAttribute('width', String(vbWidth));
+    clonedSvg.setAttribute('height', String(vbHeight));
+    clonedSvg.style.width = `${vbWidth}px`;
+    clonedSvg.style.height = `${vbHeight}px`;
+    clonedSvg.style.maxWidth = 'none';
+
+    popup.document.write(`<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mermaid Diagram</title>
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: #f8fafc;
+        overflow: hidden;
+      }
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      .toolbar {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 10;
+        display: flex;
+        gap: 6px;
+        padding: 6px;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+        backdrop-filter: blur(6px);
+      }
+      button {
+        width: 34px;
+        height: 34px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #ffffff;
+        color: #4f46e5;
+        font-size: 17px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #eef2ff;
+      }
+      .viewer {
+        box-sizing: border-box;
+        width: 100vw;
+        height: 100vh;
+        padding: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: grab;
+        user-select: none;
+        overflow: hidden;
+      }
+      .viewer.dragging {
+        cursor: grabbing;
+      }
+      .canvas {
+        transform-origin: center center;
+        will-change: transform;
+      }
+      svg {
+        max-width: none;
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar" aria-label="Mermaid 확대 축소 도구">
+      <button id="zoom-in" title="확대" type="button">+</button>
+      <button id="zoom-out" title="축소" type="button">−</button>
+      <button id="reset" title="화면에 맞춤" type="button">↺</button>
+    </div>
+    <div id="viewer" class="viewer">
+      <div id="canvas" class="canvas">${clonedSvg.outerHTML}</div>
+    </div>
+    <script>
+      const viewer = document.getElementById('viewer');
+      const canvas = document.getElementById('canvas');
+      const sourceWidth = ${JSON.stringify(vbWidth || 1200)};
+      const sourceHeight = ${JSON.stringify(vbHeight || 800)};
+      let fitScale = 1;
+      let scale = 1;
+      let x = 0;
+      let y = 0;
+      let dragging = false;
+      let dragStartX = 0;
+      let dragStartY = 0;
+
+      function calculateFitScale() {
+        const availableWidth = Math.max(window.innerWidth - 48, 320);
+        const availableHeight = Math.max(window.innerHeight - 48, 240);
+        fitScale = Math.min(availableWidth / sourceWidth, availableHeight / sourceHeight, 1.6);
+      }
+
+      function applyTransform() {
+        canvas.style.transform = 'translate(' + x + 'px, ' + y + 'px) scale(' + scale + ')';
+      }
+
+      function resetView() {
+        calculateFitScale();
+        scale = fitScale;
+        x = 0;
+        y = 0;
+        applyTransform();
+      }
+
+      function zoom(delta) {
+        const maxScale = Math.max(5, fitScale * 10);
+        scale = Math.max(fitScale * 0.4, Math.min(scale + delta, maxScale));
+        applyTransform();
+      }
+
+      document.getElementById('zoom-in').addEventListener('click', () => zoom(0.2));
+      document.getElementById('zoom-out').addEventListener('click', () => zoom(-0.2));
+      document.getElementById('reset').addEventListener('click', resetView);
+
+      viewer.addEventListener('wheel', (event) => {
+        event.preventDefault();
+        zoom(event.deltaY < 0 ? 0.12 : -0.12);
+      }, { passive: false });
+
+      viewer.addEventListener('mousedown', (event) => {
+        if (event.button !== 0 || event.target.tagName === 'BUTTON') return;
+        dragging = true;
+        viewer.classList.add('dragging');
+        dragStartX = event.clientX - x;
+        dragStartY = event.clientY - y;
+      });
+
+      window.addEventListener('mousemove', (event) => {
+        if (!dragging) return;
+        x = event.clientX - dragStartX;
+        y = event.clientY - dragStartY;
+        applyTransform();
+      });
+
+      window.addEventListener('mouseup', () => {
+        dragging = false;
+        viewer.classList.remove('dragging');
+      });
+
+      window.addEventListener('resize', resetView);
+      resetView();
+    </script>
+  </body>
+</html>`);
+    popup.document.close();
   };
 
   // Mouse drag handlers for panning
@@ -84,6 +258,7 @@ export default function MermaidWrapper(props) {
 
       const viewBox = svg.getAttribute('viewBox');
       const containerWidth = container.clientWidth || 800;
+      const viewportWidth = Math.max(containerWidth - 24, 240);
 
       if (viewBox) {
         const parts = viewBox.split(/\s+/).map(Number);
@@ -91,13 +266,32 @@ export default function MermaidWrapper(props) {
           const vbWidth = parts[2];
           const vbHeight = parts[3];
 
-          // Calculate height proportional to the content's actual aspect ratio
-          const scaleRatio = Math.min(containerWidth / vbWidth, 1);
-          let calculatedHeight = vbHeight * scaleRatio;
+          if (!vbWidth || !vbHeight) return;
 
-          // Impose reasonable min/max viewport limits
-          calculatedHeight = Math.max(180, Math.min(calculatedHeight, 650));
+          svg.setAttribute('width', String(vbWidth));
+          svg.setAttribute('height', String(vbHeight));
+          svg.style.width = `${vbWidth}px`;
+          svg.style.height = `${vbHeight}px`;
+          svg.style.maxWidth = 'none';
+
+          const maxViewportHeight = 620;
+          const nextFitScale = Math.min(
+            viewportWidth / vbWidth,
+            maxViewportHeight / vbHeight,
+            1.8
+          );
+          const calculatedHeight = Math.max(320, Math.min(vbHeight * nextFitScale + 48, 720));
+
+          setFitScale(nextFitScale);
           setOptimalHeight(calculatedHeight);
+
+          if (!hasInitializedScale.current) {
+            hasInitializedScale.current = true;
+            setScale(nextFitScale);
+            setPosition({ x: 0, y: 0 });
+          } else {
+            setScale(prev => Math.max(prev, nextFitScale));
+          }
         }
       } else {
         const rect = svg.getBoundingClientRect();
@@ -177,10 +371,19 @@ export default function MermaidWrapper(props) {
         >
           🔄
         </button>
+        <button
+          onClick={handleOpenLargeView}
+          style={buttonStyle}
+          title="새 창에서 크게 보기"
+          type="button"
+        >
+          ⛶
+        </button>
       </div>
 
       {/* SVG Container with dynamic height */}
       <div 
+        className="mermaid-zoom-content"
         style={{
           transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
           transformOrigin: 'center center',
