@@ -1,9 +1,11 @@
 # Gradle
 .gradle
 **/build/
+**/bin/
 
 # IDEs
 .idea/
+.claude/
 *.iml
 *.ipr
 *.iws
