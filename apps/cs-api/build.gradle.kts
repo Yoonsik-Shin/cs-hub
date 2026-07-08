@@ -56,6 +56,15 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
+tasks.register<JavaExec>("piiEncryptionMigration") {
+    group = "custom"
+    description = "1회성: 평문으로 남아있는 고객 PII(content/phone/email 등)를 암호화한다. " +
+            "DB_URL, DB_USERNAME, DB_PASSWORD, PII_ENCRYPTION_SECRET 환경변수가 필요하다. " +
+            "cs-api 앱 기동과는 무관하게 독립적으로 실행된다."
+    mainClass.set("com.ttam.cs.infra.security.crypto.PiiEncryptionMigrationTool")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
 graalvmNative {
     binaries {
         named("main") {
