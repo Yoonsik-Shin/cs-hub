@@ -732,11 +732,28 @@ export const App: React.FC = () => {
     if (refreshInterval <= 0) return;
 
     const intervalId = setInterval(() => {
+      if (isBatchSelectionMode) return;
       handleRefresh(true);
     }, refreshInterval * 1000);
 
     return () => clearInterval(intervalId);
-  }, [refreshInterval, handleRefresh]);
+  }, [refreshInterval, handleRefresh, isBatchSelectionMode]);
+
+  const handleManualRefresh = useCallback(() => {
+    if (isBatchSelectionMode && selectedInquiryIds.size > 0) {
+      const shouldRefresh = window.confirm(
+        '일괄 처리 중 새로고침하면 선택 항목이 초기화됩니다. 계속 새로고침할까요?'
+      );
+      if (!shouldRefresh) return;
+
+      setSelectedInquiryIds(new Set());
+      setBatchSelectionScope('PAGE');
+      setBatchNotice(null);
+      setIsBatchSelectionMode(false);
+    }
+
+    handleRefresh(false);
+  }, [handleRefresh, isBatchSelectionMode, selectedInquiryIds.size]);
 
   const loadMoreBatchInquiries = useCallback(async () => {
     if (loading || loadingMore || !hasNext || !nextCursor) return;
@@ -953,7 +970,13 @@ export const App: React.FC = () => {
   const handleExecuteBatchStatusUpdate = async () => {
     const selectedBatchCount = selectedInquiryIds.size;
     if (selectedBatchCount === 0 || !batchModal.targetStatus) return;
-    if (!batchModal.reason || batchModal.reason.trim().length < 5) return;
+    if (!batchModal.reason || batchModal.reason.trim().length < 5) {
+      setBatchModal((prev) => ({
+        ...prev,
+        error: '상태 변경 사유를 최소 5자 이상 입력해주세요.'
+      }));
+      return;
+    }
 
     setBatchModal((prev) => ({ ...prev, isSubmitting: true, error: null }));
     try {
@@ -1921,9 +1944,9 @@ export const App: React.FC = () => {
                 <div className="auto-refresh-container">
                   <button
                     type="button"
-                    onClick={() => handleRefresh(false)}
+                    onClick={handleManualRefresh}
                     className="auto-refresh-btn action-tooltip"
-                    data-tooltip="즉시 새로고침"
+                    data-tooltip={isBatchSelectionMode && selectedBatchCount > 0 ? '선택 항목 초기화 후 새로고침' : '즉시 새로고침'}
                     disabled={loading || isRefreshing}
                   >
                     <RefreshCw size={12} className={isRefreshing ? 'spin' : ''} />
@@ -2036,6 +2059,12 @@ export const App: React.FC = () => {
                   {batchNotice && (
                     <div className={`batch-notice-message${batchSelectionScope === 'FILTER' ? ' active' : ''}`}>
                       {batchNotice}
+                    </div>
+                  )}
+
+                  {refreshInterval > 0 && (
+                    <div className="batch-notice-message active">
+                      일괄 처리 중에는 선택 항목 보호를 위해 자동 새로고침이 일시 중지됩니다.
                     </div>
                   )}
                 </div>
@@ -2336,7 +2365,9 @@ export const App: React.FC = () => {
                 className="form-textarea"
                 placeholder="일괄 상태를 변경하는 사유를 5자 이상 입력해주세요..."
                 value={batchModal.reason || ''}
-                onChange={(e) => setBatchModal(prev => ({ ...prev, reason: e.target.value }))}
+                onChange={(e) => setBatchModal(prev => ({ ...prev, reason: e.target.value, error: null }))}
+                aria-invalid={Boolean(batchModal.error)}
+                aria-describedby={batchModal.error ? 'batch-change-reason-error' : undefined}
                 style={{
                   minHeight: '80px',
                   height: '80px',
@@ -2344,7 +2375,7 @@ export const App: React.FC = () => {
                   fontSize: '12.5px',
                   borderRadius: '8px',
                   resize: 'none',
-                  border: '1px solid var(--border-light)',
+                  border: batchModal.error ? '1px solid #ef4444' : '1px solid var(--border-light)',
                   background: '#ffffff',
                   width: '100%',
                   boxSizing: 'border-box'
@@ -2353,8 +2384,8 @@ export const App: React.FC = () => {
               />
             </div>
             {batchModal.error && (
-              <div style={{ color: '#ef4444', fontSize: '13px', background: 'rgba(239, 68, 68, 0.08)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)', marginTop: '12px' }}>
-                ⚠️ {batchModal.error}
+              <div id="batch-change-reason-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', background: 'rgba(239, 68, 68, 0.08)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)', marginTop: '12px' }}>
+                {batchModal.error}
               </div>
             )}
             <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
@@ -2379,7 +2410,7 @@ export const App: React.FC = () => {
               <button
                 type="button"
                 className="primary-btn"
-                disabled={batchModal.isSubmitting || !(batchModal.reason || '').trim() || (batchModal.reason || '').trim().length < 5}
+                disabled={batchModal.isSubmitting}
                 onClick={handleExecuteBatchStatusUpdate}
                 style={{
                   padding: '8px 16px',
