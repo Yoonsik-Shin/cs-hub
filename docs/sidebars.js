@@ -82,7 +82,8 @@ const sidebars = {
       collapsed: false,
       items: [
         'api-url-policy',
-        'logging-observability-policy'
+        'logging-observability-policy',
+        'pii-encryption-migration'
       ],
     },
   ],
