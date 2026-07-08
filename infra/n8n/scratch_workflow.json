@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-07-07T06:00:37.572Z",
+    "updatedAt": "2026-07-08T02:17:08.010Z",
     "createdAt": "2026-06-18T04:28:10.651Z",
     "id": "nsbvUUSzjjH2zFic",
     "name": "CS 데이터 통합(N8N 수정)",
@@ -42,7 +42,7 @@
         "typeVersion": 2,
         "position": [
           -16,
-          1392
+          1440
         ],
         "id": "email-check-processed-id",
         "name": "이미 처리된 이메일 필터 검사"
@@ -70,14 +70,13 @@
             ],
             "combinator": "and"
           },
-          "looseTypeValidation": true,
           "options": {}
         },
-        "type": "n8n-nodes-base.filter",
+        "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          144,
-          1392
+          128,
+          1440
         ],
         "id": "email-duplicate-filter",
         "name": "이미 처리된 이메일 필터"
@@ -102,7 +101,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -208,
+          -176,
           1280
         ],
         "id": "email-clear-uids",
@@ -244,8 +243,8 @@
         "name": "Email Trigger (IMAP)",
         "credentials": {
           "imap": {
-            "id": "fpAvuj8yXgvUXtbg",
-            "name": "IMAP account"
+            "id": "DggKQ0KQFoAQfC3d",
+            "name": "다우오피스 IMAP"
           }
         }
       },
@@ -1046,8 +1045,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          192,
-          1264
+          752,
+          1232
         ],
         "id": "230b948b-5336-4ca8-a169-dc17b9901622",
         "name": "Presigned URLs 발급1",
@@ -1060,14 +1059,13 @@
       },
       {
         "parameters": {
-          "mode": "runOnceForEachItem",
-          "jsCode": "const originalUrls = $('데이터 파싱1').item.json.originalImageUrls;\nconst presignedUrls = $json.urls;\n\nreturn presignedUrls.map((item, index) => {\n  return {\n    json: {\n      originalUrl: originalUrls[index],\n      objectName: item.objectName,\n      uploadUrl: item.uploadUrl,\n      downloadUrl: item.downloadUrl\n    }\n  };\n});"
+          "jsCode": "const originalUrls = $('데이터 파싱1').first().json.originalImageUrls;\nconst presignedUrls = $input.first().json.urls;\n\nreturn presignedUrls.map((item, index) => {\n  return {\n    json: {\n      originalUrl: originalUrls[index],\n      objectName: item.objectName,\n      uploadUrl: item.uploadUrl,\n      downloadUrl: item.downloadUrl\n    },\n    pairedItem: { item: 0 }\n  };\n});"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          304,
-          1312
+          928,
+          1232
         ],
         "id": "6fd611ee-9ab7-45da-8b27-2d1b74752882",
         "name": "이미지 정보 페어링1"
@@ -1119,8 +1117,8 @@
         "type": "n8n-nodes-base.splitInBatches",
         "typeVersion": 3,
         "position": [
-          464,
-          1392
+          1088,
+          1232
         ],
         "id": "c67b0e35-b050-4b1d-ac09-b1efae0a623b",
         "name": "Loop Over Images1"
@@ -1153,8 +1151,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          752,
-          1248
+          352,
+          1520
         ],
         "id": "16123b0d-aa60-4f3b-bf2a-f52f359adbf5",
         "name": "이미지 존재 여부 확인1"
@@ -1167,8 +1165,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -144,
-          1408
+          -176,
+          1440
         ],
         "id": "e35f5a5a-20c0-4187-b358-8dfd7534f231",
         "name": "데이터 파싱1"
@@ -1809,13 +1807,7 @@
       },
       "Loop Over Emails": {
         "main": [
-          [
-            {
-              "node": "이메일 처리 기록 초기화",
-              "type": "main",
-              "index": 0
-            }
-          ],
+          [],
           [
             {
               "node": "데이터 파싱1",
@@ -1900,31 +1892,28 @@
     "meta": {
       "templateCredsSetupCompleted": true
     },
-    "nodeGroups": [],
     "pinData": {},
-    "versionId": "870ee2f1-45b8-4a77-8ed8-b52662560901",
+    "versionId": "23e244b5-9957-42d7-a2f2-a7c07c8ddf60",
     "activeVersionId": null,
-    "versionCounter": 988,
+    "versionCounter": 1007,
     "triggerCount": 3,
-    "sourceWorkflowId": null,
     "tags": [],
     "shared": [
       {
-        "updatedAt": "2026-07-06T10:24:58.406Z",
-        "createdAt": "2026-07-06T10:24:58.406Z",
+        "updatedAt": "2026-06-18T04:28:10.651Z",
+        "createdAt": "2026-06-18T04:28:10.651Z",
         "role": "workflow:owner",
         "workflowId": "nsbvUUSzjjH2zFic",
-        "projectId": "Tm387HFBIMcgw4qC",
+        "projectId": "XyP6KgL7wL6d92GF",
         "project": {
-          "updatedAt": "2026-07-05T14:24:08.697Z",
-          "createdAt": "2026-07-05T13:28:02.074Z",
-          "id": "Tm387HFBIMcgw4qC",
-          "name": "yoonsik shin <aaa946@naver.com>",
+          "updatedAt": "2026-06-18T04:27:36.981Z",
+          "createdAt": "2026-06-18T04:26:08.435Z",
+          "id": "XyP6KgL7wL6d92GF",
+          "name": "shin yoonsik <aaa946@naver.com>",
           "type": "personal",
           "icon": null,
           "description": null,
-          "customTelemetryTags": [],
-          "creatorId": "9358ee48-8e11-4841-8845-ff6660bf2a4e"
+          "creatorId": "40f0b1ff-d5fa-482e-83da-d79b2145963d"
         }
       }
     ],
