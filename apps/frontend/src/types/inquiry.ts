@@ -85,6 +85,7 @@ export interface SearchInquiriesParams {
   bookmarkedOnly?: boolean;
   cursor?: string; // UUID string
   size?: number;
+  sort?: 'asc' | 'desc';
 }
 
 export interface CustomFilterEntity {

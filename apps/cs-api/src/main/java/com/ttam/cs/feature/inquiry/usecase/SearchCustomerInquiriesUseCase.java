@@ -28,8 +28,9 @@ public class SearchCustomerInquiriesUseCase {
             Boolean userCodeMissing,
             String operatorId,
             UUID cursor,
-            int size) {
+            int size,
+            String sort) {
         return repository.searchInquiries(channels, userCode, statuses, start, end, isManual,
-                bookmarkedOnly, userCodeMissing, operatorId, cursor, size);
+                bookmarkedOnly, userCodeMissing, operatorId, cursor, size, sort);
     }
 }

@@ -9,7 +9,7 @@ import { CreateTicketModal } from './components/CreateTicketModal';
 import { inquiryApi } from './api/inquiryApi';
 import type { BatchUpdateInquiryStatusTarget, OperatorInfo } from './api/inquiryApi';
 import type { CustomFilterEntity, CustomerInquiry, InquiryStatus } from './types/inquiry';
-import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark, X, ListChecks, Shield, Info, LogOut, FileText, Database, Activity, BookOpen } from 'lucide-react';
+import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmark, X, ListChecks, Shield, Info, LogOut, FileText, Database, Activity, BookOpen, ArrowUp, ArrowDown } from 'lucide-react';
 import { NaverLoginRenewPage } from './components/NaverLoginRenewPage';
 import { InquiryDetailPanel } from './components/InquiryDetailPanel';
 import { AccountManagementModal } from './components/AccountManagementModal';
@@ -48,6 +48,7 @@ export const App: React.FC = () => {
   });
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Data states
   const [inquiries, setInquiries] = useState<CustomerInquiry[]>([]);
@@ -561,8 +562,9 @@ export const App: React.FC = () => {
       isManual: queryFilters.isManual,
       bookmarkedOnly: queryFilters.bookmarkedOnly || undefined,
       cursor: cursorVal || undefined,
+      sort: sortOrder,
     };
-  }, [queryFilters]);
+  }, [queryFilters, sortOrder]);
 
   // Fetch inquiries for the current page and filter conditions
   const fetchPage = useCallback(async (cursorVal: string | null, keepSelection: boolean = false, silent: boolean = false) => {
@@ -801,12 +803,12 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Load inquiries when filters change or page index changes
+  // Load inquiries when filters or sort order change, or page index changes
   useEffect(() => {
-    // Reset page to Page 1 when search filters change
+    // Reset page to Page 1 when search filters or sort order change
     setCurrentPage(1);
     fetchPage(null);
-  }, [queryFilters, fetchPage]);
+  }, [queryFilters, sortOrder, fetchPage]);
 
   // Auto-select first item when inquiries list loads or changes
   useEffect(() => {
@@ -1978,6 +1980,15 @@ export const App: React.FC = () => {
                     </select>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                  className="auto-refresh-btn action-tooltip"
+                  data-tooltip={sortOrder === 'desc' ? '최신순 (클릭 시 오래된순)' : '오래된순 (클릭 시 최신순)'}
+                >
+                  {sortOrder === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
+                </button>
 
                 {inquiries.length > 0 && !loading && (
                   <button

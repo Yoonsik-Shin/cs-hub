@@ -107,14 +107,15 @@ public class CustomerInquiryController {
             @RequestParam(name = "bookmarkedOnly", required = false) Boolean bookmarkedOnly,
             @RequestParam(name = "userCodeMissing", required = false) Boolean userCodeMissing,
             @RequestParam(name = "cursor", required = false) UUID cursor,
-            @RequestParam(name = "size", defaultValue = "10") int size) {
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sort", defaultValue = "desc") String sort) {
         if (Boolean.TRUE.equals(bookmarkedOnly) && !StringUtils.hasText(remoteUser)) {
             return ResponseEntity.ok(SearchCustomerInquiryResponse.of(new CursorPage<>(List.of(), null, false)));
         }
 
         CursorPage<CustomerInquiry> result = searchCustomerInquiriesUseCase.execute(channels,
                 userCode, statuses, start, end, isManual, bookmarkedOnly, userCodeMissing, remoteUser, cursor,
-                size);
+                size, sort);
 
         String s3UrlPrefix = externalUrl.endsWith("/") ? externalUrl + bucketName : externalUrl + "/" + bucketName;
 

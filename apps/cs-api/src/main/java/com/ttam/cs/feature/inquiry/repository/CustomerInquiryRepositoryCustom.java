@@ -11,7 +11,8 @@ public interface CustomerInquiryRepositoryCustom {
     CursorPage<CustomerInquiry> searchInquiries(List<String> channels, String userCode,
             List<CustomerInquiry.Status> statuses,
             OffsetDateTime startDateTime, OffsetDateTime endDateTime,
-            Boolean isManual, Boolean bookmarkedOnly, Boolean userCodeMissing, String operatorId, UUID cursor, int size);
+            Boolean isManual, Boolean bookmarkedOnly, Boolean userCodeMissing, String operatorId, UUID cursor, int size,
+            String sort);
 
     long countInquiries(List<String> channels, String userCode,
             List<CustomerInquiry.Status> statuses,

@@ -45,10 +45,13 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
             Boolean userCodeMissing,
             String operatorId,
             UUID cursor,
-            int size) {
+            int size,
+            String sort) {
         if (Boolean.TRUE.equals(bookmarkedOnly) && !StringUtils.hasText(operatorId)) {
             return new CursorPage<>(List.of(), null, false);
         }
+
+        boolean ascending = "asc".equalsIgnoreCase(sort);
 
         QCustomerInquiry customerInquiry = QCustomerInquiry.customerInquiry;
 
@@ -64,9 +67,11 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                         timestampBetween(startDateTime, endDateTime),
                         isManualEq(isManual),
                         bookmarkedByOperator(bookmarkedOnly, operatorId),
-                        cursorLessThan(cursor))
+                        cursorBeyond(cursor, ascending))
                 .limit(size + 1)
-                .orderBy(customerInquiry.id.desc())
+                .orderBy(
+                        ascending ? customerInquiry.timestamp.asc() : customerInquiry.timestamp.desc(),
+                        ascending ? customerInquiry.id.asc() : customerInquiry.id.desc())
                 .fetch();
 
         return CursorPage.of(result, size, CustomerInquiry::getId);
@@ -147,8 +152,27 @@ public class CustomerInquiryRepositoryCustomImpl implements CustomerInquiryRepos
                 .fetch();
     }
 
-    private BooleanExpression cursorLessThan(UUID cursor) {
-        return cursor != null ? QCustomerInquiry.customerInquiry.id.lt(cursor) : null;
+    // 정렬 기준이 timestamp이므로, 커서 페이지네이션도 (timestamp, id) 복합 키 기준으로 다음 구간을 판별해야 한다.
+    // id(UUIDv7)는 데이터 적재 시각 기준이라 백필된 문의는 timestamp와 순서가 어긋날 수 있어 id만으로는 커서를 비교할 수 없다.
+    private BooleanExpression cursorBeyond(UUID cursor, boolean ascending) {
+        if (cursor == null) {
+            return null;
+        }
+        QCustomerInquiry customerInquiry = QCustomerInquiry.customerInquiry;
+        OffsetDateTime cursorTimestamp = queryFactory
+                .select(customerInquiry.timestamp)
+                .from(customerInquiry)
+                .where(customerInquiry.id.eq(cursor))
+                .fetchOne();
+        if (cursorTimestamp == null) {
+            return ascending ? customerInquiry.id.gt(cursor) : customerInquiry.id.lt(cursor);
+        }
+        if (ascending) {
+            return customerInquiry.timestamp.gt(cursorTimestamp)
+                    .or(customerInquiry.timestamp.eq(cursorTimestamp).and(customerInquiry.id.gt(cursor)));
+        }
+        return customerInquiry.timestamp.lt(cursorTimestamp)
+                .or(customerInquiry.timestamp.eq(cursorTimestamp).and(customerInquiry.id.lt(cursor)));
     }
 
     private BooleanExpression idNotIn(List<UUID> excludedIds) {
