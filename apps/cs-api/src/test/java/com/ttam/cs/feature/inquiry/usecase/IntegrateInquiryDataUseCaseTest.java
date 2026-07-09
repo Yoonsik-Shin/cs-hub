@@ -242,4 +242,44 @@ class IntegrateInquiryDataUseCaseTest {
         assertThrows(IllegalArgumentException.class, () -> useCase.execute("EMAIL", List.of(item)));
         verify(repository, never()).bulkInsert(anyList());
     }
+
+    @Test
+    void testIntegrateInquiries_EmailWithBlankContentAndImageIsAccepted() {
+        // Given
+        EmailMetadata.Headers headers = new EmailMetadata.Headers("<msg-image-only>", "", "");
+        EmailMetadata.Attributes attributes = new EmailMetadata.Attributes(146L);
+        EmailMetadata channelMetadata = new EmailMetadata(
+                "customer@test.com",
+                "cs@test.com",
+                "문의 추가 이미지",
+                "2026-07-09T00:36:40Z",
+                headers,
+                attributes
+        );
+
+        IntegrateInquiryDataUseCase.IntegrationItem item = new IntegrateInquiryDataUseCase.IntegrationItem(
+                "2026-07-09T00:36:40Z",
+                null,
+                channelMetadata,
+                null,
+                "\n",
+                List.of("email/20260709/msg-image-only/image_0.jpg")
+        );
+
+        when(adminMemberRepository.existsByEmail("customer@test.com")).thenReturn(false);
+        when(storageService.extractObjectKey("email/20260709/msg-image-only/image_0.jpg"))
+                .thenReturn("email/20260709/msg-image-only/image_0.jpg");
+        when(uniqueKeyGenerator.generateUniqueKey(any(), any(), any(), any(), any()))
+                .thenReturn(UUID.randomUUID());
+
+        // When
+        useCase.execute("EMAIL", List.of(item));
+
+        // Then
+        verify(repository, times(1)).bulkInsert(argThat(inquiries -> {
+            assertEquals(1, inquiries.size());
+            assertEquals(List.of("email/20260709/msg-image-only/image_0.jpg"), inquiries.get(0).getImageUrls());
+            return true;
+        }));
+    }
 }

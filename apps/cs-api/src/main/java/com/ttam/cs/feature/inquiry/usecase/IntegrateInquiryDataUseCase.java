@@ -125,8 +125,8 @@ public class IntegrateInquiryDataUseCase {
             throw new IllegalArgumentException("EMAIL integration item requires EmailMetadata.");
         }
 
-        if (!hasText(item.content())) {
-            throw new IllegalArgumentException("Email content must not be blank. uid="
+        if (!hasText(item.content()) && (item.imageUrls() == null || item.imageUrls().isEmpty())) {
+            throw new IllegalArgumentException("Email must include text content or at least one image. uid="
                     + emailUid(emailMeta) + ", messageId=" + cleanMessageId(emailMeta.getMessageId()));
         }
 

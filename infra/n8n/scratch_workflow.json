@@ -10,7 +10,7 @@
     "nodes": [
       {
         "parameters": {
-          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst startRow = Number($('마지막 처리된 행번호 가져오기').first().json.lastRowProcessed || 1) + 1;\nconst fetchedCount = $('구글시트에서 실제 데이터 가져오기').all().length;\nif (fetchedCount > 0) {\n  staticData.lastRowProcessed = startRow + fetchedCount - 1;\n}\nreturn [{ json: { status: \"success\", lastRowProcessed: staticData.lastRowProcessed } }];"
+          "jsCode": "// range를 specifyRangeA1로 바꾸면서 매 폴링마다 시트 전체를 읽으므로(firstDataRow 미지원),\n// '가져온 행 수'로 lastRowProcessed를 계산하던 이전 방식은 더 이상 맞지 않는다.\n// 대신 이번 실행에서 실제로 '빈 행 제거'를 통과해 처리된 행들의 row_number(_1) 최댓값으로 갱신한다.\nconst staticData = $getWorkflowStaticData('global');\nconst processedRowNumbers = $('빈 행 제거').all()\n  .map((item) => Number(item.json.row_number_1))\n  .filter((n) => Number.isFinite(n));\nconst previous = Number(staticData.lastRowProcessed) || 1;\nif (processedRowNumbers.length > 0) {\n  staticData.lastRowProcessed = Math.max(previous, ...processedRowNumbers);\n}\nreturn [{ json: { status: \"success\", lastRowProcessed: staticData.lastRowProcessed } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -175,12 +175,21 @@
             "conditions": [
               {
                 "id": "cd72bf3f-fa7a-4d7c-aec6-d1a6f08af91a",
-                "leftValue": "={{ $json['타임스탬프'] }}",
+                "leftValue": "={{ $json['타임스탬프_1'] }}",
                 "rightValue": "",
                 "operator": {
                   "type": "string",
                   "operation": "notEmpty",
                   "singleValue": true
+                }
+              },
+              {
+                "id": "e6a2b8f1-3c4d-4e5f-9a1b-2c3d4e5f6a7b",
+                "leftValue": "={{ $json.row_number_1 }}",
+                "rightValue": "={{ Number($('마지막 처리된 행번호 가져오기').first().json.lastRowProcessed || 1) }}",
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
                 }
               }
             ],
@@ -192,16 +201,17 @@
         "type": "n8n-nodes-base.filter",
         "typeVersion": 2.3,
         "position": [
-          176,
-          -80
+          336,
+          40
         ],
         "id": "27f1c54e-c5e4-418a-9e99-b7b514fd672f",
-        "name": "빈 행 제거"
+        "name": "빈 행 제거",
+        "notes": "range를 specifyRangeA1로 바꾸면서 매 폴링마다 시트 전체를 읽으므로, row_number_1(실제 시트 행번호, Merge의 addSuffix가 붙임)이 마지막 처리 행번호보다 큰 것만 통과시켜 신규 행만 남긴다"
       },
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const data = $input.item.json;\n\nconst clean = (v) => v === undefined || v === null ? null : String(v).trim();\nconst getFirst = (...arr) => {\n  const found = arr.map(clean).find(v => v !== null && v !== \"\");\n  return found || null;\n};\nconst read = (name, suffix = \"\") => data[suffix ? name + suffix : name];\nconst parseTime = (v) => v && !isNaN(v) ? new Date((v - 25569) * 86400000 - 32400000).toISOString().replace(\"Z\", \"+09:00\") : v || null;\n\nconst type = getFirst(data[\"문의 항목을 선택해주세요.\"]);\nconst sectionByType = {\n  \"건의 및 개선사항\": \"\",\n  \"버그/오류 제보\": \"_1\",\n  \"공식 챌린지/비공식 챌린지\": \"_2\"\n};\nconst section = Object.prototype.hasOwnProperty.call(sectionByType, type) ? sectionByType[type] : \"\";\nconst actualRowNumber = Number($('마지막 처리된 행번호 가져오기').first().json.lastRowProcessed || 1) + $itemIndex + 1;\n\nconst userCode = getFirst(read(\"런데이 유저코드를 입력해주세요.\", section), read(\"런데이 유저코드를 입력해주세요.\"), read(\"런데이 유저코드를 입력해주세요.\", \"_1\"), read(\"런데이 유저코드를 입력해주세요.\", \"_2\"));\nconst contact = getFirst(read(\"연락처를 입력해주세요.\", section), read(\"연락처를 입력해주세요.\"), read(\"연락처를 입력해주세요.\", \"_1\"), read(\"연락처를 입력해주세요.\", \"_2\"));\nconst replyType = getFirst(read(\"답변받고 싶은 경로를 선택해주세요.\", section), read(\"답변받고 싶은 경로를 선택해주세요.\"), read(\"답변받고 싶은 경로를 선택해주세요.\", \"_1\"), read(\"답변받고 싶은 경로를 선택해주세요.\", \"_2\"));\nconst replyEmail = getFirst(read(\"위 항목에 '이메일' 선택 시 이메일주소를 입력해주세요.\", section), read(\"위 항목에 '이메일' 선택 시 이메일주소를 입력해주세요.\"), read(\"위 항목에 '이메일' 선택 시 이메일주소를 입력해주세요.\", \"_1\"), read(\"위 항목에 '이메일' 선택 시 이메일주소를 입력해주세요.\", \"_2\"));\nconst content = getFirst(read(\"문의 상세내용을 전달해주세요.\", section), read(\"문의 상세내용을 전달해주세요.\"), read(\"문의 상세내용을 전달해주세요.\", \"_1\"), read(\"문의 상세내용을 전달해주세요.\", \"_2\"));\n\nconst appVersion = getFirst(data[\"런데이 앱 버전을 알려주세요.\"]);\nconst model = getFirst(data[\"휴대폰 기종을 알려주세요.\"]);\nconst osVersion = getFirst(data[\"소프트웨어 버전을 알려주세요.\"]);\n\nreturn {\n  json: {\n    timestamp: parseTime(data[\"타임스탬프\"]),\n    userCode,\n    channelMetadata: {\n      type,\n      category: getFirst(data[\"문의 카테고리를 선택해주세요\"]),\n      rowNumber: actualRowNumber,\n      contact,\n      reply: (replyType || replyEmail) ? {\n        type: replyType,\n        email: replyEmail\n      } : null\n    },\n    content,\n    deviceInfo: (appVersion || model || osVersion) ? {\n      appVersion,\n      model,\n      osVersion\n    } : null\n  }\n};\n"
+          "jsCode": "const data = $input.item.json;\n\nconst clean = (v) => (v === undefined || v === null) ? null : String(v).trim();\nconst normalizeKey = (v) => String(v || \"\")\n  .replace(new RegExp(\"[\\\\u200B-\\\\u200D\\\\uFEFF]\", \"g\"), \"\")\n  .replace(/[\\r\\n]+/g, \" \")\n  .replace(/\\s+/g, \" \")\n  .trim();\nconst parseTime = (v) => v && !isNaN(v) ? new Date((v - 25569) * 86400000 - 32400000).toISOString().replace(\"Z\", \"+09:00\") : v || null;\nconst normalizeUserCode = (v) => {\n  const value = clean(v);\n  if (!value) return null;\n  if (/^[-+]?\\d+(\\.\\d+)?e[-+]?\\d+$/i.test(value) || /^\\d+\\.0+$/.test(value)) {\n    const numeric = Number(value);\n    return Number.isFinite(numeric) ? numeric.toFixed(0) : value;\n  }\n  return value;\n};\n\n// 앞단 \"분기별 읽기 병합\"(Merge, combine by position, resolveClash=addSuffix)이\n// 입력1(A:H)/입력2(I:Q)/입력3(R:X)의 모든 필드 키 뒤에 각각 _1/_2/_3을 붙여 하나의 아이템으로 합쳐준다.\n// 따라서 각 분기 헤더는 접미사까지 포함해서 조회해야 한다.\nfunction field(header, suffix) {\n  const targetKey = normalizeKey(header + \"_\" + suffix);\n  const keys = Object.keys(data || {});\n  const matchedKey = keys.find((key) => normalizeKey(key) === targetKey);\n  return matchedKey ? clean(data[matchedKey]) : null;\n}\n\n// 유저코드/연락처/이메일/답변경로/문의내용 질문은 문의 항목(type)에 따라\n// C/I/R, D/J/S, F/L/U, E/K/T, G/P/W 열에 각각 동일한 질문으로 3번 반복되어 있다.\n// \"문의 항목\" 텍스트값을 기준으로 분기를 고르는 대신, 세 분기 중 실제로 값이 채워진 열을 그대로 사용한다.\nfunction pick(header) {\n  return field(header, \"1\") || field(header, \"2\") || field(header, \"3\");\n}\n\nconst H = {\n  timestamp: \"타임스탬프\",\n  rowNumber: \"row_number\",\n  type: \"문의 항목을 선택해주세요.\",\n  userCode: \"런데이 유저코드를 입력해주세요.\",\n  contact: \"연락처를 입력해주세요.\",\n  replyType: \"답변받고 싶은 경로를 선택해주세요.\",\n  replyEmail: \"위 항목에 '이메일' 선택 시 이메일주소를 입력해주세요.\",\n  category: \"문의 카테고리를 선택해주세요\",\n  content: \"문의 상세내용을 전달해주세요.\",\n  appVersion: \"런데이 앱 버전을 알려주세요.\",\n  model: \"휴대폰 기종을 알려주세요.\",\n  osVersion: \"소프트웨어 버전을 알려주세요.\"\n};\n\nconst type = field(H.type, \"1\");\n\nconst userCode = normalizeUserCode(pick(H.userCode));\nconst contact = pick(H.contact);\nconst replyType = pick(H.replyType);\nconst replyEmail = pick(H.replyEmail);\nconst content = pick(H.content);\n\n// 카테고리(V열)는 챌린지 분기(3)에만, 앱버전/기종/OS버전은 버그 분기(2)에만 존재하는 단독 필드라\n// 굳이 세 분기를 다 뒤질 필요 없이 해당 분기에서만 읽으면 되고, 값이 없으면 자연히 null이 된다.\nconst category = field(H.category, \"3\");\nconst appVersion = field(H.appVersion, \"2\");\nconst model = field(H.model, \"2\");\nconst osVersion = field(H.osVersion, \"2\");\n\nconst actualRowNumber = Number(field(H.rowNumber, \"1\"));\nconst timestamp = field(H.timestamp, \"1\");\n\nreturn {\n  json: {\n    timestamp: parseTime(timestamp),\n    userCode,\n    channelMetadata: {\n      type,\n      category,\n      rowNumber: actualRowNumber,\n      contact,\n      reply: (replyType || replyEmail) ? {\n        type: replyType,\n        email: replyEmail\n      } : null\n    },\n    content,\n    deviceInfo: (appVersion || model || osVersion) ? {\n      appVersion,\n      model,\n      osVersion\n    } : null\n  }\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -228,7 +238,8 @@
       },
       {
         "parameters": {
-          "downloadAttachments": true,
+          "format": "resolved",
+          "dataPropertyAttachmentsPrefixName": "attachment_",
           "options": {
             "trackLastMessageId": true
           }
@@ -612,8 +623,8 @@
           "options": {
             "dataLocationOnSheet": {
               "values": {
-                "rangeDefinition": "specifyRange",
-                "firstDataRow": "={{ $('마지막 처리된 행번호 가져오기').item.json.lastRowProcessed + 1 }}"
+                "rangeDefinition": "specifyRangeA1",
+                "range": "A1:H"
               }
             },
             "outputFormatting": {
@@ -632,12 +643,135 @@
         ],
         "id": "99e3ecf7-9d5c-4ee6-85ba-4c51259daa39",
         "name": "구글시트에서 실제 데이터 가져오기",
+        "notes": "1분기(C:G) 헤더 전용 범위 읽기. range는 options.dataLocationOnSheet.values.range + rangeDefinition=specifyRangeA1 로만 실제 적용됨(최상위 range 파라미터는 n8n 소스상 무시됨, 확인됨). 항상 헤더 포함 row1부터 읽어 row_number가 정확한 시트 행과 일치. Merge 노드 input 1로 연결",
         "credentials": {
           "googleApi": {
             "id": "7yJ0nFVWNXHtkzOx",
             "name": "Google Service Account account"
           }
         }
+      },
+      {
+        "parameters": {
+          "authentication": "serviceAccount",
+          "documentId": {
+            "__rl": true,
+            "value": "https://docs.google.com/spreadsheets/d/15rI-uNyPvp4k-KwOL3Jfdp-0dzEaojWjxTIEwu44PmU/edit?gid=490092226#gid=490092226",
+            "mode": "url"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 490092226,
+            "mode": "list",
+            "cachedResultName": "설문지 응답 시트1",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/15rI-uNyPvp4k-KwOL3Jfdp-0dzEaojWjxTIEwu44PmU/edit#gid=490092226"
+          },
+          "filtersUI": {
+            "values": []
+          },
+          "options": {
+            "dataLocationOnSheet": {
+              "values": {
+                "rangeDefinition": "specifyRangeA1",
+                "range": "I1:Q"
+              }
+            },
+            "outputFormatting": {
+              "values": {
+                "general": "UNFORMATTED_VALUE",
+                "date": "SERIAL_NUMBER"
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          16,
+          80
+        ],
+        "id": "b1c1a2f0-6e3a-4a9a-8a2e-1a2b3c4d5e6f",
+        "name": "구글시트에서 실제 데이터 가져오기 (버그분기)",
+        "notes": "2분기(I:P, 버그/오류 제보) 헤더 전용 범위 읽기. specifyRangeA1로 컬럼 실제 제한. Merge 노드 input 2로 연결",
+        "credentials": {
+          "googleApi": {
+            "id": "7yJ0nFVWNXHtkzOx",
+            "name": "Google Service Account account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "authentication": "serviceAccount",
+          "documentId": {
+            "__rl": true,
+            "value": "https://docs.google.com/spreadsheets/d/15rI-uNyPvp4k-KwOL3Jfdp-0dzEaojWjxTIEwu44PmU/edit?gid=490092226#gid=490092226",
+            "mode": "url"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 490092226,
+            "mode": "list",
+            "cachedResultName": "설문지 응답 시트1",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/15rI-uNyPvp4k-KwOL3Jfdp-0dzEaojWjxTIEwu44PmU/edit#gid=490092226"
+          },
+          "filtersUI": {
+            "values": []
+          },
+          "options": {
+            "dataLocationOnSheet": {
+              "values": {
+                "rangeDefinition": "specifyRangeA1",
+                "range": "R1:X"
+              }
+            },
+            "outputFormatting": {
+              "values": {
+                "general": "UNFORMATTED_VALUE",
+                "date": "SERIAL_NUMBER"
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          16,
+          200
+        ],
+        "id": "c2d2b3f1-7f4b-5b0b-9b3f-2b3c4d5e6f70",
+        "name": "구글시트에서 실제 데이터 가져오기 (챌린지분기)",
+        "notes": "3분기(R:W, 공식/비공식 챌린지) 헤더 전용 범위 읽기. specifyRangeA1로 컬럼 실제 제한. Merge 노드 input 3로 연결",
+        "credentials": {
+          "googleApi": {
+            "id": "7yJ0nFVWNXHtkzOx",
+            "name": "Google Service Account account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "combineBy": "combineByPosition",
+          "numberInputs": 3,
+          "options": {
+            "clashHandling": {
+              "values": {
+                "resolveClash": "addSuffix"
+              }
+            },
+            "includeUnpaired": true
+          }
+        },
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          176,
+          40
+        ],
+        "id": "d3e3c4a2-8a5c-6c1c-ac4a-3c4d5e6f7081",
+        "name": "분기별 읽기 병합",
+        "notes": "A:H(입력1)/I:Q(입력2)/R:X(입력3)를 위치 기준으로 결합. resolveClash=addSuffix라 모든 필드 키 뒤에 _1/_2/_3이 붙음 (n8n Merge v3 combineByPosition 소스 확인됨) - Item 데이터 파싱에서 이 접미사로 분기별 필드를 조회함"
       },
       {
         "parameters": {
@@ -1161,7 +1295,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const rawEmail = $input.item.json;\nconst metadata = rawEmail.metadata || {};\nconst attributes = rawEmail.attributes || {};\n\nfunction readHeader(name) {\n  const value = metadata[name];\n  if (Array.isArray(value)) return value[0] || \"\";\n  return value || \"\";\n}\n\nfunction normalizeMessageId(value) {\n  if (!value) return \"\";\n  const first = Array.isArray(value) ? value[0] : value;\n  return String(first).replace(/[<>]/g, \"\").trim();\n}\n\nfunction normalizeReferences(value) {\n  if (!value) return \"\";\n  const raw = Array.isArray(value) ? value.join(\" \") : String(value);\n  return raw\n    .split(/\\s+/)\n    .map(normalizeMessageId)\n    .filter(Boolean)\n    .join(\" \");\n}\n\nfunction formatAddress(value) {\n  if (!value) return \"\";\n  if (typeof value === \"string\") return value;\n  if (value.text) return value.text;\n  if (Array.isArray(value.value)) {\n    return value.value\n      .map((entry) => entry.name ? entry.name + \" <\" + entry.address + \">\" : entry.address)\n      .filter(Boolean)\n      .join(\", \");\n  }\n  return String(value);\n}\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\");\n  text = text.replace(/[ \\t]+/g, \" \");\n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst messageId = normalizeMessageId(readHeader(\"message-id\"));\nconst inReplyTo = normalizeMessageId(readHeader(\"in-reply-to\"));\nconst references = normalizeReferences(readHeader(\"references\"));\nconst uid = attributes.uid || null;\nconst plainContent = typeof rawEmail.textPlain === \"string\" ? rawEmail.textPlain.trim() : \"\";\nconst htmlContent = stripAndCleanHtml(rawEmail.textHtml || \"\");\nconst content = plainContent || htmlContent;\n\nif (!content) {\n  throw new Error(\"Email content is empty. Check EmailReadImap output fields textPlain/textHtml. uid=\" + (uid || \"\") + \", messageId=\" + messageId);\n}\n\nif (!uid && !messageId) {\n  throw new Error(\"Email identity is missing. Expected attributes.uid or metadata.message-id from EmailReadImap.\");\n}\n\nlet timestamp = new Date().toISOString();\nif (rawEmail.date) {\n  const parsed = new Date(rawEmail.date);\n  if (!Number.isNaN(parsed.getTime())) {\n    timestamp = parsed.toISOString();\n  }\n}\n\nconst subject = rawEmail.subject || \"\";\nconst combinedText = subject + \" \" + content;\nconst userCodeMatch = combinedText.match(/\\b\\d{12}\\b/);\nconst userCode = userCodeMatch ? userCodeMatch[0] : null;\nconst articleUrl = uid\n  ? \"https://company.daouoffice.com/app/mail?uid=\" + encodeURIComponent(String(uid))\n  : \"https://company.daouoffice.com/app/mail?messageId=\" + encodeURIComponent(messageId);\n\nconst originalImageUrls = [];\nconst objectNames = [];\nconst binaryData = $input.item.binary;\nif (typeof binaryData === \"object\" && binaryData !== null) {\n  const datePart = timestamp.substring(0, 10).replace(/-/g, \"\");\n  const uniqueSource = messageId || \"uid_\" + uid;\n  const uniqueId = uniqueSource.replace(/[^a-zA-Z0-9_-]/g, \"_\");\n\n  Object.keys(binaryData).forEach((key, index) => {\n    const file = binaryData[key];\n    if (file && file.mimeType && file.mimeType.startsWith(\"image/\")) {\n      const ext = (file.fileExtension || \"jpg\").toLowerCase();\n      const objectName = \"email/\" + datePart + \"/\" + uniqueId + \"/image_\" + index + \".\" + ext;\n      originalImageUrls.push(key);\n      objectNames.push(objectName);\n    }\n  });\n}\n\nreturn {\n  json: {\n    from: formatAddress(rawEmail.from),\n    to: formatAddress(rawEmail.to),\n    subject,\n    date: rawEmail.date || \"\",\n    headers: {\n      \"message-id\": messageId,\n      \"in-reply-to\": inReplyTo,\n      \"references\": references\n    },\n    attributes: { uid },\n    articleUrl,\n    userCode,\n    content,\n    timestamp,\n    originalImageUrls,\n    objectNames\n  }\n};"
+          "jsCode": "const rawEmail = $input.item.json;\nconst metadata = rawEmail.metadata || {};\nconst headers = rawEmail.headers || {};\nconst attributes = rawEmail.attributes || {};\n\nfunction readHeader(name) {\n  const value = metadata[name] ?? headers[name] ?? headers[name.toLowerCase()];\n  if (Array.isArray(value)) return value[0] || \"\";\n  if (!value) return \"\";\n  const raw = String(value);\n  const prefix = name + \":\";\n  return raw.toLowerCase().startsWith(prefix.toLowerCase())\n    ? raw.slice(prefix.length).trim()\n    : raw.trim();\n}\n\nfunction normalizeMessageId(value) {\n  if (!value) return \"\";\n  const first = Array.isArray(value) ? value[0] : value;\n  return String(first).replace(/[<>]/g, \"\").trim();\n}\n\nfunction normalizeReferences(value) {\n  if (!value) return \"\";\n  const raw = Array.isArray(value) ? value.join(\" \") : String(value);\n  return raw\n    .split(/\\s+/)\n    .map(normalizeMessageId)\n    .filter(Boolean)\n    .join(\" \");\n}\n\nfunction formatAddress(value) {\n  if (!value) return \"\";\n  if (typeof value === \"string\") return value;\n  if (value.text) return value.text;\n  if (Array.isArray(value.value)) {\n    return value.value\n      .map((entry) => entry.name ? entry.name + \" <\" + entry.address + \">\" : entry.address)\n      .filter(Boolean)\n      .join(\", \");\n  }\n  return String(value);\n}\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\");\n  text = text.replace(/[ \\t]+/g, \" \");\n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst messageId = normalizeMessageId(readHeader(\"message-id\"));\nconst inReplyTo = normalizeMessageId(readHeader(\"in-reply-to\"));\nconst references = normalizeReferences(readHeader(\"references\"));\nconst uid = attributes.uid || null;\n\nif (!uid && !messageId) {\n  throw new Error(\"Email identity is missing. Expected attributes.uid or message-id from EmailReadImap.\");\n}\n\nlet timestamp = new Date().toISOString();\nif (rawEmail.date) {\n  const parsed = new Date(rawEmail.date);\n  if (!Number.isNaN(parsed.getTime())) {\n    timestamp = parsed.toISOString();\n  }\n}\n\nconst plainContent = typeof rawEmail.text === \"string\"\n  ? rawEmail.text.trim()\n  : (typeof rawEmail.textPlain === \"string\" ? rawEmail.textPlain.trim() : \"\");\nconst htmlContent = stripAndCleanHtml(rawEmail.html || rawEmail.textHtml || \"\");\nconst content = plainContent || htmlContent;\n\nconst originalImageUrls = [];\nconst objectNames = [];\nconst binaryData = $input.item.binary;\nif (typeof binaryData === \"object\" && binaryData !== null) {\n  const datePart = timestamp.substring(0, 10).replace(/-/g, \"\");\n  const uniqueSource = messageId || \"uid_\" + uid;\n  const uniqueId = uniqueSource.replace(/[^a-zA-Z0-9_-]/g, \"_\");\n\n  Object.keys(binaryData).forEach((key, index) => {\n    const file = binaryData[key];\n    if (file && file.mimeType && file.mimeType.startsWith(\"image/\")) {\n      const ext = (file.fileExtension || \"jpg\").toLowerCase();\n      const objectName = \"email/\" + datePart + \"/\" + uniqueId + \"/image_\" + index + \".\" + ext;\n      originalImageUrls.push(key);\n      objectNames.push(objectName);\n    }\n  });\n}\n\nif (!content && originalImageUrls.length === 0) {\n  throw new Error(\"Email has neither text content nor image binary. Check EmailReadImap resolved output. uid=\" + (uid || \"\") + \", messageId=\" + messageId);\n}\n\nconst subject = rawEmail.subject || \"\";\nconst combinedText = subject + \" \" + content;\nconst userCodeMatch = combinedText.match(/\\b\\d{12}\\b/);\nconst userCode = userCodeMatch ? userCodeMatch[0] : null;\nconst articleUrl = uid\n  ? \"https://company.daouoffice.com/app/mail?uid=\" + encodeURIComponent(String(uid))\n  : \"https://company.daouoffice.com/app/mail?messageId=\" + encodeURIComponent(messageId);\n\nreturn {\n  json: {\n    from: formatAddress(rawEmail.from),\n    to: formatAddress(rawEmail.to),\n    subject,\n    date: rawEmail.date || \"\",\n    headers: {\n      \"message-id\": messageId,\n      \"in-reply-to\": inReplyTo,\n      \"references\": references\n    },\n    attributes: { uid },\n    articleUrl,\n    userCode,\n    content,\n    timestamp,\n    originalImageUrls,\n    objectNames\n  }\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1509,11 +1643,54 @@
               "node": "구글시트에서 실제 데이터 가져오기",
               "type": "main",
               "index": 0
+            },
+            {
+              "node": "구글시트에서 실제 데이터 가져오기 (버그분기)",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "구글시트에서 실제 데이터 가져오기 (챌린지분기)",
+              "type": "main",
+              "index": 0
             }
           ]
         ]
       },
       "구글시트에서 실제 데이터 가져오기": {
+        "main": [
+          [
+            {
+              "node": "분기별 읽기 병합",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "구글시트에서 실제 데이터 가져오기 (버그분기)": {
+        "main": [
+          [
+            {
+              "node": "분기별 읽기 병합",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "구글시트에서 실제 데이터 가져오기 (챌린지분기)": {
+        "main": [
+          [
+            {
+              "node": "분기별 읽기 병합",
+              "type": "main",
+              "index": 2
+            }
+          ]
+        ]
+      },
+      "분기별 읽기 병합": {
         "main": [
           [
             {
