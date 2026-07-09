@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-07-08T02:17:08.010Z",
+    "updatedAt": "2026-07-09T12:33:00.000Z",
     "createdAt": "2026-06-18T04:28:10.651Z",
     "id": "nsbvUUSzjjH2zFic",
     "name": "CS 데이터 통합(N8N 수정)",
@@ -16,7 +16,7 @@
         "typeVersion": 2,
         "position": [
           672,
-          -224
+          -368
         ],
         "id": "google-sheets-update-row-id",
         "name": "구글 시트 처리 행 갱신"
@@ -131,7 +131,7 @@
         "typeVersion": 3.4,
         "position": [
           832,
-          -16
+          -160
         ],
         "id": "2400b376-97ea-48a8-a8c1-94ed7ea37845",
         "name": "RequestDTO 변환"
@@ -151,7 +151,7 @@
         "typeVersion": 4.4,
         "position": [
           1008,
-          -16
+          -160
         ],
         "id": "1340af88-3407-4c66-b0ad-0e8134916171",
         "name": "Webhook API 전송",
@@ -202,7 +202,7 @@
         "typeVersion": 2.3,
         "position": [
           336,
-          40
+          -96
         ],
         "id": "27f1c54e-c5e4-418a-9e99-b7b514fd672f",
         "name": "빈 행 제거",
@@ -217,7 +217,7 @@
         "typeVersion": 2,
         "position": [
           336,
-          -80
+          -224
         ],
         "id": "cbfb6c74-2479-4449-9be9-7185dcabc818",
         "name": "Item 데이터 파싱"
@@ -231,7 +231,7 @@
         "typeVersion": 3,
         "position": [
           496,
-          -80
+          -224
         ],
         "id": "79f550c4-76c9-4695-9c31-7164650bc746",
         "name": "배치 처리"
@@ -254,8 +254,8 @@
         "name": "Email Trigger (IMAP)",
         "credentials": {
           "imap": {
-            "id": "DggKQ0KQFoAQfC3d",
-            "name": "다우오피스 IMAP"
+            "id": "ZOFWEUBbNtphvLFX",
+            "name": "IMAP account"
           }
         }
       },
@@ -269,7 +269,7 @@
         "typeVersion": 1,
         "position": [
           656,
-          -16
+          -160
         ],
         "id": "670b1aa0-9171-498f-92a5-b7a7c209f412",
         "name": "Aggregate"
@@ -555,7 +555,7 @@
         "typeVersion": 1,
         "position": [
           -384,
-          -272
+          -416
         ],
         "id": "84ee41d0-deae-45ab-a125-65630d06e301",
         "name": "구글폼/시트 데이터 폴링 (Legacy)",
@@ -584,7 +584,7 @@
         "typeVersion": 1.3,
         "position": [
           -384,
-          -80
+          -224
         ],
         "id": "3af0e68c-15eb-409b-87ab-ebe3913dc1b2",
         "name": "구글폼/시트 데이터 폴링"
@@ -597,7 +597,7 @@
         "typeVersion": 2,
         "position": [
           -192,
-          -80
+          -224
         ],
         "id": "c8005b9d-924b-4f4c-ae0d-455f8afb3a75",
         "name": "마지막 처리된 행번호 가져오기"
@@ -639,17 +639,17 @@
         "typeVersion": 4.7,
         "position": [
           16,
-          -80
+          -224
         ],
         "id": "99e3ecf7-9d5c-4ee6-85ba-4c51259daa39",
         "name": "구글시트에서 실제 데이터 가져오기",
-        "notes": "1분기(C:G) 헤더 전용 범위 읽기. range는 options.dataLocationOnSheet.values.range + rangeDefinition=specifyRangeA1 로만 실제 적용됨(최상위 range 파라미터는 n8n 소스상 무시됨, 확인됨). 항상 헤더 포함 row1부터 읽어 row_number가 정확한 시트 행과 일치. Merge 노드 input 1로 연결",
         "credentials": {
           "googleApi": {
             "id": "7yJ0nFVWNXHtkzOx",
             "name": "Google Service Account account"
           }
-        }
+        },
+        "notes": "1분기(C:G) 헤더 전용 범위 읽기. range는 options.dataLocationOnSheet.values.range + rangeDefinition=specifyRangeA1 로만 실제 적용됨(최상위 range 파라미터는 n8n 소스상 무시됨, 확인됨). 항상 헤더 포함 row1부터 읽어 row_number가 정확한 시트 행과 일치. Merge 노드 input 1로 연결"
       },
       {
         "parameters": {
@@ -688,17 +688,17 @@
         "typeVersion": 4.7,
         "position": [
           16,
-          80
+          -64
         ],
         "id": "b1c1a2f0-6e3a-4a9a-8a2e-1a2b3c4d5e6f",
         "name": "구글시트에서 실제 데이터 가져오기 (버그분기)",
-        "notes": "2분기(I:P, 버그/오류 제보) 헤더 전용 범위 읽기. specifyRangeA1로 컬럼 실제 제한. Merge 노드 input 2로 연결",
         "credentials": {
           "googleApi": {
             "id": "7yJ0nFVWNXHtkzOx",
             "name": "Google Service Account account"
           }
-        }
+        },
+        "notes": "2분기(I:P, 버그/오류 제보) 헤더 전용 범위 읽기. specifyRangeA1로 컬럼 실제 제한. Merge 노드 input 2로 연결"
       },
       {
         "parameters": {
@@ -737,17 +737,17 @@
         "typeVersion": 4.7,
         "position": [
           16,
-          200
+          64
         ],
         "id": "c2d2b3f1-7f4b-5b0b-9b3f-2b3c4d5e6f70",
         "name": "구글시트에서 실제 데이터 가져오기 (챌린지분기)",
-        "notes": "3분기(R:W, 공식/비공식 챌린지) 헤더 전용 범위 읽기. specifyRangeA1로 컬럼 실제 제한. Merge 노드 input 3로 연결",
         "credentials": {
           "googleApi": {
             "id": "7yJ0nFVWNXHtkzOx",
             "name": "Google Service Account account"
           }
-        }
+        },
+        "notes": "3분기(R:W, 공식/비공식 챌린지) 헤더 전용 범위 읽기. specifyRangeA1로 컬럼 실제 제한. Merge 노드 input 3로 연결"
       },
       {
         "parameters": {
@@ -767,7 +767,7 @@
         "typeVersion": 3.2,
         "position": [
           176,
-          40
+          -96
         ],
         "id": "d3e3c4a2-8a5c-6c1c-ac4a-3c4d5e6f7081",
         "name": "분기별 읽기 병합",
@@ -1173,7 +1173,7 @@
           "genericAuthType": "httpHeaderAuth",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={\n  \"objectNames\": {{ JSON.stringify($json.objectNames) }},\n  \"contentType\": \"image/jpeg\"\n}",
+          "jsonBody": "={\n  \"objectNames\": {{ JSON.stringify($json.objectNames) }},\n  \"contentType\": {{ JSON.stringify($json.imageContentType || \"application/octet-stream\") }}\n}",
           "options": {}
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -1193,7 +1193,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const sourceItem = $('데이터 파싱1').itemMatching(0);\nconst originalUrls = sourceItem.json.originalImageUrls;\nconst sourceBinary = sourceItem.binary || {};\nconst presignedUrls = $input.first().json.urls;\n\nreturn presignedUrls.map((item, index) => {\n  const key = originalUrls[index];\n  return {\n    json: {\n      originalUrl: key,\n      objectName: item.objectName,\n      uploadUrl: item.uploadUrl,\n      downloadUrl: item.downloadUrl\n    },\n    binary: sourceBinary[key] ? { data: sourceBinary[key] } : undefined,\n    pairedItem: { item: 0 }\n  };\n});"
+          "jsCode": "const sourceItem = $('데이터 파싱1').itemMatching(0);\nconst originalUrls = sourceItem.json.originalImageUrls || [];\nconst sourceBinary = sourceItem.binary || {};\nconst presignedUrls = $input.first().json.urls || [];\nconst uploadContentType = sourceItem.json.imageContentType || \"application/octet-stream\";\n\nreturn presignedUrls.map((item, index) => {\n  const key = originalUrls[index];\n  const binary = key ? sourceBinary[key] : null;\n\n  if (!binary || !binary.data) {\n    throw new Error(\"Email image binary is missing before upload. key=\" + (key || \"\") + \", objectName=\" + (item.objectName || \"\"));\n  }\n\n  return {\n    json: {\n      originalUrl: key,\n      objectName: item.objectName,\n      uploadUrl: item.uploadUrl,\n      downloadUrl: item.downloadUrl,\n      contentType: uploadContentType\n    },\n    binary: { data: binary },\n    pairedItem: { item: 0 }\n  };\n});"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1227,14 +1227,14 @@
             "parameters": [
               {
                 "name": "Content-Type",
-                "value": "image/jpeg"
+                "value": "={{ $json.contentType || 'application/octet-stream' }}"
               }
             ]
           },
           "sendBody": true,
-          "specifyBody": "binary",
-          "options": {},
-          "inputDataFieldName": "data"
+          "contentType": "binaryData",
+          "inputDataFieldName": "data",
+          "options": {}
         },
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
@@ -1282,7 +1282,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const rawEmail = $input.item.json;\nconst metadata = rawEmail.metadata || {};\nconst headers = rawEmail.headers || {};\nconst attributes = rawEmail.attributes || {};\n\nfunction readHeader(name) {\n  const value = metadata[name] ?? headers[name] ?? headers[name.toLowerCase()];\n  if (Array.isArray(value)) return value[0] || \"\";\n  if (!value) return \"\";\n  const raw = String(value);\n  const prefix = name + \":\";\n  return raw.toLowerCase().startsWith(prefix.toLowerCase())\n    ? raw.slice(prefix.length).trim()\n    : raw.trim();\n}\n\nfunction normalizeMessageId(value) {\n  if (!value) return \"\";\n  const first = Array.isArray(value) ? value[0] : value;\n  return String(first).replace(/[<>]/g, \"\").trim();\n}\n\nfunction normalizeReferences(value) {\n  if (!value) return \"\";\n  const raw = Array.isArray(value) ? value.join(\" \") : String(value);\n  return raw\n    .split(/\\s+/)\n    .map(normalizeMessageId)\n    .filter(Boolean)\n    .join(\" \");\n}\n\nfunction formatAddress(value) {\n  if (!value) return \"\";\n  if (typeof value === \"string\") return value;\n  if (value.text) return value.text;\n  if (Array.isArray(value.value)) {\n    return value.value\n      .map((entry) => entry.name ? entry.name + \" <\" + entry.address + \">\" : entry.address)\n      .filter(Boolean)\n      .join(\", \");\n  }\n  return String(value);\n}\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\");\n  text = text.replace(/[ \\t]+/g, \" \");\n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst messageId = normalizeMessageId(readHeader(\"message-id\"));\nconst inReplyTo = normalizeMessageId(readHeader(\"in-reply-to\"));\nconst references = normalizeReferences(readHeader(\"references\"));\nconst uid = attributes.uid || null;\n\nif (!uid && !messageId) {\n  throw new Error(\"Email identity is missing. Expected attributes.uid or message-id from EmailReadImap.\");\n}\n\nlet timestamp = new Date().toISOString();\nif (rawEmail.date) {\n  const parsed = new Date(rawEmail.date);\n  if (!Number.isNaN(parsed.getTime())) {\n    timestamp = parsed.toISOString();\n  }\n}\n\nconst plainContent = typeof rawEmail.text === \"string\"\n  ? rawEmail.text.trim()\n  : (typeof rawEmail.textPlain === \"string\" ? rawEmail.textPlain.trim() : \"\");\nconst htmlContent = stripAndCleanHtml(rawEmail.html || rawEmail.textHtml || \"\");\nconst content = plainContent || htmlContent;\n\nconst originalImageUrls = [];\nconst objectNames = [];\nconst binaryData = $input.item.binary;\nif (typeof binaryData === \"object\" && binaryData !== null) {\n  const datePart = timestamp.substring(0, 10).replace(/-/g, \"\");\n  const uniqueSource = messageId || \"uid_\" + uid;\n  const uniqueId = uniqueSource.replace(/[^a-zA-Z0-9_-]/g, \"_\");\n\n  Object.keys(binaryData).forEach((key, index) => {\n    const file = binaryData[key];\n    if (file && file.mimeType && file.mimeType.startsWith(\"image/\")) {\n      const ext = (file.fileExtension || \"jpg\").toLowerCase();\n      const objectName = \"email/\" + datePart + \"/\" + uniqueId + \"/image_\" + index + \".\" + ext;\n      originalImageUrls.push(key);\n      objectNames.push(objectName);\n    }\n  });\n}\n\nif (!content && originalImageUrls.length === 0) {\n  throw new Error(\"Email has neither text content nor image binary. Check EmailReadImap resolved output. uid=\" + (uid || \"\") + \", messageId=\" + messageId);\n}\n\nconst subject = rawEmail.subject || \"\";\nconst combinedText = subject + \" \" + content;\nconst userCodeMatch = combinedText.match(/\\b\\d{4}[ \\t]?\\d{4}[ \\t]?\\d{4}\\b/);\nconst userCode = userCodeMatch ? userCodeMatch[0].replace(/[ \\t]/g, \"\") : null;\nreturn {\n  json: {\n    from: formatAddress(rawEmail.from),\n    to: formatAddress(rawEmail.to),\n    subject,\n    date: rawEmail.date || \"\",\n    headers: {\n      \"message-id\": messageId,\n      \"in-reply-to\": inReplyTo,\n      \"references\": references\n    },\n    attributes: { uid },\n    userCode,\n    content,\n    timestamp,\n    originalImageUrls,\n    objectNames\n  },\n  binary: $input.item.binary\n};"
+          "jsCode": "const rawEmail = $input.item.json;\nconst metadata = rawEmail.metadata || {};\nconst headers = rawEmail.headers || {};\nconst attributes = rawEmail.attributes || {};\n\nfunction readHeader(name) {\n  const value = metadata[name] ?? headers[name] ?? headers[name.toLowerCase()];\n  if (Array.isArray(value)) return value[0] || \"\";\n  if (!value) return \"\";\n  const raw = String(value);\n  const prefix = name + \":\";\n  return raw.toLowerCase().startsWith(prefix.toLowerCase())\n    ? raw.slice(prefix.length).trim()\n    : raw.trim();\n}\n\nfunction normalizeMessageId(value) {\n  if (!value) return \"\";\n  const first = Array.isArray(value) ? value[0] : value;\n  return String(first).replace(/[<>]/g, \"\").trim();\n}\n\nfunction normalizeReferences(value) {\n  if (!value) return \"\";\n  const raw = Array.isArray(value) ? value.join(\" \") : String(value);\n  return raw\n    .split(/\\s+/)\n    .map(normalizeMessageId)\n    .filter(Boolean)\n    .join(\" \");\n}\n\nfunction formatAddress(value) {\n  if (!value) return \"\";\n  if (typeof value === \"string\") return value;\n  if (value.text) return value.text;\n  if (Array.isArray(value.value)) {\n    return value.value\n      .map((entry) => entry.name ? entry.name + \" <\" + entry.address + \">\" : entry.address)\n      .filter(Boolean)\n      .join(\", \");\n  }\n  return String(value);\n}\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\");\n  text = text.replace(/[ \\t]+/g, \" \");\n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst messageId = normalizeMessageId(readHeader(\"message-id\"));\nconst inReplyTo = normalizeMessageId(readHeader(\"in-reply-to\"));\nconst references = normalizeReferences(readHeader(\"references\"));\nconst uid = attributes.uid || null;\n\nif (!uid && !messageId) {\n  throw new Error(\"Email identity is missing. Expected attributes.uid or message-id from EmailReadImap.\");\n}\n\nlet timestamp = new Date().toISOString();\nif (rawEmail.date) {\n  const parsed = new Date(rawEmail.date);\n  if (!Number.isNaN(parsed.getTime())) {\n    timestamp = parsed.toISOString();\n  }\n}\n\nconst plainContent = typeof rawEmail.text === \"string\"\n  ? rawEmail.text.trim()\n  : (typeof rawEmail.textPlain === \"string\" ? rawEmail.textPlain.trim() : \"\");\nconst htmlContent = stripAndCleanHtml(rawEmail.html || rawEmail.textHtml || \"\");\nconst content = plainContent || htmlContent;\n\nconst originalImageUrls = [];\nconst objectNames = [];\nlet imageContentType = \"application/octet-stream\";\nconst binaryData = $input.item.binary;\nif (typeof binaryData === \"object\" && binaryData !== null) {\n  const datePart = timestamp.substring(0, 10).replace(/-/g, \"\");\n  const uniqueSource = messageId || \"uid_\" + uid;\n  const uniqueId = uniqueSource.replace(/[^a-zA-Z0-9_-]/g, \"_\");\n\n  Object.keys(binaryData).forEach((key, index) => {\n    const file = binaryData[key];\n    if (file && file.mimeType && file.mimeType.startsWith(\"image/\")) {\n      if (originalImageUrls.length === 0) {\n        imageContentType = file.mimeType;\n      }\n      const ext = (file.fileExtension || \"jpg\").toLowerCase();\n      const objectName = \"email/\" + datePart + \"/\" + uniqueId + \"/image_\" + index + \".\" + ext;\n      originalImageUrls.push(key);\n      objectNames.push(objectName);\n    }\n  });\n}\n\nif (!content && originalImageUrls.length === 0) {\n  throw new Error(\"Email has neither text content nor image binary. Check EmailReadImap resolved output. uid=\" + (uid || \"\") + \", messageId=\" + messageId);\n}\n\nconst subject = rawEmail.subject || \"\";\nconst combinedText = subject + \" \" + content;\nconst userCodeMatch = combinedText.match(/\\b\\d{4}[ \\t]?\\d{4}[ \\t]?\\d{4}\\b/);\nconst userCode = userCodeMatch ? userCodeMatch[0].replace(/[ \\t]/g, \"\") : null;\nreturn {\n  json: {\n    from: formatAddress(rawEmail.from),\n    to: formatAddress(rawEmail.to),\n    subject,\n    date: rawEmail.date || \"\",\n    headers: {\n      \"message-id\": messageId,\n      \"in-reply-to\": inReplyTo,\n      \"references\": references\n    },\n    attributes: { uid },\n    userCode,\n    content,\n    timestamp,\n    originalImageUrls,\n    objectNames,\n    imageContentType\n  },\n  binary: $input.item.binary\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -2063,28 +2063,31 @@
     "meta": {
       "templateCredsSetupCompleted": true
     },
+    "nodeGroups": [],
     "pinData": {},
-    "versionId": "23e244b5-9957-42d7-a2f2-a7c07c8ddf60",
+    "versionId": "fa3547aa-6f6e-408b-a097-8a61ca20d04c",
     "activeVersionId": null,
-    "versionCounter": 1007,
+    "versionCounter": 1011,
     "triggerCount": 3,
+    "sourceWorkflowId": null,
     "tags": [],
     "shared": [
       {
-        "updatedAt": "2026-06-18T04:28:10.651Z",
-        "createdAt": "2026-06-18T04:28:10.651Z",
+        "updatedAt": "2026-07-06T10:24:58.406Z",
+        "createdAt": "2026-07-06T10:24:58.406Z",
         "role": "workflow:owner",
         "workflowId": "nsbvUUSzjjH2zFic",
-        "projectId": "XyP6KgL7wL6d92GF",
+        "projectId": "Tm387HFBIMcgw4qC",
         "project": {
-          "updatedAt": "2026-06-18T04:27:36.981Z",
-          "createdAt": "2026-06-18T04:26:08.435Z",
-          "id": "XyP6KgL7wL6d92GF",
-          "name": "shin yoonsik <aaa946@naver.com>",
+          "updatedAt": "2026-07-05T14:24:08.697Z",
+          "createdAt": "2026-07-05T13:28:02.074Z",
+          "id": "Tm387HFBIMcgw4qC",
+          "name": "yoonsik shin <aaa946@naver.com>",
           "type": "personal",
           "icon": null,
           "description": null,
-          "creatorId": "40f0b1ff-d5fa-482e-83da-d79b2145963d"
+          "customTelemetryTags": [],
+          "creatorId": "9358ee48-8e11-4841-8845-ff6660bf2a4e"
         }
       }
     ],
