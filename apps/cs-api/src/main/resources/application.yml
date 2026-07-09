@@ -32,6 +32,10 @@ security:
 admin:
   htpasswd-path: ${ADMIN_HTPASSWD_PATH:/app/config/.htpasswd}
 
+cs:
+  email:
+    webmail-url: ${CS_EMAIL_WEBMAIL_URL:https://company.daouoffice.com/app/mail}
+
 naver:
   session:
     id: ${NAVER_CAFE_SESSION_ID:9f2b4d68-4d2c-4db6-a9ec-285809470036}

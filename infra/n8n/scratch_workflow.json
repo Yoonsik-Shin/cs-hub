@@ -1193,7 +1193,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const originalUrls = $('데이터 파싱1').first().json.originalImageUrls;\nconst presignedUrls = $input.first().json.urls;\n\nreturn presignedUrls.map((item, index) => {\n  return {\n    json: {\n      originalUrl: originalUrls[index],\n      objectName: item.objectName,\n      uploadUrl: item.uploadUrl,\n      downloadUrl: item.downloadUrl\n    },\n    pairedItem: { item: 0 }\n  };\n});"
+          "jsCode": "const sourceItem = $('데이터 파싱1').itemMatching(0);\nconst originalUrls = sourceItem.json.originalImageUrls;\nconst sourceBinary = sourceItem.binary || {};\nconst presignedUrls = $input.first().json.urls;\n\nreturn presignedUrls.map((item, index) => {\n  const key = originalUrls[index];\n  return {\n    json: {\n      originalUrl: key,\n      objectName: item.objectName,\n      uploadUrl: item.uploadUrl,\n      downloadUrl: item.downloadUrl\n    },\n    binary: sourceBinary[key] ? { data: sourceBinary[key] } : undefined,\n    pairedItem: { item: 0 }\n  };\n});"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1207,7 +1207,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const binaryKey = $json.originalUrl;\nconst binaryData = $('Loop Over Emails').item.binary[binaryKey];\n\nreturn {\n  json: $json,\n  binary: {\n    data: binaryData\n  }\n};"
+          "jsCode": "return {\n  json: $json,\n  binary: $binary\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1247,19 +1247,6 @@
       },
       {
         "parameters": {
-          "options": {}
-        },
-        "type": "n8n-nodes-base.splitInBatches",
-        "typeVersion": 3,
-        "position": [
-          1088,
-          1232
-        ],
-        "id": "c67b0e35-b050-4b1d-ac09-b1efae0a623b",
-        "name": "Loop Over Images1"
-      },
-      {
-        "parameters": {
           "conditions": {
             "options": {
               "caseSensitive": true,
@@ -1295,7 +1282,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const rawEmail = $input.item.json;\nconst metadata = rawEmail.metadata || {};\nconst headers = rawEmail.headers || {};\nconst attributes = rawEmail.attributes || {};\n\nfunction readHeader(name) {\n  const value = metadata[name] ?? headers[name] ?? headers[name.toLowerCase()];\n  if (Array.isArray(value)) return value[0] || \"\";\n  if (!value) return \"\";\n  const raw = String(value);\n  const prefix = name + \":\";\n  return raw.toLowerCase().startsWith(prefix.toLowerCase())\n    ? raw.slice(prefix.length).trim()\n    : raw.trim();\n}\n\nfunction normalizeMessageId(value) {\n  if (!value) return \"\";\n  const first = Array.isArray(value) ? value[0] : value;\n  return String(first).replace(/[<>]/g, \"\").trim();\n}\n\nfunction normalizeReferences(value) {\n  if (!value) return \"\";\n  const raw = Array.isArray(value) ? value.join(\" \") : String(value);\n  return raw\n    .split(/\\s+/)\n    .map(normalizeMessageId)\n    .filter(Boolean)\n    .join(\" \");\n}\n\nfunction formatAddress(value) {\n  if (!value) return \"\";\n  if (typeof value === \"string\") return value;\n  if (value.text) return value.text;\n  if (Array.isArray(value.value)) {\n    return value.value\n      .map((entry) => entry.name ? entry.name + \" <\" + entry.address + \">\" : entry.address)\n      .filter(Boolean)\n      .join(\", \");\n  }\n  return String(value);\n}\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\");\n  text = text.replace(/[ \\t]+/g, \" \");\n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst messageId = normalizeMessageId(readHeader(\"message-id\"));\nconst inReplyTo = normalizeMessageId(readHeader(\"in-reply-to\"));\nconst references = normalizeReferences(readHeader(\"references\"));\nconst uid = attributes.uid || null;\n\nif (!uid && !messageId) {\n  throw new Error(\"Email identity is missing. Expected attributes.uid or message-id from EmailReadImap.\");\n}\n\nlet timestamp = new Date().toISOString();\nif (rawEmail.date) {\n  const parsed = new Date(rawEmail.date);\n  if (!Number.isNaN(parsed.getTime())) {\n    timestamp = parsed.toISOString();\n  }\n}\n\nconst plainContent = typeof rawEmail.text === \"string\"\n  ? rawEmail.text.trim()\n  : (typeof rawEmail.textPlain === \"string\" ? rawEmail.textPlain.trim() : \"\");\nconst htmlContent = stripAndCleanHtml(rawEmail.html || rawEmail.textHtml || \"\");\nconst content = plainContent || htmlContent;\n\nconst originalImageUrls = [];\nconst objectNames = [];\nconst binaryData = $input.item.binary;\nif (typeof binaryData === \"object\" && binaryData !== null) {\n  const datePart = timestamp.substring(0, 10).replace(/-/g, \"\");\n  const uniqueSource = messageId || \"uid_\" + uid;\n  const uniqueId = uniqueSource.replace(/[^a-zA-Z0-9_-]/g, \"_\");\n\n  Object.keys(binaryData).forEach((key, index) => {\n    const file = binaryData[key];\n    if (file && file.mimeType && file.mimeType.startsWith(\"image/\")) {\n      const ext = (file.fileExtension || \"jpg\").toLowerCase();\n      const objectName = \"email/\" + datePart + \"/\" + uniqueId + \"/image_\" + index + \".\" + ext;\n      originalImageUrls.push(key);\n      objectNames.push(objectName);\n    }\n  });\n}\n\nif (!content && originalImageUrls.length === 0) {\n  throw new Error(\"Email has neither text content nor image binary. Check EmailReadImap resolved output. uid=\" + (uid || \"\") + \", messageId=\" + messageId);\n}\n\nconst subject = rawEmail.subject || \"\";\nconst combinedText = subject + \" \" + content;\nconst userCodeMatch = combinedText.match(/\\b\\d{12}\\b/);\nconst userCode = userCodeMatch ? userCodeMatch[0] : null;\nconst articleUrl = uid\n  ? \"https://company.daouoffice.com/app/mail?uid=\" + encodeURIComponent(String(uid))\n  : \"https://company.daouoffice.com/app/mail?messageId=\" + encodeURIComponent(messageId);\n\nreturn {\n  json: {\n    from: formatAddress(rawEmail.from),\n    to: formatAddress(rawEmail.to),\n    subject,\n    date: rawEmail.date || \"\",\n    headers: {\n      \"message-id\": messageId,\n      \"in-reply-to\": inReplyTo,\n      \"references\": references\n    },\n    attributes: { uid },\n    articleUrl,\n    userCode,\n    content,\n    timestamp,\n    originalImageUrls,\n    objectNames\n  }\n};"
+          "jsCode": "const rawEmail = $input.item.json;\nconst metadata = rawEmail.metadata || {};\nconst headers = rawEmail.headers || {};\nconst attributes = rawEmail.attributes || {};\n\nfunction readHeader(name) {\n  const value = metadata[name] ?? headers[name] ?? headers[name.toLowerCase()];\n  if (Array.isArray(value)) return value[0] || \"\";\n  if (!value) return \"\";\n  const raw = String(value);\n  const prefix = name + \":\";\n  return raw.toLowerCase().startsWith(prefix.toLowerCase())\n    ? raw.slice(prefix.length).trim()\n    : raw.trim();\n}\n\nfunction normalizeMessageId(value) {\n  if (!value) return \"\";\n  const first = Array.isArray(value) ? value[0] : value;\n  return String(first).replace(/[<>]/g, \"\").trim();\n}\n\nfunction normalizeReferences(value) {\n  if (!value) return \"\";\n  const raw = Array.isArray(value) ? value.join(\" \") : String(value);\n  return raw\n    .split(/\\s+/)\n    .map(normalizeMessageId)\n    .filter(Boolean)\n    .join(\" \");\n}\n\nfunction formatAddress(value) {\n  if (!value) return \"\";\n  if (typeof value === \"string\") return value;\n  if (value.text) return value.text;\n  if (Array.isArray(value.value)) {\n    return value.value\n      .map((entry) => entry.name ? entry.name + \" <\" + entry.address + \">\" : entry.address)\n      .filter(Boolean)\n      .join(\", \");\n  }\n  return String(value);\n}\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\");\n  text = text.replace(/[ \\t]+/g, \" \");\n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst messageId = normalizeMessageId(readHeader(\"message-id\"));\nconst inReplyTo = normalizeMessageId(readHeader(\"in-reply-to\"));\nconst references = normalizeReferences(readHeader(\"references\"));\nconst uid = attributes.uid || null;\n\nif (!uid && !messageId) {\n  throw new Error(\"Email identity is missing. Expected attributes.uid or message-id from EmailReadImap.\");\n}\n\nlet timestamp = new Date().toISOString();\nif (rawEmail.date) {\n  const parsed = new Date(rawEmail.date);\n  if (!Number.isNaN(parsed.getTime())) {\n    timestamp = parsed.toISOString();\n  }\n}\n\nconst plainContent = typeof rawEmail.text === \"string\"\n  ? rawEmail.text.trim()\n  : (typeof rawEmail.textPlain === \"string\" ? rawEmail.textPlain.trim() : \"\");\nconst htmlContent = stripAndCleanHtml(rawEmail.html || rawEmail.textHtml || \"\");\nconst content = plainContent || htmlContent;\n\nconst originalImageUrls = [];\nconst objectNames = [];\nconst binaryData = $input.item.binary;\nif (typeof binaryData === \"object\" && binaryData !== null) {\n  const datePart = timestamp.substring(0, 10).replace(/-/g, \"\");\n  const uniqueSource = messageId || \"uid_\" + uid;\n  const uniqueId = uniqueSource.replace(/[^a-zA-Z0-9_-]/g, \"_\");\n\n  Object.keys(binaryData).forEach((key, index) => {\n    const file = binaryData[key];\n    if (file && file.mimeType && file.mimeType.startsWith(\"image/\")) {\n      const ext = (file.fileExtension || \"jpg\").toLowerCase();\n      const objectName = \"email/\" + datePart + \"/\" + uniqueId + \"/image_\" + index + \".\" + ext;\n      originalImageUrls.push(key);\n      objectNames.push(objectName);\n    }\n  });\n}\n\nif (!content && originalImageUrls.length === 0) {\n  throw new Error(\"Email has neither text content nor image binary. Check EmailReadImap resolved output. uid=\" + (uid || \"\") + \", messageId=\" + messageId);\n}\n\nconst subject = rawEmail.subject || \"\";\nconst combinedText = subject + \" \" + content;\nconst userCodeMatch = combinedText.match(/\\b\\d{4}[ \\t]?\\d{4}[ \\t]?\\d{4}\\b/);\nconst userCode = userCodeMatch ? userCodeMatch[0].replace(/[ \\t]/g, \"\") : null;\nreturn {\n  json: {\n    from: formatAddress(rawEmail.from),\n    to: formatAddress(rawEmail.to),\n    subject,\n    date: rawEmail.date || \"\",\n    headers: {\n      \"message-id\": messageId,\n      \"in-reply-to\": inReplyTo,\n      \"references\": references\n    },\n    attributes: { uid },\n    userCode,\n    content,\n    timestamp,\n    originalImageUrls,\n    objectNames\n  },\n  binary: $input.item.binary\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1362,7 +1349,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const uploaded = $('Loop Over Images1').item.json;\n\nreturn {\n  json: {\n    originalUrl: uploaded.originalUrl,\n    objectName: uploaded.objectName,\n    downloadUrl: uploaded.downloadUrl\n  }\n};"
+          "jsCode": "const uploaded = $('이미지 정보 페어링1').item.json;\n\nreturn {\n  json: {\n    originalUrl: uploaded.originalUrl,\n    objectName: uploaded.objectName,\n    downloadUrl: uploaded.downloadUrl\n  }\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1383,6 +1370,19 @@
         ],
         "id": "merge-naver-cafe-branches",
         "name": "데이터 합치기"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn [{ json: { uploadedImageCount: items.length }, pairedItem: { item: 0 } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1088,
+          1232
+        ],
+        "id": "email-image-upload-merge-0001-000000000001",
+        "name": "이메일 이미지 업로드 합치기"
       }
     ],
     "connections": {
@@ -1856,7 +1856,7 @@
         "main": [
           [
             {
-              "node": "Loop Over Images1",
+              "node": "이미지 다운로드1",
               "type": "main",
               "index": 0
             }
@@ -1879,24 +1879,6 @@
           [
             {
               "node": "이메일 이미지 업로드 완료 정보",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Loop Over Images1": {
-        "main": [
-          [
-            {
-              "node": "RequestDTO 변환3",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "이미지 다운로드1",
               "type": "main",
               "index": 0
             }
@@ -2043,7 +2025,18 @@
         "main": [
           [
             {
-              "node": "Loop Over Images1",
+              "node": "이메일 이미지 업로드 합치기",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "이메일 이미지 업로드 합치기": {
+        "main": [
+          [
+            {
+              "node": "RequestDTO 변환3",
               "type": "main",
               "index": 0
             }
