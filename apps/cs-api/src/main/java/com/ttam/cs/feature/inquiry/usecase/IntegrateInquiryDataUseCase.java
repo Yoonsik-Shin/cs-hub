@@ -14,6 +14,8 @@ import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
 import com.ttam.cs.common.util.EmailAddressUtils;
 import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
 import org.springframework.beans.factory.annotation.Value;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -25,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @RequiredArgsConstructor
 public class IntegrateInquiryDataUseCase {
+
+    private static final String EMAIL_REPLY_PREFIX_PATTERN = "(?i)^(re\\s*:\\s*|fw\\s*:\\s*|fwd\\s*:\\s*|회신\\s*:\\s*)+";
 
     private final CustomerInquiryRepository repository;
     private final InquiryWorkLogRepository workLogRepository;
@@ -49,6 +53,10 @@ public class IntegrateInquiryDataUseCase {
                     return true;
                 })
                 .map(item -> {
+                    if ("EMAIL".equalsIgnoreCase(channel)) {
+                        validateEmailItem(item);
+                    }
+
                     List<String> imageUrls = item.imageUrls();
                     if ((imageUrls == null || imageUrls.isEmpty())
                             && item.channelMetadata() instanceof com.ttam.cs.feature.inquiry.domain.vo.NaverCafeMetadata cafeMeta) {
@@ -67,7 +75,7 @@ public class IntegrateInquiryDataUseCase {
                                 emailMeta.date(),
                                 emailMeta.headers(),
                                 emailMeta.attributes(),
-                                webmailUrl,
+                                resolveEmailArticleUrl(emailMeta),
                                 emailMeta.customFields()
                         );
                     }
@@ -110,6 +118,40 @@ public class IntegrateInquiryDataUseCase {
             DeviceInfo deviceInfo,
             String content,
             List<String> imageUrls) {
+    }
+
+    private void validateEmailItem(IntegrationItem item) {
+        if (!(item.channelMetadata() instanceof EmailMetadata emailMeta)) {
+            throw new IllegalArgumentException("EMAIL integration item requires EmailMetadata.");
+        }
+
+        if (!hasText(item.content())) {
+            throw new IllegalArgumentException("Email content must not be blank. uid="
+                    + emailUid(emailMeta) + ", messageId=" + cleanMessageId(emailMeta.getMessageId()));
+        }
+
+        if (!hasText(cleanMessageId(emailMeta.getMessageId())) && emailUid(emailMeta) == null) {
+            throw new IllegalArgumentException("Email identity is missing. Expected message-id or IMAP uid.");
+        }
+    }
+
+    private String resolveEmailArticleUrl(EmailMetadata emailMeta) {
+        if (hasText(emailMeta.articleUrl())) {
+            return emailMeta.articleUrl();
+        }
+
+        Long uid = emailUid(emailMeta);
+        if (uid != null) {
+            return appendQueryParam(webmailUrl, "uid", String.valueOf(uid));
+        }
+
+        return appendQueryParam(webmailUrl, "messageId", cleanMessageId(emailMeta.getMessageId()));
+    }
+
+    private String appendQueryParam(String baseUrl, String name, String value) {
+        String base = hasText(baseUrl) ? baseUrl : "https://company.daouoffice.com/app/mail";
+        String separator = base.contains("?") ? "&" : "?";
+        return base + separator + name + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private void reopenResolvedParent(UUID parentId) {
@@ -166,7 +208,7 @@ public class IntegrateInquiryDataUseCase {
         String subject = emailMeta.subject();
         String from = emailMeta.from();
         if (subject != null && !subject.isBlank() && from != null && !from.isBlank()) {
-            String normalizedSubject = subject.replaceAll("^(?i)(re\\s*:\\s*|re\\s*:\\s*|fw\\s*:\\s*|fwd\\s*:\\s*|회신\\s*:\\s*)+", "").trim();
+            String normalizedSubject = subject.replaceAll(EMAIL_REPLY_PREFIX_PATTERN, "").trim();
             String senderHash = computeEmailSenderHash(from);
             if (senderHash != null) {
                 OffsetDateTime since = OffsetDateTime.now(ZoneOffset.UTC).minusDays(7);
@@ -175,7 +217,7 @@ public class IntegrateInquiryDataUseCase {
                     if (candidate.getChannelMetadata() instanceof EmailMetadata candMeta) {
                         String candSubject = candMeta.subject();
                         if (candSubject != null) {
-                            String candNormSubject = candSubject.replaceAll("^(?i)(re\\s*:\\s*|re\\s*:\\s*|fw\\s*:\\s*|fwd\\s*:\\s*|회신\\s*:\\s*)+", "").trim();
+                            String candNormSubject = candSubject.replaceAll(EMAIL_REPLY_PREFIX_PATTERN, "").trim();
                             if (candNormSubject.equalsIgnoreCase(normalizedSubject)) {
                                 return candidate.getParentId() != null ? candidate.getParentId() : candidate.getId();
                             }
@@ -191,5 +233,17 @@ public class IntegrateInquiryDataUseCase {
     private String computeEmailSenderHash(String from) {
         String normalized = EmailAddressUtils.normalizeForHash(from);
         return normalized != null ? piiEncryptionUtils.hmacHex(normalized) : null;
+    }
+
+    private Long emailUid(EmailMetadata emailMeta) {
+        return emailMeta.attributes() != null ? emailMeta.attributes().uid() : null;
+    }
+
+    private String cleanMessageId(String messageId) {
+        return messageId != null ? messageId.replace("<", "").replace(">", "").trim() : null;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

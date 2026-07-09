@@ -132,7 +132,7 @@ class IntegrateInquiryDataUseCaseTest {
     }
 
     @Test
-    void testIntegrateInquiries_InjectsWebmailUrl() {
+    void testIntegrateInquiries_AddsMessageIdToWebmailUrlWhenArticleUrlMissing() {
         // Given
         EmailMetadata.Headers headers = new EmailMetadata.Headers("<msg-123>", "", "");
         EmailMetadata channelMetadata = new EmailMetadata(
@@ -166,8 +166,80 @@ class IntegrateInquiryDataUseCaseTest {
             CustomerInquiry inquiry = inquiries.get(0);
             assertTrue(inquiry.getChannelMetadata() instanceof EmailMetadata);
             EmailMetadata meta = (EmailMetadata) inquiry.getChannelMetadata();
-            assertEquals(WEBMAIL_URL, meta.articleUrl());
+            assertEquals(WEBMAIL_URL + "?messageId=msg-123", meta.articleUrl());
             return true;
         }));
+    }
+
+    @Test
+    void testIntegrateInquiries_PreservesEmailArticleUrlFromIntegrationPayload() {
+        // Given
+        String articleUrl = WEBMAIL_URL + "?uid=148";
+        EmailMetadata.Headers headers = new EmailMetadata.Headers("<msg-148>", "", "");
+        EmailMetadata.Attributes attributes = new EmailMetadata.Attributes(148L);
+        EmailMetadata channelMetadata = new EmailMetadata(
+                "customer@test.com",
+                "cs@test.com",
+                "문의 추가 이미지",
+                "2026-07-09T01:09:09Z",
+                headers,
+                attributes,
+                articleUrl
+        );
+
+        IntegrateInquiryDataUseCase.IntegrationItem item = new IntegrateInquiryDataUseCase.IntegrationItem(
+                "2026-07-09T01:09:09Z",
+                null,
+                channelMetadata,
+                null,
+                "이미지 확인 부탁드립니다.",
+                List.of("email/20260709/uid_148/image_1.jpg")
+        );
+
+        when(adminMemberRepository.existsByEmail("customer@test.com")).thenReturn(false);
+        when(storageService.extractObjectKey("email/20260709/uid_148/image_1.jpg"))
+                .thenReturn("email/20260709/uid_148/image_1.jpg");
+        when(uniqueKeyGenerator.generateUniqueKey(any(), any(), any(), any(), any()))
+                .thenReturn(UUID.randomUUID());
+
+        // When
+        useCase.execute("EMAIL", List.of(item));
+
+        // Then
+        verify(repository, times(1)).bulkInsert(argThat(inquiries -> {
+            EmailMetadata meta = (EmailMetadata) inquiries.get(0).getChannelMetadata();
+            assertEquals(articleUrl, meta.articleUrl());
+            assertEquals(List.of("email/20260709/uid_148/image_1.jpg"), inquiries.get(0).getImageUrls());
+            return true;
+        }));
+    }
+
+    @Test
+    void testIntegrateInquiries_EmailWithBlankContentThrows() {
+        // Given
+        EmailMetadata.Headers headers = new EmailMetadata.Headers("<msg-empty>", "", "");
+        EmailMetadata channelMetadata = new EmailMetadata(
+                "customer@test.com",
+                "cs@test.com",
+                "문의",
+                "2026-07-09T01:09:09Z",
+                headers,
+                null
+        );
+
+        IntegrateInquiryDataUseCase.IntegrationItem item = new IntegrateInquiryDataUseCase.IntegrationItem(
+                "2026-07-09T01:09:09Z",
+                null,
+                channelMetadata,
+                null,
+                "   ",
+                List.of()
+        );
+
+        when(adminMemberRepository.existsByEmail("customer@test.com")).thenReturn(false);
+
+        // When & Then
+        assertThrows(IllegalArgumentException.class, () -> useCase.execute("EMAIL", List.of(item)));
+        verify(repository, never()).bulkInsert(anyList());
     }
 }
