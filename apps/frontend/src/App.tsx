@@ -27,6 +27,7 @@ export const App: React.FC = () => {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isOperatorMenuOpen, setIsOperatorMenuOpen] = useState(false);
   const operatorMenuRef = useRef<HTMLDivElement | null>(null);
+  const adminAccessIssuedOriginRef = useRef<string | null>(null);
 
   // Naver Session states
   const [naverSessionStatus, setNaverSessionStatus] = useState<'ACTIVE' | 'EXPIRED' | 'MISSING' | 'CHECKING' | 'ERROR'>('CHECKING');
@@ -823,6 +824,13 @@ export const App: React.FC = () => {
     inquiryApi.getMe()
       .then((operator) => {
         setCurrentOperator(operator);
+        if (operator.role === 'ADMIN' && adminAccessIssuedOriginRef.current !== window.location.origin) {
+          adminAccessIssuedOriginRef.current = window.location.origin;
+          inquiryApi.issueAdminAccess().catch((err) => {
+            adminAccessIssuedOriginRef.current = null;
+            console.warn('Failed to refresh admin tool access for current origin:', err);
+          });
+        }
         fetchBookmarks();
         fetchCustomFilters();
       })

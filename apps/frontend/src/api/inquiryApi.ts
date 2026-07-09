@@ -222,7 +222,13 @@ export const inquiryApi = {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        operatorInfo: data.operatorInfo,
+        status: data.status,
+        reasons: {
+          status: data.reason,
+        },
+      }),
     });
 
     if (!response.ok) {
