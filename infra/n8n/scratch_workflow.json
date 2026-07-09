@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-07-09T12:33:00.000Z",
+    "updatedAt": "2026-07-09T13:03:18.961Z",
     "createdAt": "2026-06-18T04:28:10.651Z",
     "id": "nsbvUUSzjjH2zFic",
     "name": "CS 데이터 통합(N8N 수정)",
@@ -500,7 +500,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const inputData = $input.item.json;\nconst articleId = inputData.articleId;\n\nconst matchedItem = $('데이터 파싱').all(0, $runIndex).find(item => String(item.json.articleId) === String(articleId));\nconst rawData = matchedItem ? matchedItem.json : {};\n\nconst images = inputData.images || [];\nconst objectKeys = images.map(img => img.objectName).filter(Boolean);\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: objectKeys,\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: objectKeys\n          }\n        }\n      ]\n    }\n  }\n};"
+          "jsCode": "const inputData = $input.item.json;\nconst articleId = inputData.articleId;\n\nconst matchedItem = $('데이터 파싱').all(0, $runIndex).find(item => String(item.json.articleId) === String(articleId));\nconst rawData = matchedItem ? matchedItem.json : {};\n\nconst images = inputData.images || [];\nconst objectKeys = images.map(img => img.objectName).filter(Boolean);\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: objectKeys,\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: objectKeys,\n            comments: rawData.comments || []\n          }\n        }\n      ]\n    }\n  }\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -514,7 +514,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const rawData = $input.item.json;\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: [],\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: []\n          }\n        }\n      ]\n    }\n  }\n};"
+          "jsCode": "const rawData = $input.item.json;\n\nreturn {\n  json: {\n    workflow_name: \"csDataIntegration\",\n    payload: {\n      channel: \"NAVER_CAFE\",\n      items: [\n        {\n          timestamp: rawData.timestamp,\n          userCode: null,\n          content: rawData.content,\n          imageUrls: [],\n          channelMetadata: {\n            cafeId: rawData.cafeId,\n            articleId: rawData.articleId,\n            menu: {\n              id: rawData.menuId,\n              name: rawData.menuName\n            },\n            articleUrl: `https://m.cafe.naver.com/ca-fe/web/cafes/${rawData.cafeId}/articles/${rawData.articleId}`,\n            writer: {\n              id: rawData.writerId,\n              nickname: rawData.writerNickname\n            },\n            metrics: {\n              readCount: rawData.readCount,\n              commentCount: rawData.commentCount,\n              likeCount: rawData.likeCount\n            },\n            imageUrls: [],\n            comments: rawData.comments || []\n          }\n        }\n      ]\n    }\n  }\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1062,12 +1062,29 @@
           288
         ],
         "id": "6bc606a5-aee5-4979-8aac-fb8204acbb2e",
-        "name": "이미지 다운로드"
+        "name": "이미지 다운로드",
+        "onError": "continueRegularOutput",
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 1000
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items\n  .filter((item) => item.binary?.data && item.json?.uploadUrl)\n  .map((item) => ({\n    json: item.json,\n    binary: item.binary,\n    pairedItem: item.pairedItem\n  }));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1872,
+          288
+        ],
+        "id": "naver-image-download-success-filter",
+        "name": "이미지 다운로드 성공 필터"
       },
       {
         "parameters": {
           "method": "PUT",
-          "url": "={{ $('이미지 정보 페어링').item.json.uploadUrl }}",
+          "url": "={{ $json.uploadUrl }}",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
@@ -1094,7 +1111,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "const result = $input.item.json?.result || {};\nconst detail = result.article || {};\nconst listData = $('게시글 상세 조회를 위한 데이터 파싱').item?.json || {};\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/\\[\\[\\[.*?\\]\\]\\]/g, \"\");\n  text = text.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\"); \n  text = text.replace(/[ \\t]+/g, \" \"); \n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nconst content = stripAndCleanHtml(detail.contentHtml || detail.content || \"\");\nconst timestamp = detail.writeDate ? new Date(detail.writeDate).toISOString() : new Date().toISOString();\n\nconst originalImageUrls = [];\n\n// 1. Extract from official imageList\nif (detail.imageList && Array.isArray(detail.imageList)) {\n  detail.imageList.forEach(img => {\n    if (img.url) {\n      originalImageUrls.push(img.url);\n    }\n  });\n}\n\n// 2. Parse inline <img> tags from contentHtml or content\nconst htmlContent = detail.contentHtml || detail.content || \"\";\nconst imgRegex = /<img[^>]+src=[\\\"']([^\\\"']+)[\\\"']/g;\nlet match;\nwhile ((match = imgRegex.exec(htmlContent)) !== null) {\n  const url = match[1];\n  // Avoid duplicates\n  if (!originalImageUrls.includes(url)) {\n    originalImageUrls.push(url);\n  }\n}\n\n// 3. Fallback to representImage if originalImageUrls is still empty\nif (originalImageUrls.length === 0 && detail.representImage && detail.representImage.url) {\n  originalImageUrls.push(detail.representImage.url);\n}\n\nconst normalizedImageUrls = originalImageUrls.map(url => {\n  if (typeof url !== \"string\") return url;\n  let cleanUrl = url\n    .replace(/&amp;/g, '&')\n    .replace(/&#x3D;/g, '=')\n    .replace(/&lt;/g, '<')\n    .replace(/&gt;/g, '>')\n    .replace(/&quot;/g, '\"')\n    .replace(/&#39;/g, \"'\")\n    .replace(/%22/g, '')\n    .replace(/\"/g, '')\n    .replace(/src==/g, 'src=')\n    .replace(/type==/g, 'type=');\n  return cleanUrl.replace(\"://cafepthumb-phinf.pstatic.net\", \"://cafeptthumb-phinf.pstatic.net\");\n});\n\nconst clubId = listData.cafeId || listData.clubId || \"unknown\";\nconst articleId = listData.articleId || detail.articleId || \"unknown\";\n\nconst objectNames = normalizedImageUrls.map((url, index) => {\n  return `naver-cafe/${clubId}_${articleId}/image_${index}.jpg`;\n});\n\nreturn {\n  cafeId: clubId,\n  articleId: articleId,\n  menuId: listData.menuId,\n  menuName: listData.menuName,\n  writerId: listData.maskedMemberId || (detail.writer ? detail.writer.id : null),\n  writerNickname: listData.writerNickname || (detail.writer ? detail.writer.nickname : null),\n  readCount: detail.readCount || 0,\n  commentCount: detail.commentCount || listData.commentCount || 0,\n  likeCount: detail.likeItCount || 0,\n  content: content,\n  timestamp: timestamp,\n  originalImageUrls: normalizedImageUrls,\n  objectNames: objectNames\n};"
+          "jsCode": "const result = $input.item.json?.result || {};\nconst detail = result.article || {};\nconst listData = $('게시글 상세 조회를 위한 데이터 파싱').item?.json || {};\n\nfunction stripAndCleanHtml(html) {\n  if (!html) return \"\";\n  let text = html.replace(/\\[\\[\\[.*?\\]\\]\\]/g, \"\");\n  text = text.replace(/<br\\s*[\\/]?>/gi, \"\\n\");\n  text = text.replace(/<\\/p>|<\\/div>|<\\/h[1-6]>/gi, \"\\n\");\n  text = text.replace(/<[^>]*>?/gm, \"\");\n  text = text.replace(/&nbsp;/gi, \" \");\n  text = text.replace(/&[a-z]+;/gi, \"\");\n  text = text.replace(/[ \\t]+/g, \" \");\n  text = text.replace(/\\n\\s*\\n+/g, \"\\n\\n\");\n  return text.trim();\n}\n\nfunction normalizeImageUrl(url) {\n  if (typeof url !== \"string\") return url;\n  let cleanUrl = url\n    .replace(/&amp;/g, '&')\n    .replace(/&#x3D;/g, '=')\n    .replace(/&lt;/g, '<')\n    .replace(/&gt;/g, '>')\n    .replace(/&quot;/g, '\"')\n    .replace(/&#39;/g, \"'\")\n    .replace(/%22/g, '')\n    .replace(/\"/g, '')\n    .replace(/src==/g, 'src=')\n    .replace(/type==/g, 'type=');\n  return cleanUrl.replace(\"://cafepthumb-phinf.pstatic.net\", \"://cafeptthumb-phinf.pstatic.net\");\n}\n\nfunction extractCommentImages(comment) {\n  const images = [];\n  const addUrl = (value) => {\n    const normalized = normalizeImageUrl(value);\n    if (normalized && !images.includes(normalized)) {\n      images.push(normalized);\n    }\n  };\n\n  if (comment.image?.url) addUrl(comment.image.url);\n  if (comment.sticker?.url) addUrl(comment.sticker.url);\n  if (Array.isArray(comment.imageList)) {\n    comment.imageList.forEach((image) => addUrl(image?.url || image?.src));\n  }\n\n  const html = comment.contentHtml || comment.content || \"\";\n  const imgRegex = /<img[^>]+src=[\"']([^\"']+)[\"']/g;\n  let match;\n  while ((match = imgRegex.exec(html)) !== null) {\n    addUrl(match[1]);\n  }\n\n  return images;\n}\n\nconst content = stripAndCleanHtml(detail.contentHtml || detail.content || \"\");\nconst timestamp = detail.writeDate ? new Date(detail.writeDate).toISOString() : new Date().toISOString();\n\nconst originalImageUrls = [];\n\n// 1. Extract from official imageList\nif (detail.imageList && Array.isArray(detail.imageList)) {\n  detail.imageList.forEach(img => {\n    if (img.url) {\n      originalImageUrls.push(img.url);\n    }\n  });\n}\n\n// 2. Parse inline <img> tags from contentHtml or content\nconst htmlContent = detail.contentHtml || detail.content || \"\";\nconst imgRegex = /<img[^>]+src=[\"']([^\"']+)[\"']/g;\nlet match;\nwhile ((match = imgRegex.exec(htmlContent)) !== null) {\n  const url = match[1];\n  if (!originalImageUrls.includes(url)) {\n    originalImageUrls.push(url);\n  }\n}\n\n// 3. Fallback to representImage if originalImageUrls is still empty\nif (originalImageUrls.length === 0 && detail.representImage && detail.representImage.url) {\n  originalImageUrls.push(detail.representImage.url);\n}\n\nconst normalizedImageUrls = originalImageUrls.map(normalizeImageUrl);\n\nconst clubId = listData.cafeId || listData.clubId || \"unknown\";\nconst articleId = listData.articleId || detail.articleId || \"unknown\";\n\nconst objectNames = normalizedImageUrls.map((url, index) => {\n  return \"naver-cafe/\" + clubId + \"_\" + articleId + \"/image_\" + index + \".jpg\";\n});\n\nconst rawComments = result.comments?.items || result.comments || detail.comments?.items || [];\nconst parentWriterNickname = listData.writerNickname || (detail.writer ? detail.writer.nickname : null);\nconst comments = Array.isArray(rawComments)\n  ? rawComments.map((comment) => {\n      const writer = comment.writer || {};\n      const writerNickname = writer.nickname || writer.nick || writer.name || \"\";\n      const writerId = writer.id || writer.memberId || writer.maskedMemberId || \"\";\n      const writeDateValue = comment.updateDate || comment.writeDate || comment.createdAt || null;\n      const writeDate = typeof writeDateValue === \"number\"\n        ? new Date(writeDateValue).toISOString()\n        : (writeDateValue ? new Date(writeDateValue).toISOString() : new Date().toISOString());\n      const commentId = comment.id || comment.commentId || null;\n      const commentContent = stripAndCleanHtml(comment.contentHtml || comment.content || \"\");\n      const isOperator = parentWriterNickname ? parentWriterNickname !== writerNickname : false;\n\n      return {\n        commentId,\n        content: commentContent,\n        writer: {\n          id: writerId,\n          nickname: writerNickname\n        },\n        writeDate,\n        isOperator,\n        imageUrls: extractCommentImages(comment)\n      };\n    })\n  : [];\n\nreturn {\n  cafeId: clubId,\n  articleId: articleId,\n  menuId: listData.menuId,\n  menuName: listData.menuName,\n  writerId: listData.maskedMemberId || (detail.writer ? detail.writer.id : null),\n  writerNickname: listData.writerNickname || (detail.writer ? detail.writer.nickname : null),\n  readCount: detail.readCount || 0,\n  commentCount: detail.commentCount || listData.commentCount || comments.length,\n  likeCount: detail.likeItCount || 0,\n  content: content,\n  timestamp: timestamp,\n  originalImageUrls: normalizedImageUrls,\n  objectNames: objectNames,\n  comments\n};"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1322,7 +1339,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const allImages = $input.all();\nconst allPaired = $('이미지 정보 페어링').all(0, $runIndex);\n\nreturn allImages.map((item, index) => {\n  const paired = allPaired[index] ? allPaired[index].json : {};\n  return {\n    json: {\n      cafeId: paired.cafeId,\n      articleId: paired.articleId,\n      originalImageUrl: paired.originalImageUrl || \"\",\n      objectName: paired.objectName || \"\",\n      downloadUrl: paired.downloadUrl || \"\"\n    }\n  };\n});"
+          "jsCode": "const allImages = $input.all();\nconst allPaired = $('이미지 다운로드 성공 필터').all(0, $runIndex);\n\nreturn allImages.map((item, index) => {\n  const paired = allPaired[index] ? allPaired[index].json : {};\n  return {\n    json: {\n      cafeId: paired.cafeId,\n      articleId: paired.articleId,\n      originalImageUrl: paired.originalImageUrl || \"\",\n      objectName: paired.objectName || \"\",\n      downloadUrl: paired.downloadUrl || \"\"\n    }\n  };\n});"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1335,7 +1352,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const items = $input.all();\nconst groups = {};\n\nfor (const item of items) {\n  const data = item.json || {};\n  const articleId = data.articleId;\n  if (!articleId) continue;\n\n  if (!groups[articleId]) {\n    groups[articleId] = {\n      cafeId: data.cafeId,\n      articleId: articleId,\n      images: []\n    };\n  }\n\n  groups[articleId].images.push({\n    originalUrl: data.originalImageUrl || \"\",\n    objectName: data.objectName || \"\",\n    downloadUrl: data.downloadUrl || \"\"\n  });\n}\n\nreturn Object.values(groups).map(group => ({ json: group }));"
+          "jsCode": "const uploadedItems = $input.all();\nconst parsedArticles = $('데이터 파싱').all(0, $runIndex);\nconst groups = {};\n\nfor (const article of parsedArticles) {\n  const data = article.json || {};\n  if (!data.articleId || !(data.originalImageUrls || []).length) continue;\n\n  groups[String(data.articleId)] = {\n    cafeId: data.cafeId,\n    articleId: String(data.articleId),\n    images: []\n  };\n}\n\nfor (const item of uploadedItems) {\n  const data = item.json || {};\n  const articleId = data.articleId ? String(data.articleId) : null;\n  if (!articleId) continue;\n\n  if (!groups[articleId]) {\n    groups[articleId] = {\n      cafeId: data.cafeId,\n      articleId,\n      images: []\n    };\n  }\n\n  if (data.objectName) {\n    groups[articleId].images.push({\n      originalUrl: data.originalImageUrl || \"\",\n      objectName: data.objectName || \"\",\n      downloadUrl: data.downloadUrl || \"\"\n    });\n  }\n}\n\nreturn Object.values(groups).map(group => ({ json: group }));"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1794,7 +1811,7 @@
         "main": [
           [
             {
-              "node": "blob storage 이미지 업로드",
+              "node": "이미지 다운로드 성공 필터",
               "type": "main",
               "index": 0
             }
@@ -2037,6 +2054,17 @@
           [
             {
               "node": "RequestDTO 변환3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "이미지 다운로드 성공 필터": {
+        "main": [
+          [
+            {
+              "node": "blob storage 이미지 업로드",
               "type": "main",
               "index": 0
             }

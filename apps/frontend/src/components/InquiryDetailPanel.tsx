@@ -1085,11 +1085,21 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
 
     const getDisplayImageUrl = (url: string) => {
         if (!url) return '';
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            if (url.includes('/attachments/')) {
+                const parts = url.split('/attachments/');
+                return `${window.location.origin}/attachments/${parts[1]}`;
+            }
+            return url;
+        }
         if (url.includes('/attachments/')) {
             const parts = url.split('/attachments/');
             return `${window.location.origin}/attachments/${parts[1]}`;
         }
-        return url;
+        if (url.startsWith('/')) {
+            return `${window.location.origin}${url}`;
+        }
+        return `${window.location.origin}/attachments/cs-application/${url}`;
     };
 
     // Construct combined timeline items (ascending order: oldest first, newest last)
@@ -1370,6 +1380,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     );
 
     const renderAttachedImagesSection = () => {
+        if (activeImageUrl) return null;
         if (!((inquiry.imageUrls && inquiry.imageUrls.length > 0) || isEditing)) return null;
         return (
             <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
@@ -2777,6 +2788,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                                                         >
                                                                             <img
                                                                                 src={getDisplayImageUrl(url)}
+                                                                                referrerPolicy="no-referrer"
                                                                                 alt={`reply-img-${idx}`}
                                                                                 style={{
                                                                                     width: '60px',
