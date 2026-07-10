@@ -1,11 +1,11 @@
 [
   {
-    "updatedAt": "2026-07-06T12:23:07.240Z",
+    "updatedAt": "2026-07-10T00:37:48.187Z",
     "createdAt": "2026-07-06T12:23:07.240Z",
     "id": "error-handler-wf",
     "name": "CS 데이터 통합 에러 처리",
     "description": null,
-    "active": false,
+    "active": true,
     "isArchived": false,
     "nodes": [
       {
@@ -21,7 +21,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst lastAlertTime = staticData.lastAlertTime || 0;\nconst lastError = staticData.lastError || \"\";\nconst currentError = $json.execution.error.message;\n\nlet shouldSend = true;\nif (currentError === lastError && (now - lastAlertTime) < 30 * 60 * 1000) {\n  shouldSend = false;\n} else {\n  staticData.lastAlertTime = now;\n  staticData.lastError = currentError;\n}\n\nreturn [{\n  json: {\n    shouldSend,\n    workflow: $json.workflow,\n    node: $json.node,\n    execution: $json.execution\n  }\n}];"
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst lastAlertTime = staticData.lastAlertTime || 0;\nconst lastError = staticData.lastError || \"\";\n\nconst trigger = $json.trigger || {};\nconst workflow = $json.workflow || trigger.workflow || {};\nconst node = $json.node || trigger.node || {};\nconst error = $json.error || $json.execution?.error || trigger.error || {};\nconst execution = $json.execution || trigger.execution || {};\nconst currentError = error.message || error.description || error.stack || \"Unknown n8n workflow error\";\n\nlet shouldSend = true;\nif (currentError === lastError && (now - lastAlertTime) < 30 * 60 * 1000) {\n  shouldSend = false;\n} else {\n  staticData.lastAlertTime = now;\n  staticData.lastError = currentError;\n}\n\nreturn [{\n  json: {\n    shouldSend,\n    workflow,\n    node,\n    execution: {\n      ...execution,\n      error: {\n        ...error,\n        message: currentError,\n      },\n    },\n  },\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -137,9 +137,9 @@
       "templateCredsSetupCompleted": true
     },
     "pinData": null,
-    "versionId": "375e0e23-1e26-4179-b09e-2e7c1399900e",
-    "activeVersionId": null,
-    "versionCounter": 1,
+    "versionId": "74cb549b-f42b-4a94-8705-d101394e2c12",
+    "activeVersionId": "74cb549b-f42b-4a94-8705-d101394e2c12",
+    "versionCounter": 2,
     "triggerCount": 0,
     "tags": [],
     "shared": [
@@ -150,10 +150,10 @@
         "workflowId": "error-handler-wf",
         "projectId": "XyP6KgL7wL6d92GF",
         "project": {
-          "updatedAt": "2026-06-18T04:27:36.981Z",
+          "updatedAt": "2026-07-10T00:07:05.569Z",
           "createdAt": "2026-06-18T04:26:08.435Z",
           "id": "XyP6KgL7wL6d92GF",
-          "name": "shin yoonsik <aaa946@naver.com>",
+          "name": "runday ttam <cshub@ttam.ai>",
           "type": "personal",
           "icon": null,
           "description": null,
