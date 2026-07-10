@@ -16,6 +16,69 @@ interface PendingImage {
   status: 'pending' | 'uploading' | 'done' | 'error';
 }
 
+const IMAGE_MAX_DIMENSION = 1600;
+const IMAGE_COMPRESSION_QUALITY = 0.78;
+
+const replaceFileExtension = (fileName: string, extension: string) => {
+  const safeName = fileName.replace(/\s+/g, '_');
+  const dotIndex = safeName.lastIndexOf('.');
+  const baseName = dotIndex > 0 ? safeName.slice(0, dotIndex) : safeName;
+  return `${baseName}.${extension}`;
+};
+
+const loadImage = (file: File): Promise<HTMLImageElement> => (
+  new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error(`이미지 파일을 읽을 수 없습니다: ${file.name}`));
+    };
+    img.src = objectUrl;
+  })
+);
+
+const compressImageFile = async (file: File): Promise<File> => {
+  if (file.type === 'image/gif') {
+    return file;
+  }
+
+  const image = await loadImage(file);
+  const scale = Math.min(1, IMAGE_MAX_DIMENSION / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return file;
+  }
+
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/jpeg', IMAGE_COMPRESSION_QUALITY);
+  });
+
+  if (!blob || blob.size >= file.size) {
+    return file;
+  }
+
+  return new File([blob], replaceFileExtension(file.name, 'jpg'), {
+    type: 'image/jpeg',
+    lastModified: file.lastModified,
+  });
+};
+
 export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
   isOpen,
   onClose,
@@ -172,9 +235,16 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
     if (pendingImages.length === 0) return [];
 
     const timestamp = Date.now();
-    const fileRequests = pendingImages.map((img, idx) => ({
-      objectName: `inquiries/manual/${timestamp}_${idx}_${img.file.name.replace(/\s+/g, '_')}`,
-      contentType: img.file.type || 'image/jpeg',
+    const compressedImages = await Promise.all(
+      pendingImages.map(async (img) => ({
+        ...img,
+        uploadFile: await compressImageFile(img.file),
+      }))
+    );
+
+    const fileRequests = compressedImages.map((img, idx) => ({
+      objectName: `inquiries/manual/${timestamp}_${idx}_${img.uploadFile.name.replace(/\s+/g, '_')}`,
+      contentType: img.uploadFile.type || 'image/jpeg',
     }));
 
     // Get presigned URLs
@@ -183,13 +253,13 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
     const downloadUrls: string[] = [];
 
     // Upload each file
-    for (let i = 0; i < pendingImages.length; i++) {
-      const img = pendingImages[i];
+    for (let i = 0; i < compressedImages.length; i++) {
+      const img = compressedImages[i];
       const { uploadUrl, downloadUrl } = presignedList[i];
 
       setPendingImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'uploading' } : p));
       try {
-        await inquiryApi.uploadToMinIO(uploadUrl, img.file);
+        await inquiryApi.uploadToMinIO(uploadUrl, img.uploadFile);
         downloadUrls.push(downloadUrl);
         setPendingImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'done', uploadedUrl: downloadUrl } : p));
       } catch (e) {
