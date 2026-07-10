@@ -2297,30 +2297,6 @@ export const App: React.FC = () => {
               textAlign: 'center'
             }}
           >
-            {isListCollapsed && (
-              <div style={{ alignSelf: 'flex-start', marginBottom: '24px' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsListCollapsed(false)}
-                  style={{
-                    background: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-primary)',
-                    borderRadius: '8px',
-                    padding: '8px 16px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <ChevronRight size={16} />
-                  목록 열기
-                </button>
-              </div>
-            )}
             <span style={{ fontSize: '48px' }}>🔍</span>
             <h3 style={{ color: 'var(--text-primary)', fontWeight: 600 }}>선택된 문의가 없습니다</h3>
             <p style={{ fontSize: '14px', maxWidth: '320px' }}>목록에서 문의 건을 클릭하시면 상세한 내용과 실시간 처리 콘솔이 노출됩니다.</p>
