@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-07-09T13:03:18.961Z",
+    "updatedAt": "2026-07-10T00:15:09.504Z",
     "createdAt": "2026-06-18T04:28:10.651Z",
     "id": "nsbvUUSzjjH2zFic",
     "name": "CS 데이터 통합(N8N 수정)",
@@ -202,7 +202,7 @@
         "typeVersion": 2.3,
         "position": [
           336,
-          -96
+          -80
         ],
         "id": "27f1c54e-c5e4-418a-9e99-b7b514fd672f",
         "name": "빈 행 제거",
@@ -239,7 +239,6 @@
       {
         "parameters": {
           "format": "resolved",
-          "dataPropertyAttachmentsPrefixName": "attachment_",
           "options": {
             "trackLastMessageId": true
           }
@@ -688,7 +687,7 @@
         "typeVersion": 4.7,
         "position": [
           16,
-          -64
+          -80
         ],
         "id": "b1c1a2f0-6e3a-4a9a-8a2e-1a2b3c4d5e6f",
         "name": "구글시트에서 실제 데이터 가져오기 (버그분기)",
@@ -775,7 +774,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// 현재 글로벌에 저장된 모든 Static Data를 불러옵니다.\nconst staticData = $getWorkflowStaticData('global');\n\n// 화면 우측 OUTPUT 창에 표시해 줍니다.\nreturn staticData;"
+          "jsCode": "const staticData = $getWorkflowStaticData('global');\n\nreturn [{ json: staticData }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -1063,10 +1062,10 @@
         ],
         "id": "6bc606a5-aee5-4979-8aac-fb8204acbb2e",
         "name": "이미지 다운로드",
-        "onError": "continueRegularOutput",
         "retryOnFail": true,
         "maxTries": 2,
-        "waitBetweenTries": 1000
+        "waitBetweenTries": 1000,
+        "onError": "continueRegularOutput"
       },
       {
         "parameters": {
@@ -2085,37 +2084,39 @@
         "recurrenceRules": []
       },
       "global": {
-        "lastArticleId": 1
+        "lastArticleId": 1,
+        "lastRowProcessed": 1,
+        "lastMessageUid": 1
+      },
+      "node:Email Trigger (IMAP)": {
+        "lastMessageUid": 1
       }
     },
     "meta": {
       "templateCredsSetupCompleted": true
     },
-    "nodeGroups": [],
     "pinData": {},
-    "versionId": "fa3547aa-6f6e-408b-a097-8a61ca20d04c",
+    "versionId": "8408ff15-697c-4f72-83b9-2287b979a95a",
     "activeVersionId": null,
-    "versionCounter": 1011,
-    "triggerCount": 3,
-    "sourceWorkflowId": null,
+    "versionCounter": 1022,
+    "triggerCount": 4,
     "tags": [],
     "shared": [
       {
-        "updatedAt": "2026-07-06T10:24:58.406Z",
-        "createdAt": "2026-07-06T10:24:58.406Z",
+        "updatedAt": "2026-06-18T04:28:10.651Z",
+        "createdAt": "2026-06-18T04:28:10.651Z",
         "role": "workflow:owner",
         "workflowId": "nsbvUUSzjjH2zFic",
-        "projectId": "Tm387HFBIMcgw4qC",
+        "projectId": "XyP6KgL7wL6d92GF",
         "project": {
-          "updatedAt": "2026-07-05T14:24:08.697Z",
-          "createdAt": "2026-07-05T13:28:02.074Z",
-          "id": "Tm387HFBIMcgw4qC",
-          "name": "yoonsik shin <aaa946@naver.com>",
+          "updatedAt": "2026-07-10T00:07:05.569Z",
+          "createdAt": "2026-06-18T04:26:08.435Z",
+          "id": "XyP6KgL7wL6d92GF",
+          "name": "runday ttam <cshub@ttam.ai>",
           "type": "personal",
           "icon": null,
           "description": null,
-          "customTelemetryTags": [],
-          "creatorId": "9358ee48-8e11-4841-8845-ff6660bf2a4e"
+          "creatorId": "40f0b1ff-d5fa-482e-83da-d79b2145963d"
         }
       }
     ],
