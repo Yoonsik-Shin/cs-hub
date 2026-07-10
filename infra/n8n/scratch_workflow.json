@@ -1,6 +1,6 @@
 [
   {
-    "updatedAt": "2026-07-10T00:15:09.504Z",
+    "updatedAt": "2026-07-10T03:17:33.610Z",
     "createdAt": "2026-06-18T04:28:10.651Z",
     "id": "nsbvUUSzjjH2zFic",
     "name": "CS 데이터 통합(N8N 수정)",
@@ -101,8 +101,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -176,
-          1280
+          -544,
+          1408
         ],
         "id": "email-clear-uids",
         "name": "이메일 처리 기록 초기화"
@@ -240,21 +240,22 @@
         "parameters": {
           "format": "resolved",
           "options": {
-            "trackLastMessageId": true
+            "customEmailConfig": "[\"UNSEEN\"]",
+            "trackLastMessageId": false
           }
         },
         "type": "n8n-nodes-base.emailReadImap",
         "typeVersion": 2.1,
         "position": [
-          -544,
-          1488
+          -848,
+          1456
         ],
         "id": "34d1c79e-28c8-45e4-86ab-9f779b7dfcdc",
         "name": "Email Trigger (IMAP)",
         "credentials": {
           "imap": {
-            "id": "ZOFWEUBbNtphvLFX",
-            "name": "IMAP account"
+            "id": "DggKQ0KQFoAQfC3d",
+            "name": "다우오피스 IMAP"
           }
         }
       },
@@ -286,7 +287,7 @@
         "type": "n8n-nodes-base.scheduleTrigger",
         "typeVersion": 1.3,
         "position": [
-          -416,
+          -528,
           592
         ],
         "id": "ea6a9664-afc2-4edf-95db-ae48f489cb3b",
@@ -779,7 +780,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -1232,
+          -1216,
           592
         ],
         "id": "09bcedfb-3265-414a-93a4-b27b15094d18",
@@ -1289,7 +1290,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          352,
+          336,
           1520
         ],
         "id": "16123b0d-aa60-4f3b-bf2a-f52f359adbf5",
@@ -1330,8 +1331,8 @@
         "type": "n8n-nodes-base.splitInBatches",
         "typeVersion": 3,
         "position": [
-          -368,
-          1488
+          -352,
+          1392
         ],
         "id": "e3cbdf01-d77c-4731-9a7f-d5b73e51f890",
         "name": "Loop Over Emails"
@@ -1399,6 +1400,84 @@
         ],
         "id": "email-image-upload-merge-0001-000000000001",
         "name": "이메일 이미지 업로드 합치기"
+      },
+      {
+        "parameters": {
+          "jsCode": "// ===== 구글시트 트리거 Lock Check =====\n// 이전 실행이 완료되지 않은 경우 이번 실행을 스킵합니다.\nconst staticData = $getWorkflowStaticData('global');\nconst lockKey = 'googleSheet_isRunning';\n\nif (staticData[lockKey] === true) {\n  const startedAt = staticData[lockKey + '_startedAt'] || 'unknown';\n  console.log(`[구글시트 Lock] 이전 실행 진행 중 (시작: ${startedAt}) → 이번 실행 스킵`);\n  return [];\n}\n\nstaticData[lockKey] = true;\nstaticData[lockKey + '_startedAt'] = new Date().toISOString();\nconsole.log(`[구글시트 Lock] Lock 획득 → 실행 시작`);\n\nreturn $input.all();"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -288,
+          16
+        ],
+        "id": "lock-check-google-sheet",
+        "name": "[Lock] 구글시트 실행 중 확인"
+      },
+      {
+        "parameters": {
+          "jsCode": "// ===== 구글시트 트리거 Lock Release =====\nconst staticData = $getWorkflowStaticData('global');\nstaticData['googleSheet_isRunning'] = false;\nstaticData['googleSheet_isRunning_startedAt'] = null;\nconsole.log('[구글시트 Lock] Lock 해제 → 실행 완료');\nreturn $input.all();"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          672,
+          -512
+        ],
+        "id": "lock-release-google-sheet",
+        "name": "[Lock] 구글시트 Lock 해제"
+      },
+      {
+        "parameters": {
+          "jsCode": "// ===== 네이버 카페 트리거 Lock Check =====\n// 이전 실행이 완료되지 않은 경우 이번 실행을 스킵합니다.\nconst staticData = $getWorkflowStaticData('global');\nconst lockKey = 'naverCafe_isRunning';\n\nif (staticData[lockKey] === true) {\n  const startedAt = staticData[lockKey + '_startedAt'] || 'unknown';\n  console.log(`[네이버카페 Lock] 이전 실행 진행 중 (시작: ${startedAt}) → 이번 실행 스킵`);\n  return [];\n}\n\nstaticData[lockKey] = true;\nstaticData[lockKey + '_startedAt'] = new Date().toISOString();\nconsole.log(`[네이버카페 Lock] Lock 획득 → 실행 시작`);\n\nreturn $input.all();"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -400,
+          592
+        ],
+        "id": "lock-check-naver-cafe",
+        "name": "[Lock] 네이버카페 실행 중 확인"
+      },
+      {
+        "parameters": {
+          "jsCode": "// ===== 네이버 카페 트리거 Lock Release =====\nconst staticData = $getWorkflowStaticData('global');\nstaticData['naverCafe_isRunning'] = false;\nstaticData['naverCafe_isRunning_startedAt'] = null;\nconsole.log('[네이버카페 Lock] Lock 해제 → 실행 완료');\nreturn $input.all();"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          896,
+          912
+        ],
+        "id": "lock-release-naver-cafe",
+        "name": "[Lock] 네이버카페 Lock 해제"
+      },
+      {
+        "parameters": {
+          "jsCode": "// ===== 이메일 트리거 Lock Check =====\n// 이전 실행이 완료되지 않은 경우 이번 실행을 스킵합니다.\nconst staticData = $getWorkflowStaticData('global');\nconst lockKey = 'email_isRunning';\n\nif (staticData[lockKey] === true) {\n  const startedAt = staticData[lockKey + '_startedAt'] || 'unknown';\n  console.log(`[이메일 Lock] 이전 실행 진행 중 (시작: ${startedAt}) → 이번 실행 스킵`);\n  return [];\n}\n\nstaticData[lockKey] = true;\nstaticData[lockKey + '_startedAt'] = new Date().toISOString();\nconsole.log(`[이메일 Lock] Lock 획득 → 실행 시작`);\n\nreturn $input.all();"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -704,
+          1440
+        ],
+        "id": "lock-check-email",
+        "name": "[Lock] 이메일 실행 중 확인"
+      },
+      {
+        "parameters": {
+          "jsCode": "// ===== 이메일 트리거 Lock Release =====\nconst staticData = $getWorkflowStaticData('global');\nstaticData['email_isRunning'] = false;\nstaticData['email_isRunning_startedAt'] = null;\nconsole.log('[이메일 Lock] Lock 해제 → 실행 완료');\nreturn $input.all();"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1552,
+          1680
+        ],
+        "id": "lock-release-email",
+        "name": "[Lock] 이메일 Lock 해제"
       }
     ],
     "connections": {
@@ -1476,6 +1555,17 @@
         ]
       },
       "네이버 카페글 수집": {
+        "main": [
+          [
+            {
+              "node": "[Lock] 네이버카페 실행 중 확인",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "[Lock] 네이버카페 실행 중 확인": {
         "main": [
           [
             {
@@ -1642,6 +1732,17 @@
         ]
       },
       "구글폼/시트 데이터 폴링": {
+        "main": [
+          [
+            {
+              "node": "[Lock] 구글시트 실행 중 확인",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "[Lock] 구글시트 실행 중 확인": {
         "main": [
           [
             {
@@ -1974,6 +2075,28 @@
         "main": [
           [
             {
+              "node": "[Lock] 이메일 실행 중 확인",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "[Lock] 이메일 실행 중 확인": {
+        "main": [
+          [
+            {
+              "node": "이메일 처리 기록 초기화",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "이메일 처리 기록 초기화": {
+        "main": [
+          [
+            {
               "node": "Loop Over Emails",
               "type": "main",
               "index": 0
@@ -1983,7 +2106,13 @@
       },
       "Loop Over Emails": {
         "main": [
-          [],
+          [
+            {
+              "node": "[Lock] 이메일 Lock 해제",
+              "type": "main",
+              "index": 0
+            }
+          ],
           [
             {
               "node": "데이터 파싱1",
@@ -2015,6 +2144,21 @@
           ]
         ]
       },
+      "[Lock] 이메일 Lock 해제": {
+        "main": [
+          []
+        ]
+      },
+      "[Lock] 구글시트 Lock 해제": {
+        "main": [
+          []
+        ]
+      },
+      "[Lock] 네이버카페 Lock 해제": {
+        "main": [
+          []
+        ]
+      },
       "이미지 업로드 완료 정보": {
         "main": [
           [
@@ -2031,6 +2175,17 @@
           [
             {
               "node": "RequestDTO 변환1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "마지막 게시글 정보 저장": {
+        "main": [
+          [
+            {
+              "node": "[Lock] 네이버카페 Lock 해제",
               "type": "main",
               "index": 0
             }
@@ -2069,36 +2224,51 @@
             }
           ]
         ]
+      },
+      "구글 시트 처리 행 갱신": {
+        "main": [
+          [
+            {
+              "node": "[Lock] 구글시트 Lock 해제",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "settings": {
       "executionOrder": "v1",
       "binaryMode": "separate",
-      "errorWorkflow": "error-handler-wf"
+      "errorWorkflow": "error-handler-wf",
+      "timeSavedMode": "fixed",
+      "callerPolicy": "workflowsFromSameOwner",
+      "availableInMCP": false,
+      "timeSavedPerExecution": 0
     },
     "staticData": {
+      "global": {
+        "lastArticleId": 12032,
+        "lastMessageUid": 1,
+        "lastRowProcessed": 2008
+      },
+      "node:Email Trigger (IMAP)": {
+        "lastMessageUid": 180
+      },
       "node:네이버 카페글 수집": {
         "recurrenceRules": []
       },
       "node:구글폼/시트 데이터 폴링": {
         "recurrenceRules": []
-      },
-      "global": {
-        "lastArticleId": 1,
-        "lastRowProcessed": 1,
-        "lastMessageUid": 1
-      },
-      "node:Email Trigger (IMAP)": {
-        "lastMessageUid": 1
       }
     },
     "meta": {
       "templateCredsSetupCompleted": true
     },
     "pinData": {},
-    "versionId": "8408ff15-697c-4f72-83b9-2287b979a95a",
+    "versionId": "e5010e5a-cbe4-4de2-887d-07fe2ee2768d",
     "activeVersionId": null,
-    "versionCounter": 1022,
+    "versionCounter": 1079,
     "triggerCount": 4,
     "tags": [],
     "shared": [
