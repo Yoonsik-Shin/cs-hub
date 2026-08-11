@@ -13,6 +13,12 @@ import { Plus, RefreshCw, ExternalLink, ChevronLeft, ChevronRight, User, Bookmar
 import { NaverLoginRenewPage } from './components/NaverLoginRenewPage';
 import { InquiryDetailPanel } from './components/InquiryDetailPanel';
 import { AccountManagementModal } from './components/AccountManagementModal';
+import {
+  getVisibleSelectionState,
+  retainVisibleSelection,
+  toggleSelection,
+  toggleVisibleSelection,
+} from './features/inquiry/batchSelection';
 
 const SIDEBAR_EXPANDED_WIDTH = 300;
 const SIDEBAR_COLLAPSED_WIDTH = 64;
@@ -691,16 +697,10 @@ export const App: React.FC = () => {
           setNextCursor(res.nextCursor);
 
           // 현재 페이지에서 사라진 아이템은 selectedInquiryIds에서 제거 (유효한 선택 유지)
-          setSelectedInquiryIds((prev) => {
-            const next = new Set<string>();
-            const newContentIds = new Set(res.content.map(inq => inq.id));
-            prev.forEach((id) => {
-              if (newContentIds.has(id)) {
-                next.add(id);
-              }
-            });
-            return next;
-          });
+          setSelectedInquiryIds((prev) => retainVisibleSelection(
+            prev,
+            res.content.map((inquiry) => inquiry.id),
+          ));
 
           // 필터 조건에 매칭되는 전체 건수 갱신
           const countRes = await inquiryApi.countInquiries({
@@ -949,32 +949,15 @@ export const App: React.FC = () => {
 
   const handleToggleSelectInquiry = useCallback((id: string, checked: boolean) => {
     setBatchNotice(null);
-    setSelectedInquiryIds((prev) => {
-      const next = new Set(prev);
-      if (checked) {
-        next.add(id);
-      } else {
-        next.delete(id);
-      }
-      return next;
-    });
+    setSelectedInquiryIds((prev) => toggleSelection(prev, id, checked));
   }, []);
 
   const handleToggleSelectAll = () => {
-    const allPageIds = inquiries.map((inq) => inq.id);
-    const allSelected = allPageIds.length > 0 && allPageIds.every((id) => selectedInquiryIds.has(id));
-
     setBatchNotice(null);
-
-    setSelectedInquiryIds((prev) => {
-      const next = new Set(prev);
-      if (allSelected) {
-        allPageIds.forEach((id) => next.delete(id));
-      } else {
-        allPageIds.forEach((id) => next.add(id));
-      }
-      return next;
-    });
+    setSelectedInquiryIds((prev) => toggleVisibleSelection(
+      prev,
+      inquiries.map((inquiry) => inquiry.id),
+    ));
   };
 
   const handleExecuteBatchStatusUpdate = async () => {
@@ -1369,8 +1352,13 @@ export const App: React.FC = () => {
   const selectedInquiry = selectedInquiryDetail || undefined;
   const effectiveVisibleSelectedIds = selectedInquiryIds;
   const selectedBatchCount = selectedInquiryIds.size;
-  const allVisibleSelected = inquiries.length > 0 && inquiries.every((inquiry) => selectedInquiryIds.has(inquiry.id));
-  const someVisibleSelected = inquiries.some((inquiry) => selectedInquiryIds.has(inquiry.id));
+  const {
+    allSelected: allVisibleSelected,
+    someSelected: someVisibleSelected,
+  } = getVisibleSelectionState(
+    selectedInquiryIds,
+    inquiries.map((inquiry) => inquiry.id),
+  );
 
   const renderOperatorWidget = () => {
     const operatorName = currentOperator?.nickname || '계정 확인 중';
