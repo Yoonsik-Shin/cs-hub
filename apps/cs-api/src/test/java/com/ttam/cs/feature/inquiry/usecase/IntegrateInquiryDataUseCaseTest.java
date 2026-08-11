@@ -68,6 +68,7 @@ class IntegrateInquiryDataUseCaseTest {
                 storageService,
                 adminMemberRepository,
                 piiEncryptionUtils,
+                new EmailIntegrationValidator(),
                 emailThreadResolver,
                 resolvedInquiryReopener
         );

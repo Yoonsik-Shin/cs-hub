@@ -28,6 +28,7 @@ public class IntegrateInquiryDataUseCase {
     private final StorageService storageService;
     private final AdminMemberRepository adminMemberRepository;
     private final PiiEncryptionUtils piiEncryptionUtils;
+    private final EmailIntegrationValidator emailIntegrationValidator;
     private final EmailThreadResolver emailThreadResolver;
     private final ResolvedInquiryReopener resolvedInquiryReopener;
 
@@ -48,7 +49,11 @@ public class IntegrateInquiryDataUseCase {
                 })
                 .map(item -> {
                     if ("EMAIL".equalsIgnoreCase(channel)) {
-                        validateEmailItem(item);
+                        emailIntegrationValidator.validate(
+                                item.channelMetadata(),
+                                item.content(),
+                                item.imageUrls()
+                        );
                     }
 
                     List<String> imageUrls = item.imageUrls();
@@ -111,21 +116,6 @@ public class IntegrateInquiryDataUseCase {
             DeviceInfo deviceInfo,
             String content,
             List<String> imageUrls) {
-    }
-
-    private void validateEmailItem(IntegrationItem item) {
-        if (!(item.channelMetadata() instanceof EmailMetadata emailMeta)) {
-            throw new IllegalArgumentException("EMAIL integration item requires EmailMetadata.");
-        }
-
-        if (!hasText(item.content()) && (item.imageUrls() == null || item.imageUrls().isEmpty())) {
-            throw new IllegalArgumentException("Email must include text content or at least one image. uid="
-                    + emailUid(emailMeta) + ", messageId=" + cleanMessageId(emailMeta.getMessageId()));
-        }
-
-        if (!hasText(cleanMessageId(emailMeta.getMessageId())) && emailUid(emailMeta) == null) {
-            throw new IllegalArgumentException("Email identity is missing. Expected message-id or IMAP uid.");
-        }
     }
 
     private String resolveEmailArticleUrl(EmailMetadata emailMeta) {
