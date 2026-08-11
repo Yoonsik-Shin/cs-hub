@@ -4,6 +4,25 @@
 
 단순한 CRUD 화면보다 **중복 수집, 이메일 회신 연결, 완료 문의 재오픈, PII 보호, 외부 자동화 실패**처럼 실제 운영에서 문제가 되는 경계를 코드로 검증하는 데 집중했습니다.
 
+## 프로젝트 배경
+
+이 저장소는 **청년 일경험 참여 과정에서 수행한 프로젝트**를 기반으로, 멀티채널 고객 문의 수집과 상담 업무 자동화를 설계·구현하며 축적한 결과물입니다. 화면 구현에 그치지 않고 채널 수집 워크플로, API와 데이터 모델, 운영자 화면, 브라우저 자동화, 인증 경계와 관측 환경까지 하나의 시스템으로 연결했습니다.
+
+프로젝트 종료 후에는 당시 구현을 그대로 두지 않고, 코드와 Git 이력으로 설명할 수 있는 업무 규칙을 테스트로 고정하고 책임 경계·실행 재현성·문서를 보강했습니다. 따라서 README의 설명은 현재 저장소의 코드, 테스트 또는 설정에서 확인할 수 있는 내용만 사용합니다.
+
+## 기술 스택
+
+| 영역 | 기술 | 적용 내용 |
+| --- | --- | --- |
+| Backend | Java 21, Spring Boot 3.3, Spring Security, Spring Data JPA, QueryDSL, Flyway | 문의 통합·처리 API, RBAC, 트랜잭션, 스키마 마이그레이션 |
+| Frontend | React 19, TypeScript 6, Vite 8 | 문의 조회·필터·배치 처리·상세 편집 운영 콘솔 |
+| Workflow | n8n | 이메일·네이버 카페·구글 시트 수집, 이미지 처리, 세션·오류 알림 |
+| Browser Automation | Node.js 24, Express, Playwright | 네이버 카페 세션 검증과 브라우저 기반 작업 수행 |
+| Data & Storage | PostgreSQL 16, MinIO, AWS SDK for S3 | 업무 데이터 저장, 첨부파일 업로드와 presigned URL 발급 |
+| Infrastructure | Docker Compose, Nginx | 서비스 구성, Basic Auth, 리버스 프록시와 내부 네트워크 분리 |
+| Observability | Micrometer Prometheus Registry, Grafana, Loki, Alloy | Prometheus 형식 메트릭 노출과 애플리케이션 로그 수집·조회 |
+| Documentation & Test | Docusaurus, OpenAPI, JUnit 5, Node test runner, ESLint | API·설계 문서와 백엔드·프론트엔드·워커 자동 검증 |
+
 ![합성 문의 데이터로 실행한 CS 운영 콘솔](docs/static/img/cs-dashboard-desktop-current.png)
 
 ## 해결하려던 문제
@@ -52,6 +71,26 @@ flowchart LR
 ```
 
 사용자 웹 트래픽의 기본 진입점은 Nginx의 `8888` 포트입니다. API와 브라우저 워커는 Compose 내부 네트워크에서 통신하며 워커 호출에는 별도의 내부 토큰을 사용합니다. PostgreSQL과 MinIO 호스트 포트는 로컬 개발 도구 연동을 위해 별도로 열려 있습니다.
+
+## n8n 자동화 흐름
+
+n8n은 단순한 스케줄러가 아니라 서로 다른 채널 입력을 API의 공통 문의 계약으로 변환하는 수집 오케스트레이터입니다. 실제 워크플로 정의는 [수집 워크플로](infra/n8n/scratch_workflow.json)와 [공통 오류 워크플로](infra/n8n/error_workflow.json)에서 확인할 수 있습니다.
+
+| 입력 채널 | n8n 처리 흐름 |
+| --- | --- |
+| 이메일 | IMAP 수신 → 처리 UID 중복 확인 → 본문·첨부 이미지 파싱 → presigned URL 발급 및 MinIO 업로드 → API 전송 |
+| 네이버 카페 | 스케줄 실행 → 세션 상태 검증 → 게시글 페이지·상세 조회 → 이미지 업로드 → 마지막 처리 ID 기록 → API 전송 |
+| 구글 시트 | 스케줄 실행 → 마지막 처리 행 확인 → 분기별 시트 조회·병합 → 빈 행 제거와 DTO 변환 → API 전송 |
+
+재시도와 외부 서비스 장애도 워크플로의 일부로 다룹니다.
+
+- 이메일·네이버 카페·구글 시트가 서로 막지 않도록 **채널별 독립 Lock**을 적용했습니다.
+- 처리 UID·게시글 ID·시트 행 번호를 기록해 폴링과 재시도의 중복 수집을 줄였습니다.
+- 이미지 다운로드 실패 항목은 성공 항목과 분리해 전체 수집이 함께 실패하지 않게 했습니다.
+- 공통 오류 워크플로에서 동일 오류의 반복 알림을 30분간 억제하고 Slack으로 전달합니다.
+- 네이버 세션 만료와 갱신 성공 여부도 Slack 알림으로 연결했습니다.
+
+[동기화 스크립트](infra/n8n/n8n-sync.js)는 로컬 JSON과 n8n 컨테이너의 워크플로 정의를 양방향으로 동기화합니다. API는 고유키와 저장 제약으로 최종 중복 방지 경계를 담당합니다. 즉 n8n의 처리 기록은 수집 비용을 줄이고, 백엔드의 멱등성은 데이터 정합성을 보장하도록 역할을 나눴습니다.
 
 ## 5분 코드 투어
 
