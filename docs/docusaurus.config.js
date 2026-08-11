@@ -16,8 +16,6 @@ const config = {
   baseUrl: '/wiki/',            // Nginx 리버스 프록시 연동을 위해 /wiki/ 로 설정
 
   onBrokenLinks: 'warn',
-  onBrokenMarkdownLinks: 'warn',
-
   i18n: {
     defaultLocale: 'ko',
     locales: ['ko'],
@@ -64,9 +62,8 @@ const config = {
         hashed: true,
         language: ['en', 'ko'],
         docsRouteBasePath: 'docs',
-        blogRouteBasePath: 'blog',
         indexDocs: true,
-        indexBlog: true,
+        indexBlog: false,
         indexPages: true,
       },
     ],
@@ -75,6 +72,9 @@ const config = {
   themes: ['docusaurus-theme-openapi-docs', '@docusaurus/theme-mermaid'],
   markdown: {
     mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
   },
 
   themeConfig:
