@@ -12,6 +12,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,6 +31,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class EmailThreadResolverTest {
 
+    private static final Instant NOW = Instant.parse("2026-07-10T03:00:00Z");
+
     @Mock
     private CustomerInquiryRepository repository;
 
@@ -38,7 +43,11 @@ class EmailThreadResolverTest {
 
     @BeforeEach
     void setUp() {
-        resolver = new EmailThreadResolver(repository, piiEncryptionUtils);
+        resolver = new EmailThreadResolver(
+                repository,
+                piiEncryptionUtils,
+                Clock.fixed(NOW, ZoneOffset.UTC)
+        );
     }
 
     @Test
@@ -87,6 +96,10 @@ class EmailThreadResolverTest {
         );
 
         assertEquals(Optional.of(rootId), resolver.resolve("EMAIL", reply));
+        verify(repository).findEmailCandidatesBySender(
+                "sender-hash",
+                OffsetDateTime.parse("2026-07-03T03:00:00Z")
+        );
     }
 
     private EmailMetadata emailMetadata(String subject, String from, EmailMetadata.Headers headers) {

@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +25,7 @@ public class EmailThreadResolver {
 
     private final CustomerInquiryRepository repository;
     private final PiiEncryptionUtils piiEncryptionUtils;
+    private final Clock clock;
 
     public Optional<UUID> resolve(String channel, ChannelMetadata metadata) {
         if (!"EMAIL".equalsIgnoreCase(channel) || !(metadata instanceof EmailMetadata emailMetadata)) {
@@ -76,7 +77,7 @@ public class EmailThreadResolver {
         }
 
         String senderHash = piiEncryptionUtils.hmacHex(normalizedSender);
-        OffsetDateTime since = OffsetDateTime.now(ZoneOffset.UTC)
+        OffsetDateTime since = OffsetDateTime.now(clock)
                 .minusDays(SUBJECT_FALLBACK_LOOKBACK_DAYS);
         List<CustomerInquiry> candidates = repository.findEmailCandidatesBySender(senderHash, since);
 
