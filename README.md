@@ -4,6 +4,8 @@
 
 단순한 CRUD 화면보다 **중복 수집, 이메일 회신 연결, 완료 문의 재오픈, PII 보호, 외부 자동화 실패**처럼 실제 운영에서 문제가 되는 경계를 코드로 검증하는 데 집중했습니다.
 
+![합성 문의 데이터로 실행한 CS 운영 콘솔](docs/static/img/cs-dashboard-desktop.jpg)
+
 ## 해결하려던 문제
 
 - 채널마다 다른 식별자와 메타데이터를 하나의 문의 모델로 수집해야 합니다.
@@ -143,6 +145,17 @@ docker compose ps
 
 운영 콘솔은 [http://localhost:8888](http://localhost:8888)에서 확인할 수 있습니다. 로컬에서 이미 `5432`, `9000`, `9001`, `8888` 포트를 사용 중이면 Compose 포트 충돌을 먼저 해결해야 합니다.
 
+### DB를 사용하지 않는 showcase 화면
+
+README 화면은 실제 문의 데이터가 아니라 읽기 전용 합성 API로 촬영했습니다.
+
+```bash
+npm --prefix apps/frontend run build
+node scripts/showcase-server.mjs
+```
+
+[http://127.0.0.1:4174](http://127.0.0.1:4174)에서 같은 데이터 상태를 재현할 수 있습니다. showcase 서버는 쓰기 요청을 거부하며 PostgreSQL에 연결하지 않습니다.
+
 ## 저장소 구조
 
 ```text
@@ -158,6 +171,7 @@ infra/
   postgres/         초기 스키마와 개발용 mock data
 docs/               Docusaurus 개발 문서
 scripts/verify.sh   저장소 통합 검증 진입점
+scripts/showcase-server.mjs  DB 없는 README 화면 재현 서버
 ```
 
 ## 의도적으로 감수한 한계

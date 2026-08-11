@@ -30,6 +30,7 @@ echo "[4/5] Frontend lint and production build"
 )
 
 echo "[5/5] Docker Compose configuration"
+node --check "${PROJECT_ROOT}/scripts/showcase-server.mjs"
 docker compose --project-directory "${PROJECT_ROOT}" config --quiet
 
 echo "All verification checks passed."
