@@ -4,7 +4,7 @@
 
 단순한 CRUD 화면보다 **중복 수집, 이메일 회신 연결, 완료 문의 재오픈, PII 보호, 외부 자동화 실패**처럼 실제 운영에서 문제가 되는 경계를 코드로 검증하는 데 집중했습니다.
 
-![합성 문의 데이터로 실행한 CS 운영 콘솔](docs/static/img/cs-dashboard-desktop.jpg)
+![합성 문의 데이터로 실행한 CS 운영 콘솔](docs/static/img/cs-dashboard-desktop-current.png)
 
 ## 해결하려던 문제
 
@@ -27,6 +27,8 @@
 | 내부 워커 인증 | 토큰 미설정 시 fail-fast, 상수 시간 비교, 요청 토큰 비로깅 | [internalToken.js](apps/browser-worker/src/security/internalToken.js), [테스트](apps/browser-worker/test/internalToken.test.js) |
 | 자동 갱신 중 사용자 맥락 | 조회·페이지 캐시·선택 유지·갱신 주기를 React 밖의 정책과 전용 훅으로 분리 | [inquiryListLoader](apps/frontend/src/features/inquiry/inquiryListLoader.ts), [pageCache](apps/frontend/src/features/inquiry/pageCache.ts), [useAutoRefresh](apps/frontend/src/hooks/useAutoRefresh.ts), [테스트](apps/frontend/tests) |
 | 화면 조립과 업무 상태 분리 | 관리자 사이드바, 계정·세션 위젯, 상세 활동 조회, 필드 편집 트랜잭션, 메타데이터 섹션을 전용 컴포넌트와 훅으로 분리 | [AdminSidebar](apps/frontend/src/components/AdminSidebar.tsx), [useInquiryActivity](apps/frontend/src/hooks/useInquiryActivity.ts), [useInquiryFieldEditor](apps/frontend/src/hooks/useInquiryFieldEditor.ts), [InquiryMetadataSections](apps/frontend/src/components/InquiryMetadataSections.tsx) |
+| 같은 기능의 정책 일관성 | 상태·채널·날짜·이미지 규칙, HTTP 오류, 모달·피드백을 단일 경계로 모으고 소스 스캔 테스트로 우회 구현 방지 | [inquiry policy](apps/frontend/src/features/inquiry/policy.ts), [httpClient](apps/frontend/src/api/httpClient.ts), [ModalSurface](apps/frontend/src/components/ui/ModalSurface.tsx), [convention guard](apps/frontend/tests/conventionGuard.test.ts) |
+| 복합 명령의 부분 성공 | 상태·필드 수정과 작업 기록·상태 변경을 각각 한 트랜잭션으로 처리하고, 이미지 삭제는 DB 커밋 후 실행 | [UpdateInquiryUseCase](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/UpdateInquiryUseCase.java), [RegisterInquiryWorkLogUseCase](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/RegisterInquiryWorkLogUseCase.java), [UpdateInquiryFieldsUseCase](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/UpdateInquiryFieldsUseCase.java) |
 | 워크플로 중복 실행과 실패 알림 | 채널별 실행 lock과 동일 오류 30분 억제 | [수집 워크플로](infra/n8n/scratch_workflow.json), [공통 오류 워크플로](infra/n8n/error_workflow.json) |
 
 ## 아키텍처
@@ -94,7 +96,7 @@ flowchart LR
 
 `App.tsx`에서는 개인화 사이드바를 `AdminSidebar`로 분리하고, 계정 메뉴와 네이버 세션 상태도 전용 위젯으로 옮겼습니다. `InquiryDetailPanel.tsx`에서는 작업 이력·회신 조회를 `useInquiryActivity`, 수정값 검증·이미지 업로드·저장을 `useInquiryFieldEditor`, 채널·디바이스 표시를 `InquiryMetadataSections`가 담당합니다. 타임라인과 이미지 뷰어 역시 전용 컴포넌트로 유지합니다.
 
-이 분리 후 `App.tsx`는 2,343줄에서 1,349줄로, `InquiryDetailPanel.tsx`는 2,240줄에서 1,418줄로 줄었습니다. 줄 수 자체보다 API 상태 조율, 사이드바 개인화, 필드 편집 트랜잭션, 상세 표현을 서로 독립적으로 변경할 수 있게 된 점을 기준으로 경계를 정했습니다.
+이 분리 후 `App.tsx`는 2,343줄에서 1,213줄로, `InquiryDetailPanel.tsx`는 2,240줄에서 1,393줄로 줄었습니다. 줄 수 자체보다 API 상태 조율, 사이드바 개인화, 필드 편집 트랜잭션, 상세 표현을 서로 독립적으로 변경할 수 있게 된 점을 기준으로 경계를 정했습니다.
 
 다음 화면은 실제 고객 데이터가 아닌 [합성 fixture](scripts/showcase-server.mjs)로 이미지 선택과 확대 동작을 검증한 결과입니다.
 
@@ -102,7 +104,19 @@ flowchart LR
 
 동일한 fixture를 `390x844` viewport에서 확인해, 좁은 화면에서도 문의 목록의 채널·상태·요약과 필터 진입점이 유지되는지 검증했습니다.
 
-![390px 좁은 화면의 합성 문의 목록](docs/static/img/cs-dashboard-narrow.jpg)
+![390px 좁은 화면의 합성 문의 목록](docs/static/img/cs-dashboard-narrow-current.png)
+
+### 5. 같은 기능이 같은 정책을 따르는 흐름
+
+상태 라벨·변경 사유·사용자 코드·이미지 제약·채널 표시는 [policy.ts](apps/frontend/src/features/inquiry/policy.ts), 계정 입력 계약은 [account policy](apps/frontend/src/features/account/policy.ts)가 소유합니다. 모든 JSON 요청과 백엔드 오류 해석은 [httpClient.ts](apps/frontend/src/api/httpClient.ts)를 통과하고, 일반 모달과 사용자 피드백은 [ModalSurface](apps/frontend/src/components/ui/ModalSurface.tsx)와 [FeedbackProvider](apps/frontend/src/components/ui/FeedbackProvider.tsx)의 키보드·포커스·비동기 계약을 공유합니다.
+
+UI에서 하나로 보이는 명령도 서버에서 하나의 업무 단위로 처리합니다. 상세 저장의 상태·필드 변경은 [UpdateInquiryUseCase](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/UpdateInquiryUseCase.java), 답변 등록과 상태 변경은 [RegisterInquiryWorkLogUseCase](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/RegisterInquiryWorkLogUseCase.java)가 함께 커밋합니다. 관리자 DB와 `.htpasswd` 갱신은 [AdminAccountUseCase](apps/cs-api/src/main/java/com/ttam/cs/feature/auth/usecase/AdminAccountUseCase.java)가 롤백 보상까지 조율합니다.
+
+[conventionGuard.test.ts](apps/frontend/tests/conventionGuard.test.ts)는 공유 HTTP 클라이언트를 우회한 `fetch`, 브라우저 기본 대화상자, 공통 모달 표면을 우회한 구현이 다시 들어오지 못하게 검사합니다. 세부 규칙과 선택 이유는 [상호작용 및 업무 정책](docs/docs/interaction-policy.md)에 정리했습니다.
+
+아래 생성 화면은 공통 모달 생명주기를 적용한 현재 구현입니다. 키보드 Escape로 닫히고 호출 버튼으로 포커스가 돌아오며, 제출이 실패하면 입력값과 인라인 오류를 유지합니다.
+
+![공통 포커스와 비동기 제출 정책을 적용한 티켓 생성 모달](docs/static/img/cs-dashboard-create-modal.png)
 
 ## 검증
 
@@ -121,7 +135,7 @@ flowchart LR
 - TypeScript 및 Vite 프로덕션 빌드
 - Docker Compose 설정 유효성
 
-현재 저장소 기준으로 백엔드 43개, 브라우저 워커 4개, 프론트엔드 28개 테스트가 통과합니다.
+현재 저장소 기준으로 백엔드 56개, 브라우저 워커 4개, 프론트엔드 40개 테스트가 통과합니다.
 
 ## 로컬 실행
 
@@ -202,6 +216,7 @@ scripts/showcase-server.mjs  DB 없는 README 화면 재현 서버
 - [ADR-003 워커 내부 토큰](docs/docs/adr/003-worker-internal-token.md)
 - [리팩터링 로드맵](docs/docs/refactoring-roadmap.md)
 - [코드 아키텍처](docs/docs/code-architecture.md)
+- [상호작용 및 업무 정책](docs/docs/interaction-policy.md)
 - [인프라 아키텍처](docs/docs/infrastructure-architecture.md)
 - [네트워크 아키텍처](docs/docs/network-architecture.md)
 - [보안 정책](docs/docs/security-policy.md)

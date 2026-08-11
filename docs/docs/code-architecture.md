@@ -39,7 +39,8 @@ flowchart LR
 `apps/frontend`는 React 19, TypeScript, Vite로 빌드한 SPA다. 빌드 결과인 `dist`를 `frontend` Compose 서비스의 Nginx가 직접 제공한다.
 
 - `src/App.tsx`: 문의 작업 화면을 조립하고 선택 상태와 모달을 연결하는 최상위 오케스트레이터
-- `src/api/inquiryApi.ts`: 브라우저 기본 `fetch`를 사용하는 API 함수와 HTTP 오류 변환
+- `src/api/httpClient.ts`: 모든 HTTP 요청의 헤더·JSON 직렬화와 백엔드 오류 응답 변환
+- `src/api/inquiryApi.ts`: 문의 API별 URL·요청·응답 타입만 소유하는 얇은 어댑터
 - `src/components/`: 화면 표현과 사용자 입력 책임
   - `AdminSidebar.tsx`: 사이드바 접힘·폭·위젯 및 저장 필터 순서 관리
   - `OperatorWidget.tsx`: 계정 정보와 권한별 관리자 도구 진입점
@@ -51,12 +52,17 @@ flowchart LR
   - `InquiryImageViewer.tsx`: 이미지 선택, 확대 보기, 키보드 탐색
   - `NaverLoginRenewPage.tsx`: 네이버 일회용 로그인 흐름
 - `src/features/inquiry/`: 페이지 캐시, 목록 병합, 선택 유지, 일괄 선택, 이미지·타임라인 변환 같은 순수 정책
+- `src/features/inquiry/policy.ts`: 상태·채널·날짜·사용자 코드·이미지 제약의 단일 표현 및 검증 정책
+- `src/features/inquiry/imageProcessing.ts`: 생성과 상세 편집이 함께 쓰는 이미지 압축 정책
+- `src/components/ui/`: 모달 포커스·Escape·스크롤 잠금, 비동기 확인, toast와 인라인 오류 표현
 - `src/hooks/useAutoRefresh.ts`: 자동 갱신 주기와 실행 생명주기
 - `src/hooks/useInquiryActivity.ts`: 작업 이력·회신 조회와 외부 데이터 갱신
 - `src/hooks/useInquiryFieldEditor.ts`: 필드 변경 감지, 사유 검증, 이미지 업로드와 저장
 - `src/types/inquiry.ts`: 서버 계약과 UI 상태에 사용하는 TypeScript 타입
 
-`App.tsx`는 API 상태와 문의 작업 흐름을 조율하고, `InquiryDetailPanel.tsx`는 상세 화면 배치와 사용자 명령을 조립한다. 사이드바 개인화와 상세 데이터 조회·편집은 전용 컴포넌트와 훅이 소유한다. 순수 사용자 맥락 정책은 DOM 없이 테스트하고, 컴포넌트 조합은 합성 showcase를 데스크톱과 `390x844`에서 실행해 검증한다.
+`App.tsx`는 API 상태와 문의 작업 흐름을 조율하고, `InquiryDetailPanel.tsx`는 상세 화면 배치와 사용자 명령을 조립한다. 사이드바 개인화와 상세 데이터 조회·편집은 전용 컴포넌트와 훅이 소유한다. 순수 사용자 맥락 정책은 DOM 없이 테스트하고, `conventionGuard.test.ts`는 공유 HTTP·모달·피드백 경계의 우회를 소스 수준에서 차단한다. 컴포넌트 조합은 합성 showcase를 데스크톱과 `390x844`에서 실행해 검증한다.
+
+UI에서 하나의 제출로 보이는 상태·필드 수정은 `UpdateInquiryUseCase`, 작업 기록·상태 변경은 `RegisterInquiryWorkLogUseCase`의 단일 트랜잭션으로 처리한다. 외부 스토리지 삭제는 DB 커밋 이후로 미루고, 관리자 DB와 `.htpasswd`처럼 서로 다른 저장소를 함께 변경할 때는 파일을 원자적으로 교체하고 DB 롤백 시 이전 항목을 복원한다.
 
 ## 브라우저 워커: Node.js + Playwright
 

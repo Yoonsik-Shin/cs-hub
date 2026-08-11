@@ -627,6 +627,17 @@
           },
           "operatorInfo": {
             "$ref": "#/components/schemas/OperatorInfo"
+          },
+          "statusReason": {
+            "type": "string"
+          },
+          "targetStatus": {
+            "enum": [
+              "OPEN",
+              "IN_PROGRESS",
+              "RESOLVED"
+            ],
+            "type": "string"
           }
         },
         "required": [
