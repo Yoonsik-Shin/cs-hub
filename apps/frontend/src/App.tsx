@@ -30,6 +30,7 @@ import {
 import type { PageCache } from './features/inquiry/pageCache';
 import { parseRefreshInterval } from './features/inquiry/refreshInterval';
 import { useAutoRefresh } from './hooks/useAutoRefresh';
+import { loadInquiryListPage, visibleInquiryIds } from './features/inquiry/inquiryListLoader';
 
 const SIDEBAR_EXPANDED_WIDTH = 300;
 const SIDEBAR_COLLAPSED_WIDTH = 64;
@@ -584,10 +585,13 @@ export const App: React.FC = () => {
     try {
       const searchParams = buildCurrentSearchParams(cursorVal);
 
-      const res = await inquiryApi.searchInquiries({
-        ...searchParams,
-        size: 20,
-      });
+      const result = await loadInquiryListPage(
+        inquiryApi,
+        searchParams,
+        20,
+        MAX_FILTER_BATCH_COUNT,
+      );
+      const res = result.page;
 
       setInquiries(res.content);
       setHasNext(res.hasNext);
@@ -602,13 +606,8 @@ export const App: React.FC = () => {
         }
       }
 
-      // Fetch matching inquiries count with 100 limit
-      const countRes = await inquiryApi.countInquiries({
-        ...buildCurrentSearchParams(null),
-        limit: MAX_FILTER_BATCH_COUNT
-      });
-      setTotalListCount(countRes.count);
-      setTotalListHasMore(countRes.hasMore);
+      setTotalListCount(result.totalCount);
+      setTotalListHasMore(result.totalHasMore);
     } catch (err) {
       console.error(err);
       setError('데이터를 불러오는 중 문제가 발생했습니다. 백엔드 서버 연결 상태를 확인해 주세요.');
@@ -654,10 +653,13 @@ export const App: React.FC = () => {
           const refreshTarget = resolveRefreshTarget(currentPageRef.current, pageCacheRef.current);
 
           const searchParams = buildCurrentSearchParams(refreshTarget.cursor);
-          const res = await inquiryApi.searchInquiries({
-            ...searchParams,
-            size: 20,
-          });
+          const result = await loadInquiryListPage(
+            inquiryApi,
+            searchParams,
+            20,
+            MAX_FILTER_BATCH_COUNT,
+          );
+          const res = result.page;
 
           // 캐시의 해당 페이지 정보 업데이트
           setPageCache((prev) => storePage(prev, refreshTarget.page, res));
@@ -673,16 +675,11 @@ export const App: React.FC = () => {
           // 현재 페이지에서 사라진 아이템은 selectedInquiryIds에서 제거 (유효한 선택 유지)
           setSelectedInquiryIds((prev) => retainVisibleSelection(
             prev,
-            res.content.map((inquiry) => inquiry.id),
+            visibleInquiryIds(res.content),
           ));
 
-          // 필터 조건에 매칭되는 전체 건수 갱신
-          const countRes = await inquiryApi.countInquiries({
-            ...buildCurrentSearchParams(null),
-            limit: MAX_FILTER_BATCH_COUNT
-          });
-          setTotalListCount(countRes.count);
-          setTotalListHasMore(countRes.hasMore);
+          setTotalListCount(result.totalCount);
+          setTotalListHasMore(result.totalHasMore);
         } catch (err) {
           console.error(err);
           setError('데이터를 새로고침하는 중 문제가 발생했습니다.');
