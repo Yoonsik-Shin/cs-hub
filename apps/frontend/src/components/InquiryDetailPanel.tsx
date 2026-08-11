@@ -1,38 +1,25 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-    Cpu, Info, Calendar, Clock, User, ArrowRight, History,
-    FileText, CheckCircle, Inbox, MessageSquare, Pin, RefreshCw, AlertCircle,
-    ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit, ImagePlus, Loader2, Star, X as XIcon,
-    Image, ZoomIn, ZoomOut, Mail, ExternalLink
+    Cpu, Info, Calendar, Clock, History,
+    FileText, CheckCircle, MessageSquare, Pin, RefreshCw,
+    ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ImagePlus, Loader2, Star, X as XIcon,
+    Image, ZoomIn, ZoomOut, ExternalLink
 } from 'lucide-react';
 import type {
     ChannelMetadata,
     CustomerInquiry,
     DeviceInfo,
-    FieldModification,
     InquiryStatus,
     InquiryWorkLog,
     OperatorInfo,
 } from '../types/inquiry';
 import { inquiryApi } from '../api/inquiryApi';
+import { InquiryTimeline } from './InquiryTimeline';
+import { buildInquiryTimeline } from '../features/inquiry/timeline';
 
 type UpdateInquiryFieldsRequest = Parameters<typeof inquiryApi.updateInquiryFields>[1];
 type InquiryFieldChanges = Omit<Partial<UpdateInquiryFieldsRequest>, 'operatorInfo' | 'reasons'>;
-
-interface TimelineItem {
-    id: string;
-    actionType: InquiryWorkLog['actionType'];
-    createdAt: string;
-    operatorInfo: { id: string; nickname: string; email: string; role?: string };
-    memo: string | null;
-    answer: string | null;
-    previousStatus: InquiryStatus | null;
-    currentStatus: InquiryStatus | null;
-    imageUrls?: string[] | null;
-    ipAddress?: string | null;
-    modificationDetails?: FieldModification[] | null;
-}
 
 const getErrorMessage = (error: unknown): string => (
     error instanceof Error ? error.message : String(error)
@@ -73,16 +60,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [isEditingAnswer, setIsEditingAnswer] = useState(false);
     const [bookmarkChanging, setBookmarkChanging] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-
-    // Scroll ref for timeline
-    const timelineEndRef = useRef<HTMLDivElement>(null);
-
-    const scrollToBottom = (behavior: 'smooth' | 'auto' = 'auto') => {
-        if (timelineEndRef.current) {
-            timelineEndRef.current.scrollIntoView({ behavior });
-        }
-    };
-
 
     // Confirmation Modal state
     const [modal, setModal] = useState<{
@@ -267,38 +244,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         }
     };
 
-    const getActionKorean = (actionType: string) => {
-        switch (actionType) {
-            case 'ANSWER_SUBMITTED': return '답변 등록';
-            case 'MEMO_ADDED': return '메모 등록';
-            case 'ANSWER_AND_MEMO_SUBMITTED': return '답변 및 메모 등록';
-            case 'STATUS_CHANGED': return '상태 변경';
-            case 'INITIAL_SUBMISSION': return '최초 접수';
-            case 'PENDING_ACTION': return '처리 대기';
-            case 'FIELD_MODIFIED': return '정보 수정';
-            case 'BOOKMARK_ADDED': return '즐겨찾기 등록';
-            case 'BOOKMARK_REMOVED': return '즐겨찾기 해제';
-            case 'CUSTOMER_REPLY': return '고객 회신';
-            default: return actionType;
-        }
-    };
-
-    const getActionClass = (actionType: string) => {
-        switch (actionType) {
-            case 'ANSWER_SUBMITTED':
-            case 'ANSWER_AND_MEMO_SUBMITTED': return 'answer';
-            case 'MEMO_ADDED': return 'memo';
-            case 'STATUS_CHANGED': return 'status-change';
-            case 'INITIAL_SUBMISSION': return 'initial';
-            case 'PENDING_ACTION': return 'pending';
-            case 'FIELD_MODIFIED': return 'modify';
-            case 'BOOKMARK_ADDED':
-            case 'BOOKMARK_REMOVED': return 'bookmark-action';
-            case 'CUSTOMER_REPLY': return 'customer-reply';
-            default: return '';
-        }
-    };
-
     const getChannelInfo = (channel: string) => {
         const normalized = channel.toUpperCase();
         if (normalized.includes('NAVER_CAFE') || normalized.includes('CAFE')) {
@@ -402,13 +347,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             cancelled = true;
         };
     }, [inquiry.id]);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            scrollToBottom('auto');
-        }, 100);
-        return () => clearTimeout(timer);
-    }, [workLogs, replies]);
 
     const adjustTextareaHeight = () => {
         if (contentTextareaRef.current) {
@@ -774,16 +712,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         }
     };
 
-    const getFieldLabel = (field: string) => {
-        switch (field) {
-            case 'channel': return '채널';
-            case 'userCode': return '유저 코드';
-            case 'deviceInfo': return '디바이스 정보';
-            case 'content': return '문의 내용';
-            default: return field;
-        }
-    };
-
     const getStatusHeaderStyle = (status: string) => {
         let bgColor = 'var(--status-open)';
         if (status === 'IN_PROGRESS') {
@@ -1141,104 +1069,12 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         return `${window.location.origin}/attachments/cs-application/${url}`;
     };
 
-    // Construct combined timeline items (ascending order: oldest first, newest last)
-    const timelineItems: TimelineItem[] = [];
-
-    // 1. Initial Customer Submission (Always added first as it is the oldest item)
-    timelineItems.push({
-        id: 'initial_submission',
-        actionType: 'INITIAL_SUBMISSION',
-        createdAt: inquiry.timestamp,
-        operatorInfo: {
-            id: 'customer',
-            nickname: inquiry.userCode || '고객(익명)',
-            email: ''
-        },
-        memo: `[${channelInfo.label}] 채널을 통해 문의가 정상적으로 접수되었습니다.`,
-        answer: '',
-        previousStatus: 'OPEN',
-        currentStatus: 'OPEN'
-    });
-
-    const isParentNaverCafe = inquiry.channel.toUpperCase() === 'NAVER_CAFE';
-    const commentsList = (isParentNaverCafe && inquiry.channelMetadata?.comments) || [];
-
-    const parsedCommentsTimelineItems: TimelineItem[] = commentsList.map((comment) => {
-        const isOperatorReply = comment.isOperator === true;
-        const writerNick = comment.writer?.nickname || '네이버 카페 유저';
-        return {
-            id: `comment_${comment.commentId}`,
-            actionType: isOperatorReply ? 'ANSWER_SUBMITTED' : 'CUSTOMER_REPLY',
-            createdAt: comment.writeDate,
-            operatorInfo: {
-                id: isOperatorReply ? 'operator' : 'customer',
-                nickname: isOperatorReply
-                    ? `CS 매니저 (${writerNick})`
-                    : writerNick,
-                email: ''
-            },
-            memo: isOperatorReply ? '' : comment.content,
-            answer: isOperatorReply ? comment.content : '',
-            previousStatus: null,
-            currentStatus: null,
-            imageUrls: comment.imageUrls || []
-        };
-    });
-
-    const replyTimelineItems: TimelineItem[] = [
-        ...replies.map((reply): TimelineItem => {
-            const fromEmail = reply.channelMetadata?.from || '';
-            const isNaverCafe = reply.channel.toUpperCase() === 'NAVER_CAFE';
-            const isOperatorReply = isNaverCafe
-                ? reply.channelMetadata?.isOperator === true
-                : fromEmail.includes('runday@ttam.ai');
-
-            return {
-                id: reply.id,
-                actionType: isOperatorReply ? 'ANSWER_SUBMITTED' : 'CUSTOMER_REPLY',
-                createdAt: reply.timestamp,
-                operatorInfo: {
-                    id: isOperatorReply ? 'operator' : 'customer',
-                    nickname: isOperatorReply
-                        ? (isNaverCafe ? `CS 매니저 (${reply.userCode || '네이버 카페'})` : 'CS 매니저')
-                        : (reply.userCode || '고객(익명)'),
-                    email: fromEmail
-                },
-                memo: isOperatorReply ? '' : reply.content,
-                answer: isOperatorReply ? reply.content : '',
-                previousStatus: null,
-                currentStatus: null,
-                imageUrls: reply.imageUrls
-            };
-        }),
-        ...parsedCommentsTimelineItems
-    ];
-
-    // 2. Interleave workLogs and replies chronologically
-    const middleItems = [
-        ...workLogs,
-        ...replyTimelineItems
-    ];
-    middleItems.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    timelineItems.push(...middleItems);
-
-    // 3. Pending Action Placeholder
-    if (workLogs.length === 0 && replies.length === 0 && inquiry.status !== 'RESOLVED') {
-        timelineItems.push({
-            id: 'pending_action',
-            actionType: 'PENDING_ACTION',
-            createdAt: new Date().toISOString(),
-            operatorInfo: {
-                id: 'system',
-                nickname: '배정 대기',
-                email: ''
-            },
-            memo: '답변 등록 또는 비공개 메모 작성을 기다리고 있습니다.',
-            answer: '',
-            previousStatus: inquiry.status,
-            currentStatus: inquiry.status
-        });
-    }
+    const timelineItems = buildInquiryTimeline(
+        inquiry,
+        workLogs,
+        replies,
+        channelInfo.label,
+    );
 
     const isContentLong = (inquiry.content?.length || 0) > 250 || (inquiry.content?.split('\n').length || 0) > 6;
 
@@ -2712,158 +2548,15 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 </button>
                             </div>
 
-                            {loadingLogs ? (
-                                <div style={{ padding: '12px 0', flex: 1 }}>
-                                    <div className="skeleton skeleton-text short" />
-                                    <div className="skeleton skeleton-text" />
-                                </div>
-                            ) : loadingReplies ? (
-                                <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '8px 0', flex: 1 }}>회신 내역을 불러오는 중...</div>
-                            ) : logError ? (
-                                <div style={{ color: '#f87171', fontSize: '13px', padding: '8px 0', flex: 1 }}>⚠️ {logError}</div>
-                            ) : (
-                                <div className="timeline-scroll-area" style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 0 12px' }}>
-                                    <div className="timeline-container">
-                                        {timelineItems.map((log) => (
-                                            <div key={log.id} className={`timeline-item ${getActionClass(log.actionType)}`}>
-                                                <div className={`timeline-dot ${getActionClass(log.actionType)}`}>
-                                                    {log.actionType === 'INITIAL_SUBMISSION' && <Inbox size={10} />}
-                                                    {log.actionType === 'PENDING_ACTION' && <AlertCircle size={10} />}
-                                                    {log.actionType === 'STATUS_CHANGED' && <RefreshCw size={10} />}
-                                                    {(log.actionType === 'ANSWER_SUBMITTED' || log.actionType === 'ANSWER_AND_MEMO_SUBMITTED') && <MessageSquare size={10} />}
-                                                    {log.actionType === 'MEMO_ADDED' && <Pin size={10} />}
-                                                    {log.actionType === 'FIELD_MODIFIED' && <Edit size={10} />}
-                                                    {log.actionType === 'CUSTOMER_REPLY' && <Mail size={10} />}
-                                                    {(log.actionType === 'BOOKMARK_ADDED' || log.actionType === 'BOOKMARK_REMOVED') && (
-                                                        <Star size={10} fill={log.actionType === 'BOOKMARK_ADDED' ? 'currentColor' : 'none'} />
-                                                    )}
-                                                </div>
-                                                <div className="timeline-content">
-                                                    <div className="timeline-header">
-                                                        <span className={`timeline-action ${getActionClass(log.actionType)}`}>
-                                                            {getActionKorean(log.actionType)}
-                                                        </span>
-                                                        <span className="timeline-operator">
-                                                            <User size={10} style={{ marginRight: '2px', verticalAlign: 'middle' }} />
-                                                            {log.operatorInfo.nickname}
-                                                        </span>
-                                                        {log.actionType !== 'PENDING_ACTION' && (
-                                                            <span className="timeline-date">{formatDate(log.createdAt)}</span>
-                                                        )}
-                                                    </div>
-                                                    {log.actionType === 'STATUS_CHANGED' && log.previousStatus !== log.currentStatus && (
-                                                        <div className="timeline-status-change">
-                                                            {getStatusKorean(log.previousStatus || '')}
-                                                            <ArrowRight size={10} style={{ margin: '0 4px' }} />
-                                                            <strong>{getStatusKorean(log.currentStatus || '')}</strong>
-                                                        </div>
-                                                    )}
-                                                    {log.actionType === 'PENDING_ACTION' || log.actionType === 'INITIAL_SUBMISSION' ? (
-                                                        <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '6px', lineHeight: '1.4' }}>
-                                                            {log.memo}
-                                                        </div>
-                                                    ) : log.actionType === 'FIELD_MODIFIED' ? (
-                                                        <div className="timeline-modification-container" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                            {log.ipAddress && (
-                                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                                    요청 IP: {log.ipAddress}
-                                                                </div>
-                                                            )}
-                                                            {log.modificationDetails && log.modificationDetails.map((mod, index) => (
-                                                                <div key={index} className="timeline-detail-box modify" style={{
-                                                                    padding: '8px 12px',
-                                                                    background: 'rgba(124, 58, 237, 0.03)',
-                                                                    borderRadius: '6px',
-                                                                    fontSize: '12px'
-                                                                }}>
-                                                                    <div style={{ fontWeight: '700', color: 'var(--accent-violet)', marginBottom: '6px' }}>
-                                                                        {getFieldLabel(mod.field)} 수정
-                                                                    </div>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                                                                        <span style={{ textDecoration: 'line-through', opacity: 0.6, color: 'var(--text-secondary)' }}>
-                                                                            {mod.beforeValue || '(없음)'}
-                                                                        </span>
-                                                                        <ArrowRight size={12} style={{ color: 'var(--accent-violet)' }} />
-                                                                        <strong style={{ color: 'var(--text-primary)' }}>
-                                                                            {mod.afterValue || '(없음)'}
-                                                                        </strong>
-                                                                    </div>
-                                                                    {mod.reason && (
-                                                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '4px' }}>
-                                                                            사유: {mod.reason}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    ) : log.actionType === 'CUSTOMER_REPLY' ? (
-                                                        <div className="timeline-detail-box customer-reply" style={{
-                                                            padding: '12px',
-                                                            background: 'rgba(99, 102, 241, 0.04)',
-                                                            border: '1px solid rgba(99, 102, 241, 0.15)',
-                                                            borderRadius: '8px',
-                                                            fontSize: '12.5px',
-                                                            color: 'var(--text-primary)',
-                                                            marginTop: '6px',
-                                                            lineHeight: '1.4'
-                                                        }}>
-                                                            <div style={{ whiteSpace: 'pre-wrap' }}>
-                                                                {log.memo}
-                                                            </div>
-                                                            {log.imageUrls && log.imageUrls.length > 0 && (
-                                                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
-                                                                    {log.imageUrls.map((url: string, idx: number) => (
-                                                                        <a
-                                                                            key={idx}
-                                                                            href={getDisplayImageUrl(url)}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            onClick={(e) => {
-                                                                                if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
-                                                                                    e.preventDefault();
-                                                                                    selectImage(activeImageUrl === url ? null : url);
-                                                                                }
-                                                                            }}
-                                                                        >
-                                                                            <img
-                                                                                src={getDisplayImageUrl(url)}
-                                                                                referrerPolicy="no-referrer"
-                                                                                alt={`reply-img-${idx}`}
-                                                                                style={{
-                                                                                    width: '60px',
-                                                                                    height: '60px',
-                                                                                    objectFit: 'cover',
-                                                                                    borderRadius: '6px',
-                                                                                    border: '1px solid var(--border-light)',
-                                                                                    cursor: 'pointer'
-                                                                                }}
-                                                                            />
-                                                                        </a>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            {log.answer && (
-                                                                <div className="timeline-detail-box answer">
-                                                                    {log.answer}
-                                                                </div>
-                                                            )}
-                                                            {log.memo && (
-                                                                <div className="timeline-detail-box memo">
-                                                                    {log.memo}
-                                                                </div>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div ref={timelineEndRef} />
-                                </div>
-                            )}
+                            <InquiryTimeline
+                                items={timelineItems}
+                                loadingLogs={loadingLogs}
+                                loadingReplies={loadingReplies}
+                                error={logError}
+                                activeImageUrl={activeImageUrl}
+                                getImageUrl={getDisplayImageUrl}
+                                onSelectImage={selectImage}
+                            />
                         </div>
                     )}
                 </div>
