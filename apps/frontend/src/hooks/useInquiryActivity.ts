@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { inquiryApi } from '../api/inquiryApi';
 import type { CustomerInquiry, InquiryWorkLog } from '../types/inquiry';
+import { useFeedback } from '../components/ui/feedbackContext';
+import { HttpError } from '../api/httpClient';
+import { getErrorMessage } from '../lib/errors';
 
 interface UseInquiryActivityOptions {
   inquiryId: string;
@@ -8,39 +11,32 @@ interface UseInquiryActivityOptions {
   onRequireNaverSessionRenew?: () => void;
 }
 
-const getErrorMessage = (error: unknown) => (
-  error instanceof Error ? error.message : String(error)
+const isNaverSessionError = (error: unknown) => (
+  error instanceof HttpError && (error.status === 401 || error.status === 410)
 );
-
-const isNaverSessionError = (message: string) => [
-  '410',
-  '401',
-  'GONE',
-  'Unauthorized',
-  'Session has expired',
-  '로그인하지 않았습니다',
-].some((marker) => message.includes(marker));
 
 export function useInquiryActivity({
   inquiryId,
   onInquiryRefresh,
   onRequireNaverSessionRenew,
 }: UseInquiryActivityOptions) {
+  const { notify } = useFeedback();
   const [workLogs, setWorkLogs] = useState<InquiryWorkLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
-  const [logError, setLogError] = useState<string | null>(null);
+  const [workLogError, setWorkLogError] = useState<string | null>(null);
   const [replies, setReplies] = useState<CustomerInquiry[]>([]);
   const [loadingReplies, setLoadingReplies] = useState(true);
+  const [repliesError, setRepliesError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchWorkLogs = useCallback(async () => {
     setLoadingLogs(true);
-    setLogError(null);
+    setWorkLogError(null);
     try {
       setWorkLogs(await inquiryApi.getWorkLogs(inquiryId));
     } catch (error) {
       console.error(error);
-      setLogError('업무 처리 이력을 불러오는 데 실패했습니다.');
+      setWorkLogError('업무 처리 이력을 불러오는 데 실패했습니다.');
     } finally {
       setLoadingLogs(false);
     }
@@ -48,10 +44,12 @@ export function useInquiryActivity({
 
   const fetchReplies = useCallback(async () => {
     setLoadingReplies(true);
+    setRepliesError(null);
     try {
       setReplies(await inquiryApi.getReplies(inquiryId));
     } catch (error) {
       console.error('Failed to fetch replies:', error);
+      setRepliesError('고객 회신을 불러오는 데 실패했습니다.');
     } finally {
       setLoadingReplies(false);
     }
@@ -70,13 +68,14 @@ export function useInquiryActivity({
         setWorkLogs(logsResult.value);
       } else {
         console.error(logsResult.reason);
-        setLogError('업무 처리 이력을 불러오는 데 실패했습니다.');
+        setWorkLogError('업무 처리 이력을 불러오는 데 실패했습니다.');
       }
 
       if (repliesResult.status === 'fulfilled') {
         setReplies(repliesResult.value);
       } else {
         console.error('Failed to fetch replies:', repliesResult.reason);
+        setRepliesError('고객 회신을 불러오는 데 실패했습니다.');
       }
 
       setLoadingLogs(false);
@@ -97,25 +96,24 @@ export function useInquiryActivity({
     } catch (error) {
       console.error('Failed to refresh inquiry:', error);
       const message = getErrorMessage(error);
-      if (isNaverSessionError(message)) {
+      if (isNaverSessionError(error)) {
         if (onRequireNaverSessionRenew) {
           onRequireNaverSessionRenew();
         } else {
-          alert('네이버 세션이 만료되었습니다. 상단 메뉴나 로그인 페이지에서 세션을 갱신해 주세요.');
+          notify('네이버 세션이 만료되었습니다. 상단 메뉴나 로그인 페이지에서 세션을 갱신해 주세요.', 'error');
         }
       } else {
-        alert('데이터 갱신에 실패했습니다: ' + message);
+        notify('데이터 갱신에 실패했습니다: ' + message, 'error');
       }
     } finally {
       setRefreshing(false);
     }
-  }, [fetchReplies, fetchWorkLogs, inquiryId, onInquiryRefresh, onRequireNaverSessionRenew]);
+  }, [fetchReplies, fetchWorkLogs, inquiryId, notify, onInquiryRefresh, onRequireNaverSessionRenew]);
 
   return {
     workLogs,
     loadingLogs,
-    logError,
-    setLogError,
+    activityError: [workLogError, repliesError].filter(Boolean).join(' ') || null,
     replies,
     loadingReplies,
     refreshing,

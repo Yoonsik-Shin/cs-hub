@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   Loader2,
   Plus,
   Shield,
@@ -10,6 +9,10 @@ import {
 import React, { useCallback, useEffect, useState } from "react";
 import type { AdminAccount, CreateAccountRequest } from "../api/inquiryApi";
 import { accountApi } from "../api/inquiryApi";
+import { ModalSurface } from "./ui/ModalSurface";
+import { ACCOUNT_POLICY, validateAccountDraft } from "../features/account/policy";
+import { InlineAlert } from "./ui/InlineAlert";
+import { getErrorMessage } from "../lib/errors";
 
 interface AccountManagementModalProps {
   onClose: () => void;
@@ -38,8 +41,6 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
   const [createError, setCreateError] = useState("");
 
   const fetchAccounts = useCallback(async () => {
-    setLoading(true);
-    setError("");
     try {
       const data = await accountApi.getAccounts();
       setAccounts(data);
@@ -52,20 +53,20 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    let active = true;
     accountApi.getAccounts()
       .then((data) => {
-        if (!cancelled) setAccounts(data);
+        if (active) setAccounts(data);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError("계정 목록을 불러오는 데 실패했습니다.");
+        if (active) setError("계정 목록을 불러오는 데 실패했습니다.");
         console.error(err);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (active) setLoading(false);
       });
     return () => {
-      cancelled = true;
+      active = false;
     };
   }, []);
 
@@ -80,16 +81,14 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
 
   const handleCreate = async () => {
     setCreateError("");
-    if (!newUsername.trim() || !newPassword.trim() || !newNickname.trim()) {
-      setCreateError("아이디, 비밀번호, 표시 이름은 필수 입력 항목입니다.");
-      return;
-    }
-    if (newUsername.trim().length < 4) {
-      setCreateError("아이디는 4자 이상이어야 합니다.");
-      return;
-    }
-    if (newPassword.length < 6) {
-      setCreateError("비밀번호는 6자 이상이어야 합니다.");
+    const validationError = validateAccountDraft({
+      username: newUsername,
+      password: newPassword,
+      nickname: newNickname,
+      email: newEmail,
+    });
+    if (validationError) {
+      setCreateError(validationError);
       return;
     }
     setActionLoading(true);
@@ -106,7 +105,7 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
       setShowCreateForm(false);
       fetchAccounts();
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "계정 생성에 실패했습니다.");
+      setCreateError(getErrorMessage(err, "계정 생성에 실패했습니다."));
     } finally {
       setActionLoading(false);
     }
@@ -119,7 +118,7 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
       setDeleteConfirmUsername(null);
       fetchAccounts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "계정 삭제에 실패했습니다.");
+      setError(getErrorMessage(err, "계정 삭제에 실패했습니다."));
     } finally {
       setActionLoading(false);
     }
@@ -151,11 +150,12 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
   });
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal-container"
-        onClick={(e) => e.stopPropagation()}
-        style={{
+    <ModalSurface
+      title="계정 관리"
+      onClose={onClose}
+      closeDisabled={actionLoading}
+      contentClassName="modal-container"
+      contentStyle={{
           width: "90%",
           maxWidth: "640px",
           maxHeight: "80vh",
@@ -167,8 +167,8 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
           border: "1px solid rgba(15, 23, 42, 0.08)",
           boxShadow: "0 24px 60px rgba(15, 23, 42, 0.24)",
           animation: "scaleUp var(--transition-fast) forwards",
-        }}
-      >
+      }}
+    >
         {/* Header */}
         <div
           className="modal-header"
@@ -221,6 +221,8 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
           <button
             type="button"
             onClick={onClose}
+            disabled={actionLoading}
+            aria-label="계정 관리창 닫기"
             style={{
               background: "transparent",
               border: "none",
@@ -236,24 +238,7 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
-          {error && (
-            <div
-              style={{
-                padding: "10px 14px",
-                borderRadius: "8px",
-                background: "rgba(239, 68, 68, 0.06)",
-                border: "1px solid rgba(239, 68, 68, 0.15)",
-                color: "#ef4444",
-                fontSize: "12.5px",
-                marginBottom: "16px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <AlertTriangle size={14} /> {error}
-            </div>
-          )}
+          {error && <InlineAlert className="account-modal-alert">{error}</InlineAlert>}
 
           {/* Account List */}
           {loading ? (
@@ -452,21 +437,7 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
               >
                 신규 계정 등록
               </h3>
-              {createError && (
-                <div
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "6px",
-                    background: "rgba(239, 68, 68, 0.06)",
-                    border: "1px solid rgba(239, 68, 68, 0.15)",
-                    color: "#ef4444",
-                    fontSize: "12px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  {createError}
-                </div>
-              )}
+              {createError && <InlineAlert className="account-modal-alert">{createError}</InlineAlert>}
               <div
                 style={{
                   display: "grid",
@@ -490,6 +461,7 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
                     type="text"
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
+                    maxLength={ACCOUNT_POLICY.username.maxLength}
                     placeholder="영문, 숫자, -, _ 가능"
                     style={{
                       width: "100%",
@@ -520,6 +492,8 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
+                    minLength={ACCOUNT_POLICY.password.minLength}
+                    maxLength={ACCOUNT_POLICY.password.maxLength}
                     placeholder="6자 이상"
                     style={{
                       width: "100%",
@@ -550,6 +524,7 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
                     type="text"
                     value={newNickname}
                     onChange={(e) => setNewNickname(e.target.value)}
+                    maxLength={ACCOUNT_POLICY.nickname.maxLength}
                     placeholder="예: 운영팀 김씨"
                     style={{
                       width: "100%",
@@ -580,6 +555,7 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
                     type="email"
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
+                    maxLength={ACCOUNT_POLICY.email.maxLength}
                     placeholder="선택사항"
                     style={{
                       width: "100%",
@@ -728,7 +704,6 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
             </button>
           </div>
         )}
-      </div>
-    </div>
+    </ModalSurface>
   );
 };

@@ -1,5 +1,8 @@
 import React from 'react';
 import { Inbox, AlertCircle, Star, UserX } from 'lucide-react';
+import { getStatusLabel } from '../features/inquiry/policy';
+
+const OPEN_LABEL = getStatusLabel('OPEN');
 
 interface SingleCardProps {
   count: number;
@@ -22,9 +25,9 @@ export const UnprocessedStatsCard: React.FC<SingleCardProps> = ({
       <button
         type="button"
         className="collapsed-tooltip collapsed-stat violet"
-        data-tooltip={`미처리 CS ${tooltipCount} - 클릭하여 조회`}
+        data-tooltip={`${OPEN_LABEL} CS ${tooltipCount} - 클릭하여 조회`}
         onClick={onClick}
-        aria-label={`미처리 CS ${tooltipCount} 조회`}
+        aria-label={`${OPEN_LABEL} CS ${tooltipCount} 조회`}
         style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px' }}
       >
         {display}
@@ -37,14 +40,14 @@ export const UnprocessedStatsCard: React.FC<SingleCardProps> = ({
       type="button"
       className="stats-card glass-card violet glow-violet-hover"
       onClick={onClick}
-      aria-label={`미처리 CS ${tooltipCount} 조회`}
+      aria-label={`${OPEN_LABEL} CS ${tooltipCount} 조회`}
       style={{ width: '100%', cursor: 'grab' }}
     >
       <div className="stats-icon-wrapper">
         <AlertCircle size={20} />
       </div>
       <div className="stats-info">
-        <span className="stats-label">미처리 CS</span>
+        <span className="stats-label">{OPEN_LABEL} CS</span>
         <span className="stats-value">{display}</span>
       </div>
     </button>
@@ -65,9 +68,9 @@ export const TodayStatsCard: React.FC<SingleCardProps> = ({
       <button
         type="button"
         className="collapsed-tooltip collapsed-stat cyan"
-        data-tooltip={`오늘 신규 미처리 CS ${tooltipCount} - 클릭하여 조회`}
+        data-tooltip={`오늘 신규 ${OPEN_LABEL} CS ${tooltipCount} - 클릭하여 조회`}
         onClick={onClick}
-        aria-label={`오늘 신규 미처리 CS ${tooltipCount} 조회`}
+        aria-label={`오늘 신규 ${OPEN_LABEL} CS ${tooltipCount} 조회`}
         style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px' }}
       >
         {display}
@@ -80,7 +83,7 @@ export const TodayStatsCard: React.FC<SingleCardProps> = ({
       type="button"
       className="stats-card glass-card cyan glow-cyan-hover"
       onClick={onClick}
-      aria-label={`오늘 신규 미처리 CS ${tooltipCount} 조회`}
+      aria-label={`오늘 신규 ${OPEN_LABEL} CS ${tooltipCount} 조회`}
       style={{ width: '100%', cursor: 'grab' }}
     >
       <div className="stats-icon-wrapper">

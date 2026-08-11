@@ -3,13 +3,24 @@ import { X, Send, Mail, FileText, Phone, Plus, Trash2, ImagePlus, Loader2 } from
 import { inquiryApi } from '../api/inquiryApi';
 import type { CreateInquiryInput } from '../api/inquiryApi';
 import type { ChannelMetadata } from '../types/inquiry';
+import { prepareImageForUpload } from '../features/inquiry/imageProcessing';
+import {
+  IMAGE_POLICY,
+  isValidUserCode,
+  normalizeUserCode,
+  USER_CODE_LENGTH,
+  validateImageFiles,
+} from '../features/inquiry/policy';
+import { getErrorMessage } from '../lib/errors';
+import { ModalSurface } from './ui/ModalSurface';
+import { InlineAlert } from './ui/InlineAlert';
 
 export type CreateTicketInput = Omit<CreateInquiryInput, 'userCode'> & { userCode: string };
 
 interface CreateTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (ticketData: CreateTicketInput) => void;
+  onSubmit: (ticketData: CreateTicketInput) => Promise<void>;
 }
 
 interface PendingImage {
@@ -19,69 +30,6 @@ interface PendingImage {
   uploadedUrl: string | null; // null = not yet uploaded
   status: 'pending' | 'uploading' | 'done' | 'error';
 }
-
-const IMAGE_MAX_DIMENSION = 1600;
-const IMAGE_COMPRESSION_QUALITY = 0.78;
-
-const replaceFileExtension = (fileName: string, extension: string) => {
-  const safeName = fileName.replace(/\s+/g, '_');
-  const dotIndex = safeName.lastIndexOf('.');
-  const baseName = dotIndex > 0 ? safeName.slice(0, dotIndex) : safeName;
-  return `${baseName}.${extension}`;
-};
-
-const loadImage = (file: File): Promise<HTMLImageElement> => (
-  new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const img = new Image();
-
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(img);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error(`이미지 파일을 읽을 수 없습니다: ${file.name}`));
-    };
-    img.src = objectUrl;
-  })
-);
-
-const compressImageFile = async (file: File): Promise<File> => {
-  if (file.type === 'image/gif') {
-    return file;
-  }
-
-  const image = await loadImage(file);
-  const scale = Math.min(1, IMAGE_MAX_DIMENSION / Math.max(image.width, image.height));
-  const width = Math.max(1, Math.round(image.width * scale));
-  const height = Math.max(1, Math.round(image.height * scale));
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-
-  const context = canvas.getContext('2d');
-  if (!context) {
-    return file;
-  }
-
-  context.fillStyle = '#ffffff';
-  context.fillRect(0, 0, width, height);
-  context.drawImage(image, 0, 0, width, height);
-
-  const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, 'image/jpeg', IMAGE_COMPRESSION_QUALITY);
-  });
-
-  if (!blob || blob.size >= file.size) {
-    return file;
-  }
-
-  return new File([blob], replaceFileExtension(file.name, 'jpg'), {
-    type: 'image/jpeg',
-    lastModified: file.lastModified,
-  });
-};
 
 export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
   isOpen,
@@ -172,24 +120,14 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
   // ── Image handling ─────────────────────────────────────────────────────────
 
   const addFiles = (files: FileList | File[]) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const maxSize = 10 * 1024 * 1024; // 10MB
     const arr = Array.from(files);
-
-    if (pendingImages.length + arr.length > 10) {
-      setError('이미지는 최대 10개까지 첨부할 수 있습니다.');
+    const validationError = validateImageFiles(arr, pendingImages.length);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
-    const valid = arr.filter(f => {
-      if (!allowed.includes(f.type)) { setError(`지원하지 않는 파일 형식입니다: ${f.name}`); return false; }
-      if (f.size > maxSize) { setError(`파일 크기가 10MB를 초과합니다: ${f.name}`); return false; }
-      return true;
-    });
-
-    if (valid.length === 0) return;
-
-    const newPending: PendingImage[] = valid.map(file => ({
+    const newPending: PendingImage[] = arr.map(file => ({
       id: `${Date.now()}-${Math.random()}`,
       file,
       previewUrl: URL.createObjectURL(file),
@@ -242,7 +180,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
     const compressedImages = await Promise.all(
       pendingImages.map(async (img) => ({
         ...img,
-        uploadFile: await compressImageFile(img.file),
+        uploadFile: await prepareImageForUpload(img.file),
       }))
     );
 
@@ -318,7 +256,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
     setError('');
 
     if (!content.trim()) { setError('문의 내용을 입력해 주세요.'); return; }
-    if (userCode && !/^[0-9]{12}$/.test(userCode.trim())) { setError('유저 코드는 숫자 12자리여야 합니다.'); return; }
+    if (!isValidUserCode(userCode.trim())) { setError(`유저 코드는 숫자 ${USER_CODE_LENGTH}자리여야 합니다.`); return; }
 
     let channelMetadata: ChannelMetadata;
 
@@ -352,7 +290,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
     setIsSubmitting(true);
     try {
       const imageUrls = await uploadImages();
-      onSubmit({
+      await onSubmit({
         channel: activeTab,
         userCode: userCode.trim() || '',
         content: content.trim(),
@@ -362,18 +300,19 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
       resetForm();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '이미지 업로드 중 오류가 발생했습니다.');
+      setError(getErrorMessage(err, '티켓 생성 중 오류가 발생했습니다.'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="modal-overlay" onClick={handleClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div
-        className="modal-content glass-card"
-        onClick={(e) => e.stopPropagation()}
-        style={{
+    <ModalSurface
+      title="CS 티켓 수동 생성"
+      onClose={handleClose}
+      closeDisabled={isSubmitting}
+      contentClassName="modal-content glass-card"
+      contentStyle={{
           border: '1px solid rgba(0, 0, 0, 0.08)',
           background: 'rgba(255, 255, 255, 0.98)',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
@@ -385,8 +324,8 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
           padding: 0,
           borderRadius: '20px',
           gap: 0,
-        }}
-      >
+      }}
+    >
         {/* Header */}
         <div
           className="modal-header"
@@ -409,6 +348,8 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
             type="button"
             className="close-btn"
             onClick={handleClose}
+            disabled={isSubmitting}
+            aria-label="티켓 생성창 닫기"
             style={{
               padding: '6px', borderRadius: '50%', background: 'transparent', border: 'none',
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s'
@@ -443,11 +384,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {error && (
-              <div style={{ padding: '10px 14px', background: 'rgba(244, 63, 94, 0.08)', border: '1px solid rgba(244, 63, 94, 0.2)', borderRadius: '8px', color: '#e11d48', fontSize: '12.5px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>⚠️</span>{error}
-              </div>
-            )}
+            {error && <InlineAlert>{error}</InlineAlert>}
 
             {/* Split Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', alignItems: 'stretch' }}>
@@ -482,7 +419,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
                     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
                       <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <label htmlFor="modal-usercode-email" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>유저 코드 (선택)</label>
-                        <input id="modal-usercode-email" type="text" className="form-input" placeholder="숫자 12자리" value={userCode} onChange={(e) => { const onlyNums = e.target.value.replace(/[^0-9]/g, ''); setUserCode(onlyNums.slice(0, 12)); }} onFocus={() => setFocusedField('userCode')} onBlur={() => setFocusedField(null)} maxLength={12} style={getInputStyle('userCode')} />
+                        <input id="modal-usercode-email" type="text" className="form-input" placeholder={`숫자 ${USER_CODE_LENGTH}자리`} value={userCode} onChange={(e) => setUserCode(normalizeUserCode(e.target.value))} onFocus={() => setFocusedField('userCode')} onBlur={() => setFocusedField(null)} maxLength={USER_CODE_LENGTH} inputMode="numeric" style={getInputStyle('userCode')} />
                       </div>
                       <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>작성 일시</label>
@@ -507,7 +444,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
                       </div>
                       <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <label htmlFor="modal-usercode-phone" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>유저 코드 (선택)</label>
-                        <input id="modal-usercode-phone" type="text" className="form-input" placeholder="숫자 12자리" value={userCode} onChange={(e) => { const onlyNums = e.target.value.replace(/[^0-9]/g, ''); setUserCode(onlyNums.slice(0, 12)); }} onFocus={() => setFocusedField('userCode')} onBlur={() => setFocusedField(null)} maxLength={12} style={getInputStyle('userCode')} />
+                        <input id="modal-usercode-phone" type="text" className="form-input" placeholder={`숫자 ${USER_CODE_LENGTH}자리`} value={userCode} onChange={(e) => setUserCode(normalizeUserCode(e.target.value))} onFocus={() => setFocusedField('userCode')} onBlur={() => setFocusedField(null)} maxLength={USER_CODE_LENGTH} inputMode="numeric" style={getInputStyle('userCode')} />
                       </div>
                     </div>
 
@@ -567,7 +504,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
                 {/* Image Upload Area */}
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                    이미지 첨부 <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(선택, 최대 10개 · 각 10MB)</span>
+                    이미지 첨부 <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(선택, 최대 {IMAGE_POLICY.maxCount}개 · 각 {IMAGE_POLICY.maxBytes / 1024 / 1024}MB)</span>
                   </label>
 
                   {/* Drop zone */}
@@ -626,7 +563,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
                           </div>
                         ))}
                         {/* Add more button inside thumbnail grid */}
-                        {pendingImages.length < 10 && (
+                        {pendingImages.length < IMAGE_POLICY.maxCount && (
                           <div
                             onClick={() => fileInputRef.current?.click()}
                             style={{ width: '72px', height: '72px', borderRadius: '8px', border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: '#f8fafc', flexShrink: 0 }}
@@ -637,7 +574,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
                       </div>
                     )}
                   </div>
-                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={handleFileInputChange} style={{ display: 'none' }} />
+                  <input ref={fileInputRef} type="file" accept={IMAGE_POLICY.allowedTypes.join(',')} multiple onChange={handleFileInputChange} style={{ display: 'none' }} />
                 </div>
               </div>
 
@@ -658,7 +595,6 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalSurface>
   );
 };

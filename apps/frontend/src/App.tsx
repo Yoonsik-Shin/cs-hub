@@ -7,9 +7,9 @@ import { Pagination } from './components/Pagination';
 import { CreateTicketModal } from './components/CreateTicketModal';
 import type { CreateTicketInput } from './components/CreateTicketModal';
 import { inquiryApi } from './api/inquiryApi';
-import type { BatchUpdateInquiryStatusTarget, OperatorInfo } from './api/inquiryApi';
-import type { CustomFilterEntity, CustomerInquiry, InquiryStatus } from './types/inquiry';
-import { RefreshCw, ChevronLeft, ChevronRight, X, ListChecks, ArrowUp, ArrowDown } from 'lucide-react';
+import type { BatchUpdateInquiryStatusTarget } from './api/inquiryApi';
+import type { CustomFilterEntity, CustomerInquiry, OperatorInfo } from './types/inquiry';
+import { RefreshCw, ChevronLeft, ChevronRight, ListChecks, ArrowUp, ArrowDown } from 'lucide-react';
 import { NaverLoginRenewPage } from './components/NaverLoginRenewPage';
 import { InquiryDetailPanel } from './components/InquiryDetailPanel';
 import { AccountManagementModal } from './components/AccountManagementModal';
@@ -32,15 +32,21 @@ import type { PageCache } from './features/inquiry/pageCache';
 import { parseRefreshInterval } from './features/inquiry/refreshInterval';
 import { useAutoRefresh } from './hooks/useAutoRefresh';
 import { loadInquiryListPage, visibleInquiryIds } from './features/inquiry/inquiryListLoader';
+import { useFeedback } from './components/ui/feedbackContext';
+import {
+  getStatusLabel,
+  isValidStatusReason,
+  MIN_STATUS_REASON_LENGTH,
+  toLocalDateInputValue,
+} from './features/inquiry/policy';
+import { getErrorMessage } from './lib/errors';
+import { BatchStatusModal } from './components/BatchStatusModal';
+import type { BatchStatusModalState } from './components/BatchStatusModal';
+import { InlineAlert } from './components/ui/InlineAlert';
 
 const MAX_FILTER_BATCH_COUNT = 100;
-type BatchSelectionScope = 'PAGE' | 'FILTER';
-
-const getErrorMessage = (error: unknown): string => (
-  error instanceof Error ? error.message : '알 수 없는 오류'
-);
-
 export const App: React.FC = () => {
+  const { notify, requestConfirmation } = useFeedback();
   const isNaverLogin = window.location.pathname === '/naver-login';
 
   // Operator (현재 로그인한 관리자) 상태 — Nginx Basic Auth에서 파생
@@ -77,6 +83,7 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const listRequestIdRef = useRef(0);
 
   // Auto-refresh states
   const [refreshInterval, setRefreshInterval] = useState<number>(() => {
@@ -85,18 +92,10 @@ export const App: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Batch selection states
   const [isBatchSelectionMode, setIsBatchSelectionMode] = useState(false);
-  const [batchSelectionScope, setBatchSelectionScope] = useState<BatchSelectionScope>('PAGE');
   const [selectedInquiryIds, setSelectedInquiryIds] = useState<Set<string>>(new Set());
   const [batchBaseOffset, setBatchBaseOffset] = useState(0);
   const [pageCache, setPageCache] = useState<PageCache<CustomerInquiry>>({});
-  const [batchNotice, setBatchNotice] = useState<string | null>(null);
-  const [batchModal, setBatchModal] = useState<{
-    isOpen: boolean;
-    targetStatus: InquiryStatus | null;
-    isSubmitting: boolean;
-    error: string | null;
-    reason: string;
-  }>({
+  const [batchModal, setBatchModal] = useState<BatchStatusModalState>({
     isOpen: false,
     targetStatus: null,
     isSubmitting: false,
@@ -202,22 +201,27 @@ export const App: React.FC = () => {
       setNaverSessionStatus(result.status);
       setNaverSessionUpdatedAt(result.updatedAt);
       if (result.valid) {
-        alert('네이버 카페 세션이 유효합니다 (정상).');
+        notify('네이버 카페 세션이 정상입니다.', 'success');
       } else {
         setIsNaverRenewModalOpen(true);
       }
     } catch (err) {
       console.error('Failed to sync Naver session:', err);
-      alert('네이버 카페 세션 상태 동기화 중 에러가 발생했습니다. 브라우저 워커 연결 상태를 확인해 주세요.');
+      notify('네이버 카페 세션을 확인하지 못했습니다. 브라우저 워커 연결 상태를 확인해 주세요.', 'error');
       setNaverSessionStatus('ERROR');
     } finally {
       setVerifyingSession(false);
     }
   };
 
-  const handleSwitchAccount = () => {
+  const handleSwitchAccount = async () => {
     const currentUserId = currentOperator?.id || '';
-    if (window.confirm("현재 로그인된 Nginx Basic Auth 계정을 변경(로그아웃)하시겠습니까?\n\n[확인]을 누르면 계정 변경을 위한 로그인 창이 다시 표시됩니다.")) {
+    const confirmed = await requestConfirmation({
+      title: '로그인 계정 변경',
+      message: '현재 계정에서 로그아웃하고 다른 계정으로 로그인하시겠습니까?',
+      confirmLabel: '계정 변경',
+    });
+    if (confirmed) {
       window.location.href = `/api/v1/auth/logout?current=${encodeURIComponent(currentUserId)}`;
     }
   };
@@ -246,13 +250,14 @@ export const App: React.FC = () => {
 
   // Fetch inquiries for the current page and filter conditions
   const fetchPage = useCallback(async (cursorVal: string | null, keepSelection: boolean = false, silent: boolean = false) => {
+    const requestId = listRequestIdRef.current + 1;
+    listRequestIdRef.current = requestId;
+    setLoadingMore(false);
     if (!silent) {
       setLoading(true);
     }
     setError(null);
     setSelectedInquiryIds(new Set()); // Reset selection on page/filter change
-    setBatchSelectionScope('PAGE');
-    setBatchNotice(null);
     setIsBatchSelectionMode(false);
     try {
       const searchParams = buildCurrentSearchParams(cursorVal);
@@ -263,6 +268,7 @@ export const App: React.FC = () => {
         20,
         MAX_FILTER_BATCH_COUNT,
       );
+      if (requestId !== listRequestIdRef.current) return;
       const res = result.page;
 
       setInquiries(res.content);
@@ -281,10 +287,11 @@ export const App: React.FC = () => {
       setTotalListCount(result.totalCount);
       setTotalListHasMore(result.totalHasMore);
     } catch (err) {
+      if (requestId !== listRequestIdRef.current) return;
       console.error(err);
       setError('데이터를 불러오는 중 문제가 발생했습니다. 백엔드 서버 연결 상태를 확인해 주세요.');
     } finally {
-      if (!silent) {
+      if (!silent && requestId === listRequestIdRef.current) {
         setLoading(false);
       }
     }
@@ -317,6 +324,9 @@ export const App: React.FC = () => {
       ];
 
       const refreshPages = async () => {
+        const requestId = listRequestIdRef.current + 1;
+        listRequestIdRef.current = requestId;
+        setLoadingMore(false);
         if (!silent) {
           setLoading(true);
         }
@@ -331,6 +341,7 @@ export const App: React.FC = () => {
             20,
             MAX_FILTER_BATCH_COUNT,
           );
+          if (requestId !== listRequestIdRef.current) return;
           const res = result.page;
 
           // 캐시의 해당 페이지 정보 업데이트
@@ -353,10 +364,11 @@ export const App: React.FC = () => {
           setTotalListCount(result.totalCount);
           setTotalListHasMore(result.totalHasMore);
         } catch (err) {
+          if (requestId !== listRequestIdRef.current) return;
           console.error(err);
           setError('데이터를 새로고침하는 중 문제가 발생했습니다.');
         } finally {
-          if (!silent) {
+          if (!silent && requestId === listRequestIdRef.current) {
             setLoading(false);
           }
         }
@@ -380,24 +392,26 @@ export const App: React.FC = () => {
     onRefresh: handleAutoRefresh,
   });
 
-  const handleManualRefresh = useCallback(() => {
+  const handleManualRefresh = useCallback(async () => {
     if (isBatchSelectionMode && selectedInquiryIds.size > 0) {
-      const shouldRefresh = window.confirm(
-        '일괄 처리 중 새로고침하면 선택 항목이 초기화됩니다. 계속 새로고침할까요?'
-      );
+      const shouldRefresh = await requestConfirmation({
+        title: '선택 항목 초기화',
+        message: '일괄 처리 중 새로고침하면 선택 항목이 초기화됩니다. 계속하시겠습니까?',
+        confirmLabel: '초기화 후 새로고침',
+      });
       if (!shouldRefresh) return;
 
       setSelectedInquiryIds(new Set());
-      setBatchSelectionScope('PAGE');
-      setBatchNotice(null);
       setIsBatchSelectionMode(false);
     }
 
     handleRefresh(false);
-  }, [handleRefresh, isBatchSelectionMode, selectedInquiryIds.size]);
+  }, [handleRefresh, isBatchSelectionMode, requestConfirmation, selectedInquiryIds.size]);
 
   const loadMoreBatchInquiries = useCallback(async () => {
     if (loading || loadingMore || !hasNext || !nextCursor) return;
+    const requestId = listRequestIdRef.current + 1;
+    listRequestIdRef.current = requestId;
     setLoadingMore(true);
     try {
       const searchParams = buildCurrentSearchParams(nextCursor);
@@ -405,6 +419,7 @@ export const App: React.FC = () => {
         ...searchParams,
         size: 20,
       });
+      if (requestId !== listRequestIdRef.current) return;
 
       setInquiries((prev) => {
         const existingIds = new Set(prev.map(inq => inq.id));
@@ -415,9 +430,11 @@ export const App: React.FC = () => {
       setNextCursor(res.nextCursor);
       setCurrentPage((prev) => prev + 1);
     } catch (err) {
+      if (requestId !== listRequestIdRef.current) return;
       console.error(err);
+      setError('추가 문의를 불러오는 중 문제가 발생했습니다.');
     } finally {
-      setLoadingMore(false);
+      if (requestId === listRequestIdRef.current) setLoadingMore(false);
     }
   }, [loading, loadingMore, hasNext, nextCursor, buildCurrentSearchParams]);
 
@@ -427,7 +444,6 @@ export const App: React.FC = () => {
       setBookmarkedIds(new Set(ids));
     } catch (err) {
       console.error('Failed to fetch bookmarks:', err);
-      setBookmarkedIds(new Set());
     }
   }, []);
 
@@ -437,7 +453,6 @@ export const App: React.FC = () => {
       setCustomFilters(filters);
     } catch (err) {
       console.error('Failed to fetch custom filters:', err);
-      setCustomFilters([]);
     }
   }, []);
 
@@ -502,6 +517,9 @@ export const App: React.FC = () => {
       }
 
       // If not cached, fetch from API
+      const requestId = listRequestIdRef.current + 1;
+      listRequestIdRef.current = requestId;
+      setLoadingMore(false);
       setLoading(true);
       setError(null);
       try {
@@ -510,6 +528,7 @@ export const App: React.FC = () => {
           ...searchParams,
           size: 20,
         });
+        if (requestId !== listRequestIdRef.current) return;
 
         // Cache the newly fetched page
         setPageCache((prev) => storePage(prev, targetPage, res));
@@ -520,10 +539,11 @@ export const App: React.FC = () => {
         setNextCursor(res.nextCursor);
         setCurrentPage(targetPage);
       } catch (err) {
+        if (requestId !== listRequestIdRef.current) return;
         console.error(err);
         setError('데이터를 불러오는 중 문제가 발생했습니다.');
       } finally {
-        setLoading(false);
+        if (requestId === listRequestIdRef.current) setLoading(false);
       }
     }
   }, [hasNext, nextCursor, currentPage, pageCache, buildCurrentSearchParams]);
@@ -556,23 +576,18 @@ export const App: React.FC = () => {
   const handleStartBatchSelection = useCallback(() => {
     setIsBatchSelectionMode(true);
     setBatchBaseOffset((currentPage - 1) * 20);
-    setBatchNotice(null);
   }, [currentPage]);
 
   const handleCancelBatchSelection = useCallback(() => {
     setSelectedInquiryIds(new Set());
-    setBatchSelectionScope('PAGE');
-    setBatchNotice(null);
     setIsBatchSelectionMode(false);
   }, []);
 
   const handleToggleSelectInquiry = useCallback((id: string, checked: boolean) => {
-    setBatchNotice(null);
     setSelectedInquiryIds((prev) => toggleSelection(prev, id, checked));
   }, []);
 
   const handleToggleSelectAll = () => {
-    setBatchNotice(null);
     setSelectedInquiryIds((prev) => toggleVisibleSelection(
       prev,
       inquiries.map((inquiry) => inquiry.id),
@@ -582,30 +597,20 @@ export const App: React.FC = () => {
   const handleExecuteBatchStatusUpdate = async () => {
     const selectedBatchCount = selectedInquiryIds.size;
     if (selectedBatchCount === 0 || !batchModal.targetStatus) return;
-    if (!batchModal.reason || batchModal.reason.trim().length < 5) {
+    if (!isValidStatusReason(batchModal.reason)) {
       setBatchModal((prev) => ({
         ...prev,
-        error: '상태 변경 사유를 최소 5자 이상 입력해주세요.'
+        error: `상태 변경 사유를 최소 ${MIN_STATUS_REASON_LENGTH}자 이상 입력해 주세요.`
       }));
       return;
     }
 
     setBatchModal((prev) => ({ ...prev, isSubmitting: true, error: null }));
     try {
-      const isFilterMode = selectedBatchCount >= 100;
-
-      const target: BatchUpdateInquiryStatusTarget = isFilterMode
-        ? {
-            mode: 'FILTER',
-            filters: buildCurrentSearchParams(null),
-            excludedInquiryIds: inquiries
-              .filter((inq) => !selectedInquiryIds.has(inq.id))
-              .map((inq) => inq.id),
-          }
-        : {
-            mode: 'IDS',
-            inquiryIds: Array.from(selectedInquiryIds),
-          };
+      const target: BatchUpdateInquiryStatusTarget = {
+        mode: 'IDS',
+        inquiryIds: Array.from(selectedInquiryIds),
+      };
       await inquiryApi.updateInquiryStatuses(target, batchModal.targetStatus, batchModal.reason.trim());
 
       // Successfully updated! Refresh starting from Page 1 to clear obsolete cache
@@ -628,8 +633,6 @@ export const App: React.FC = () => {
         reason: ''
       });
       setSelectedInquiryIds(new Set());
-      setBatchSelectionScope('PAGE');
-      setBatchNotice(null);
       setIsBatchSelectionMode(false);
     } catch (err) {
       console.error(err);
@@ -650,19 +653,12 @@ export const App: React.FC = () => {
         channelMetadata: ticketData.channelMetadata,
         imageUrls: ticketData.imageUrls,
       });
-      fetchStats();
-      fetchPage(null);
+      await Promise.all([fetchStats(), fetchPage(null)]);
+      notify('CS 티켓을 생성했습니다.', 'success');
     } catch (err) {
       console.error(err);
-      alert('티켓 생성에 실패했습니다: ' + getErrorMessage(err));
+      throw new Error('티켓 생성에 실패했습니다: ' + getErrorMessage(err), { cause: err });
     }
-  };
-
-  const getLocalDateInputValue = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
   };
 
   const handleUnprocessedStatsClick = () => {
@@ -679,7 +675,7 @@ export const App: React.FC = () => {
   };
 
   const handleTodayStatsClick = () => {
-    const today = getLocalDateInputValue(new Date());
+    const today = toLocalDateInputValue(new Date());
     setQueryFilters({
       userCode: '',
       userCodeMissing: false,
@@ -749,7 +745,7 @@ export const App: React.FC = () => {
         }
         return next;
       });
-      alert('즐겨찾기 변경에 실패했습니다: ' + getErrorMessage(err));
+      notify('즐겨찾기 변경에 실패했습니다: ' + getErrorMessage(err), 'error');
     }
   };
 
@@ -1016,12 +1012,6 @@ export const App: React.FC = () => {
                     </label>
                   </div>
 
-                  {batchNotice && (
-                    <div className={`batch-notice-message${batchSelectionScope === 'FILTER' ? ' active' : ''}`}>
-                      {batchNotice}
-                    </div>
-                  )}
-
                   {refreshInterval > 0 && (
                     <div className="batch-notice-message active">
                       일괄 처리 중에는 선택 항목 보호를 위해 자동 새로고침이 일시 중지됩니다.
@@ -1038,11 +1028,7 @@ export const App: React.FC = () => {
                     }
                   }}
                 >
-                  {error && (
-                    <div className="batch-workspace-error">
-                      ⚠️ {error}
-                    </div>
-                  )}
+                  {error && <InlineAlert>{error}</InlineAlert>}
 
                   <InquiryList
                     inquiries={inquiries}
@@ -1084,7 +1070,7 @@ export const App: React.FC = () => {
                       disabled={selectedBatchCount === 0}
                       onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null, reason: '' })}
                     >
-                      미처리
+                      {getStatusLabel('OPEN')}
                     </button>
                     <button
                       type="button"
@@ -1092,7 +1078,7 @@ export const App: React.FC = () => {
                       disabled={selectedBatchCount === 0}
                       onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null, reason: '' })}
                     >
-                      진행중
+                      {getStatusLabel('IN_PROGRESS')}
                     </button>
                     <button
                       type="button"
@@ -1100,28 +1086,14 @@ export const App: React.FC = () => {
                       disabled={selectedBatchCount === 0}
                       onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null, reason: '' })}
                     >
-                      완료
+                      {getStatusLabel('RESOLVED')}
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
               <div className="inquiry-scroll-area" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', padding: '6px 4px 6px 4px', minHeight: 0, width: '100%' }}>
-                {error && (
-                  <div
-                    style={{
-                      padding: '12px',
-                      background: 'rgba(239, 68, 68, 0.12)',
-                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                      borderRadius: '10px',
-                      color: '#f87171',
-                      fontSize: '13px',
-                      lineHeight: 1.5
-                    }}
-                  >
-                    ⚠️ {error}
-                  </div>
-                )}
+                {error && <InlineAlert>{error}</InlineAlert>}
 
                 <InquiryList
                   inquiries={inquiries}
@@ -1221,115 +1193,7 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Batch Status Confirmation Modal */}
-      {batchModal.isOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '480px', padding: '24px' }}>
-            <div className="modal-header">
-              <h3 className="modal-title">일괄 상태 변경</h3>
-              <button 
-                type="button" 
-                className="close-btn" 
-                onClick={() => setBatchModal({ isOpen: false, targetStatus: null, isSubmitting: false, error: null, reason: '' })}
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              선택한 <strong style={{ color: 'var(--accent-indigo)' }}>{selectedBatchCount}개</strong>의 문의 상태를 
-              {' '}
-              <strong style={{ 
-                color: batchModal.targetStatus === 'OPEN' ? 'var(--status-open)' : 
-                       batchModal.targetStatus === 'IN_PROGRESS' ? 'var(--status-inprogress)' : 
-                       'var(--status-resolved)' 
-              }}>
-                {batchModal.targetStatus === 'OPEN' ? '미처리' : 
-                 batchModal.targetStatus === 'IN_PROGRESS' ? '진행중' : 
-                 '완료'}
-              </strong>
-               상태로 일괄 변경하시겠습니까?
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label htmlFor="batch-change-reason" style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
-                  일괄 변경 사유 (필수)
-                </label>
-                <span style={{ fontSize: '11px', color: (batchModal.reason || '').trim().length >= 5 ? 'var(--accent-indigo)' : 'var(--text-muted)', fontWeight: 500 }}>
-                  ({(batchModal.reason || '').trim().length} / 최소 5자)
-                </span>
-              </div>
-              <textarea
-                id="batch-change-reason"
-                className="form-textarea"
-                placeholder="일괄 상태를 변경하는 사유를 5자 이상 입력해주세요..."
-                value={batchModal.reason || ''}
-                onChange={(e) => setBatchModal(prev => ({ ...prev, reason: e.target.value, error: null }))}
-                aria-invalid={Boolean(batchModal.error)}
-                aria-describedby={batchModal.error ? 'batch-change-reason-error' : undefined}
-                style={{
-                  minHeight: '80px',
-                  height: '80px',
-                  padding: '10px 12px',
-                  fontSize: '12.5px',
-                  borderRadius: '8px',
-                  resize: 'none',
-                  border: batchModal.error ? '1px solid #ef4444' : '1px solid var(--border-light)',
-                  background: '#ffffff',
-                  width: '100%',
-                  boxSizing: 'border-box'
-                }}
-                required
-              />
-            </div>
-            {batchModal.error && (
-              <div id="batch-change-reason-error" role="alert" style={{ color: '#ef4444', fontSize: '13px', background: 'rgba(239, 68, 68, 0.08)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)', marginTop: '12px' }}>
-                {batchModal.error}
-              </div>
-            )}
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-              <button
-                type="button"
-                className="secondary-btn"
-                disabled={batchModal.isSubmitting}
-                onClick={() => setBatchModal({ isOpen: false, targetStatus: null, isSubmitting: false, error: null, reason: '' })}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-medium)',
-                  background: 'transparent',
-                  color: 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: '13px'
-                }}
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                className="primary-btn"
-                disabled={batchModal.isSubmitting}
-                onClick={handleExecuteBatchStatusUpdate}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: 'var(--accent-indigo)',
-                  color: '#ffffff',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                {batchModal.isSubmitting ? '변경 중...' : '확인'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <BatchStatusModal modal={batchModal} selectedCount={selectedBatchCount} onChange={setBatchModal} onConfirm={handleExecuteBatchStatusUpdate} />
 
       {/* Naver Session Renew Modal */}
       {isNaverRenewModalOpen && createPortal(

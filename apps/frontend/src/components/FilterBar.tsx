@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, RotateCcw, Filter, ChevronDown, ChevronUp, Save, Trash2, Plus, X, Edit2, Check } from 'lucide-react';
 import type { CustomFilterEntity, InquiryStatus } from '../types/inquiry';
+import {
+  getChannelPresentation,
+  getStatusLabel,
+  INQUIRY_STATUSES,
+  normalizeUserCode,
+  USER_CODE_LENGTH,
+} from '../features/inquiry/policy';
+import { useFeedback } from './ui/feedbackContext';
+import { getErrorMessage } from '../lib/errors';
 
 export interface FilterValues {
   userCode: string;
@@ -59,6 +68,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onSaveCustomFilter,
   onDeleteCustomFilter,
 }) => {
+  const { notify, requestConfirmation } = useFeedback();
   // Local temporary states for each filter control
   const [userCode, setUserCode] = useState(initialValues.userCode);
   const [userCodeMissing, setUserCodeMissing] = useState(Boolean(initialValues.userCodeMissing));
@@ -83,25 +93,27 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
   const defaultPresets = [
     { id: 'default-all', name: '📢 전체 문의', filterData: { userCode: '', userCodeMissing: false, statuses: [], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
-    { id: 'default-open', name: '🔴 미처리 문의', filterData: { userCode: '', userCodeMissing: false, statuses: ['OPEN'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
-    { id: 'default-in_progress', name: '🟡 진행중 문의', filterData: { userCode: '', userCodeMissing: false, statuses: ['IN_PROGRESS'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
-    { id: 'default-resolved', name: '🟢 완료 문의', filterData: { userCode: '', userCodeMissing: false, statuses: ['RESOLVED'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
+    { id: 'default-open', name: `🔴 ${getStatusLabel('OPEN')} 문의`, filterData: { userCode: '', userCodeMissing: false, statuses: ['OPEN'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
+    { id: 'default-in_progress', name: `🟡 ${getStatusLabel('IN_PROGRESS')} 문의`, filterData: { userCode: '', userCodeMissing: false, statuses: ['IN_PROGRESS'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
+    { id: 'default-resolved', name: `🟢 ${getStatusLabel('RESOLVED')} 문의`, filterData: { userCode: '', userCodeMissing: false, statuses: ['RESOLVED'], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
     { id: 'default-user-code-missing', name: '⚪ 유저코드 없음', filterData: { userCode: '', userCodeMissing: true, statuses: [], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
     { id: 'default-bookmarked', name: '⭐ 즐겨찾기 문의', filterData: { userCode: '', userCodeMissing: false, statuses: [], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: true } }
   ];
 
-  const statusOptions: { value: InquiryStatus; label: string }[] = [
-    { value: 'OPEN', label: '미처리' },
-    { value: 'IN_PROGRESS', label: '진행중' },
-    { value: 'RESOLVED', label: '완료' },
-  ];
+  const statusOptions: { value: InquiryStatus; label: string }[] = INQUIRY_STATUSES.map((value) => ({
+    value,
+    label: getStatusLabel(value),
+  }));
 
   const channelOptions = [
-    { value: 'EMAIL', label: '이메일' },
-    { value: 'PHONE', label: '전화' },
-    { value: 'GOOGLE_SHEET', label: '구글시트' },
-    { value: 'NAVER_CAFE', label: '네이버카페' },
-  ];
+    'EMAIL',
+    'PHONE',
+    'GOOGLE_SHEET',
+    'NAVER_CAFE',
+  ].map((value) => ({
+    value,
+    label: getChannelPresentation(value).label,
+  }));
 
   // Guarded render-time adjustment keeps the local draft aligned without a stale effect render.
   if (previousInitialValues !== initialValues) {
@@ -269,7 +281,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       await onSaveCustomFilter(newFilterName.trim(), currentValues());
       setShowNameInput(false);
     } catch (err) {
-      alert('필터 저장에 실패했습니다: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
+      notify('필터 저장에 실패했습니다: ' + getErrorMessage(err), 'error');
     } finally {
       setSavingFilter(false);
     }
@@ -287,7 +299,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       await onSaveCustomFilter(activeFilter.name, currentValues());
       setIsEditingFilter(false);
     } catch (err) {
-      alert('필터 업데이트에 실패했습니다: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
+      notify('필터 업데이트에 실패했습니다: ' + getErrorMessage(err), 'error');
     } finally {
       setSavingFilter(false);
     }
@@ -303,11 +315,17 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
   const handleDeleteFilter = async (id: number) => {
     if (!onDeleteCustomFilter) return;
-    if (!window.confirm('저장된 필터를 삭제할까요?')) return;
+    const confirmed = await requestConfirmation({
+      title: '저장된 필터 삭제',
+      message: '선택한 필터를 삭제하시겠습니까?',
+      confirmLabel: '삭제',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await onDeleteCustomFilter(id);
     } catch (err) {
-      alert('필터 삭제에 실패했습니다: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
+      notify('필터 삭제에 실패했습니다: ' + getErrorMessage(err), 'error');
     }
   };
 
@@ -984,8 +1002,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <div className="filter-group search" style={{ flex: '1', minWidth: '100px' }}>
           <label className="filter-label">
             유저코드
-            <span style={{ fontSize: '10px', fontWeight: '500', color: userCode.length === 12 ? 'var(--accent-indigo)' : 'var(--text-muted)', marginLeft: '4px' }}>
-              ({userCode.length}/12)
+            <span style={{ fontSize: '10px', fontWeight: '500', color: userCode.length === USER_CODE_LENGTH ? 'var(--accent-indigo)' : 'var(--text-muted)', marginLeft: '4px' }}>
+              ({userCode.length}/{USER_CODE_LENGTH})
             </span>
           </label>
           <div style={{ display: 'flex', gap: '4px', width: '100%' }}>
@@ -998,8 +1016,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                   placeholder="검색..."
                   value={userCode}
                   onChange={(e) => {
-                    const onlyNums = e.target.value.replace(/[^0-9]/g, '');
-                    setUserCode(onlyNums.slice(0, 12));
+                    setUserCode(normalizeUserCode(e.target.value));
                     setUserCodeMissing(false);
                   }}
                   onKeyDown={handleKeyDown}

@@ -1,23 +1,19 @@
 import type {
-  CustomerInquiry,
   ChannelMetadata,
+  CustomerInquiry,
   CustomFilterEntity,
   InquiryStatus,
   InquiryWorkLog,
+  OperatorInfo,
   SearchInquiriesParams,
   SearchInquiriesResponse,
-} from "../types/inquiry";
+} from '../types/inquiry';
+import { requestJson, requestVoid, uploadFile } from './httpClient';
+import { groupUploadRequests } from '../features/inquiry/policy';
 
 export type BatchUpdateInquiryStatusTarget =
-  | {
-      mode: "IDS";
-      inquiryIds: string[];
-    }
-  | {
-      mode: "FILTER";
-      filters: SearchInquiriesParams;
-      excludedInquiryIds: string[];
-    };
+  | { mode: 'IDS'; inquiryIds: string[] }
+  | { mode: 'FILTER'; filters: SearchInquiriesParams; excludedInquiryIds: string[] };
 
 export interface CreateInquiryInput {
   channel: string;
@@ -27,559 +23,16 @@ export interface CreateInquiryInput {
   imageUrls?: string[];
 }
 
-const NAVER_CAFE_SESSION_ID = "9f2b4d68-4d2c-4db6-a9ec-285809470036";
-
-/**
- * Helper to build query parameters string from object, omitting undefined/null values
- */
-function buildQueryString(params: object): string {
-  const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (Array.isArray(value)) {
-      value.forEach((item) => {
-        if (item !== undefined && item !== null && item !== "") {
-          query.append(key, String(item));
-        }
-      });
-    } else if (value !== undefined && value !== null && value !== "") {
-      query.append(key, String(value));
-    }
-  });
-  const str = query.toString();
-  return str ? `?${str}` : "";
+export interface NaverSessionStatus {
+  id: string;
+  status: 'ACTIVE' | 'EXPIRED' | 'MISSING';
+  updatedAt: string | null;
+  valid: boolean;
 }
 
-export const inquiryApi = {
-  /**
-   * Search and filter customer inquiries
-   */
-  async searchInquiries(
-    params: SearchInquiriesParams,
-  ): Promise<SearchInquiriesResponse> {
-    const queryString = buildQueryString(params);
-    const response = await fetch(`/api/v1/inquiries${queryString}`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to fetch inquiries: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    return response.json();
-  },
-
-  /**
-   * Count inquiries matching filters without fetching list items.
-   */
-  async countInquiries(
-    params: SearchInquiriesParams & { limit?: number },
-  ): Promise<InquiryCountResponse> {
-    const queryString = buildQueryString(params);
-    const response = await fetch(`/api/v1/inquiries/count${queryString}`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to count inquiries: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    return response.json();
-  },
-
-  /**
-   * Create a new manual inquiry ticket on the backend
-   */
-  async createInquiry(data: CreateInquiryInput): Promise<void> {
-    const response = await fetch("/api/v1/inquiries", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        channel: data.channel,
-        userCode: data.userCode || null,
-        content: data.content,
-        timestamp: new Date().toISOString(),
-        channelMetadata: data.channelMetadata || null,
-        imageUrls: data.imageUrls || [],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to create inquiry: ${response.status} ${errorMsg}`,
-      );
-    }
-  },
-
-  /**
-   * Batch request presigned upload URLs from MinIO via the backend
-   */
-  async getPresignedUrls(
-    files: { objectName: string; contentType: string }[],
-  ): Promise<{ objectName: string; uploadUrl: string; downloadUrl: string }[]> {
-    const response = await fetch("/api/v1/files/presigned-urls", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        objectNames: files.map((f) => f.objectName),
-        contentType: files[0]?.contentType,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to get presigned URLs: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    const data = await response.json();
-    return data.urls;
-  },
-
-  /**
-   * Upload a single file directly to MinIO via presigned PUT URL
-   */
-  async uploadToMinIO(uploadUrl: string, file: File): Promise<void> {
-    let targetUrl = uploadUrl;
-    if (uploadUrl.includes("//minio:9000/")) {
-      targetUrl = uploadUrl.replace(
-        "//minio:9000/",
-        `//${window.location.host}/attachments/`,
-      );
-    }
-
-    const response = await fetch(targetUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": file.type,
-      },
-      body: file,
-    });
-
-    if (!response.ok) {
-      throw new Error(`MinIO upload failed: ${response.status}`);
-    }
-  },
-
-  /**
-   * Register a new answer and/or memo log for a specific inquiry ticket
-   */
-  async createWorkLog(
-    id: string,
-    data: {
-      operatorInfo: { id: string; nickname: string; email: string };
-      answer?: string;
-      memo?: string;
-    },
-  ): Promise<void> {
-    const response = await fetch(`/api/v1/inquiries/${id}/work-logs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to register answer/memo log: ${response.status} ${errorMsg}`,
-      );
-    }
-  },
-
-  /**
-   * Manually change the status of an inquiry ticket (which records a status change log)
-   */
-  async updateInquiryStatus(
-    id: string,
-    data: {
-      operatorInfo: { id: string; nickname: string; email: string };
-      status: InquiryStatus;
-      reason: string;
-    },
-  ): Promise<void> {
-    const response = await fetch(`/api/v1/inquiries/${id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        operatorInfo: data.operatorInfo,
-        status: data.status,
-        reasons: {
-          status: data.reason,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to update status: ${response.status} ${errorMsg}`,
-      );
-    }
-  },
-
-  /**
-   * Batch change the status of multiple inquiry tickets
-   */
-  async updateInquiryStatuses(
-    target: BatchUpdateInquiryStatusTarget,
-    status: InquiryStatus,
-    reason: string,
-  ): Promise<void> {
-    const response = await fetch("/api/v1/inquiries/batch/status", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        ...target,
-        status,
-        reason,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to update status in batch: ${response.status} ${errorMsg}`,
-      );
-    }
-  },
-
-  /**
-   * Update specific fields of an inquiry (which records a field modification log)
-   */
-  async updateInquiryFields(
-    id: string,
-    data: {
-      operatorInfo: { id: string; nickname: string; email: string };
-      channel?: string;
-      userCode?: string | null;
-      deviceInfo?: {
-        appVersion?: string;
-        model?: string;
-        osVersion?: string;
-      } | null;
-      content?: string;
-      imageUrls?: string[];
-      customFields?: Record<string, unknown>;
-      reasons: {
-        channel?: string;
-        userCode?: string;
-        deviceInfo?: string;
-        content?: string;
-        customFields?: string;
-      };
-    },
-  ): Promise<void> {
-    const response = await fetch(`/api/v1/inquiries/${id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to update inquiry fields: ${response.status} ${errorMsg}`,
-      );
-    }
-  },
-
-  /**
-   * Get all work logs / history for a specific inquiry ticket
-   */
-  async getWorkLogs(id: string): Promise<InquiryWorkLog[]> {
-    const response = await fetch(`/api/v1/inquiries/${id}/work-logs`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to fetch work logs: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    return response.json();
-  },
-
-  async getReplies(parentId: string): Promise<CustomerInquiry[]> {
-    const response = await fetch(`/api/v1/inquiries/${parentId}/replies`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to fetch replies: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    return response.json();
-  },
-
-  async getBookmarks(): Promise<string[]> {
-    const response = await fetch("/api/v1/inquiries/bookmarks", {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to fetch bookmarks: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    return response.json();
-  },
-
-  async addBookmark(inquiryId: string): Promise<void> {
-    const response = await fetch(`/api/v1/inquiries/${inquiryId}/bookmark`, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(`Failed to add bookmark: ${response.status} ${errorMsg}`);
-    }
-  },
-
-  async removeBookmark(inquiryId: string): Promise<void> {
-    const response = await fetch(`/api/v1/inquiries/${inquiryId}/bookmark`, {
-      method: "DELETE",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to remove bookmark: ${response.status} ${errorMsg}`,
-      );
-    }
-  },
-
-  async getCustomFilters(): Promise<CustomFilterEntity[]> {
-    const response = await fetch("/api/v1/inquiries/custom-filters", {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to fetch custom filters: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    return response.json();
-  },
-
-  async saveCustomFilter(
-    name: string,
-    filterData: CustomFilterEntity['filterData'],
-  ): Promise<CustomFilterEntity> {
-    const response = await fetch("/api/v1/inquiries/custom-filters", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ name, filterData }),
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to save custom filter: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    return response.json();
-  },
-
-  async deleteCustomFilter(id: number): Promise<void> {
-    const response = await fetch(`/api/v1/inquiries/custom-filters/${id}`, {
-      method: "DELETE",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to delete custom filter: ${response.status} ${errorMsg}`,
-      );
-    }
-  },
-
-  /**
-   * Renew Naver session using 8-digit one-time code
-   */
-  async renewNaverSession(code: string): Promise<void> {
-    const response = await fetch("/api/v1/naver/sessions/one-time-login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        id: NAVER_CAFE_SESSION_ID,
-        code: code,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        errorMsg || `Session renewal failed with status ${response.status}`,
-      );
-    }
-  },
-
-  /**
-   * Get Naver session status and updated timestamp
-   */
-  async getNaverSessionStatus(): Promise<NaverSessionStatus> {
-    const response = await fetch(`/api/v1/naver/sessions/status?id=${NAVER_CAFE_SESSION_ID}`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to fetch Naver session status: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    return response.json();
-  },
-
-  /**
-   * Synchronize Naver session status in real-time
-   */
-  async syncNaverSessionStatus(): Promise<NaverSessionStatus> {
-    const response = await fetch(`/api/v1/naver/sessions/sync?id=${NAVER_CAFE_SESSION_ID}`, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to sync Naver session: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    return response.json();
-  },
-
-  async refreshInquiry(id: string): Promise<CustomerInquiry> {
-    const response = await fetch(`/api/v1/inquiries/${id}?refresh=true`, {
-      method: "PATCH",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorMsg = await response.text();
-      throw new Error(
-        `Failed to refresh inquiry: ${response.status} ${errorMsg}`,
-      );
-    }
-
-    return response.json();
-  },
-  /**
-   * Nginx Basic Auth로 인증된 현재 관리자 계정 정보를 조회합니다.
-   * Nginx가 proxy_set_header X-Remote-User $remote_user 를 통해 전달한 값을
-   * 백엔드가 application.yml 설정과 매핑하여 반환합니다.
-   */
-  async getMe(): Promise<OperatorInfo> {
-    const response = await fetch("/api/v1/auth/me", {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch operator info: ${response.status}`);
-    }
-
-    return response.json();
-  },
-
-  async issueAdminAccess(): Promise<void> {
-    const response = await fetch("/api/v1/auth/admin-tool-access", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to issue admin access token: ${response.status}`);
-    }
-  },
-};
-
-export interface OperatorInfo {
-  id: string;
-  nickname: string;
-  email: string;
-  role: string;
+export interface InquiryCountResponse {
+  count: number;
+  hasMore: boolean;
 }
 
 export interface AdminAccount {
@@ -598,51 +51,210 @@ export interface CreateAccountRequest {
   role: string;
 }
 
-export interface NaverSessionStatus {
-  id: string;
-  status: "ACTIVE" | "EXPIRED" | "MISSING";
-  updatedAt: string | null;
-  valid: boolean;
+interface PresignedUrl {
+  objectName: string;
+  uploadUrl: string;
+  downloadUrl: string;
 }
 
-export interface InquiryCountResponse {
-  count: number;
-  hasMore: boolean;
+const NAVER_CAFE_SESSION_ID = '9f2b4d68-4d2c-4db6-a9ec-285809470036';
+
+function buildQueryString(params: object): string {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined && item !== null && item !== '') query.append(key, String(item));
+      });
+    } else if (value !== undefined && value !== null && value !== '') {
+      query.append(key, String(value));
+    }
+  });
+  const value = query.toString();
+  return value ? `?${value}` : '';
 }
+
+export const inquiryApi = {
+  searchInquiries(params: SearchInquiriesParams): Promise<SearchInquiriesResponse> {
+    return requestJson(`/api/v1/inquiries${buildQueryString(params)}`, {}, '문의 목록을 불러오지 못했습니다.');
+  },
+
+  countInquiries(params: SearchInquiriesParams & { limit?: number }): Promise<InquiryCountResponse> {
+    return requestJson(`/api/v1/inquiries/count${buildQueryString(params)}`, {}, '문의 수를 불러오지 못했습니다.');
+  },
+
+  createInquiry(data: CreateInquiryInput): Promise<void> {
+    return requestVoid('/api/v1/inquiries', {
+      method: 'POST',
+      json: {
+        channel: data.channel,
+        userCode: data.userCode || null,
+        content: data.content,
+        timestamp: new Date().toISOString(),
+        channelMetadata: data.channelMetadata || null,
+        imageUrls: data.imageUrls || [],
+      },
+    }, '문의를 생성하지 못했습니다.');
+  },
+
+  async getPresignedUrls(
+    files: { objectName: string; contentType: string }[],
+  ): Promise<PresignedUrl[]> {
+    const result = new Array<PresignedUrl>(files.length);
+    await Promise.all(groupUploadRequests(files).map(async ({ contentType, entries }) => {
+      const response = await requestJson<{ urls: PresignedUrl[] }>('/api/v1/files/presigned-urls', {
+        method: 'POST',
+        json: { objectNames: entries.map((entry) => entry.objectName), contentType },
+      }, '이미지 업로드 URL을 발급하지 못했습니다.');
+      entries.forEach((entry, groupIndex) => {
+        result[entry.index] = response.urls[groupIndex];
+      });
+    }));
+    return result;
+  },
+
+  uploadToMinIO(uploadUrl: string, file: File): Promise<void> {
+    const targetUrl = uploadUrl.includes('//minio:9000/')
+      ? uploadUrl.replace('//minio:9000/', `//${window.location.host}/attachments/`)
+      : uploadUrl;
+    return uploadFile(targetUrl, file, '이미지를 업로드하지 못했습니다.');
+  },
+
+  createWorkLog(id: string, data: {
+    operatorInfo: Pick<OperatorInfo, 'id' | 'nickname' | 'email'>;
+    answer?: string;
+    memo?: string;
+    targetStatus?: InquiryStatus;
+    statusReason?: string;
+  }): Promise<void> {
+    return requestVoid(`/api/v1/inquiries/${id}/work-logs`, {
+      method: 'POST',
+      json: data,
+    }, '답변 또는 메모를 등록하지 못했습니다.');
+  },
+
+  updateInquiryStatus(id: string, data: {
+    operatorInfo: Pick<OperatorInfo, 'id' | 'nickname' | 'email'>;
+    status: InquiryStatus;
+    reason: string;
+  }): Promise<void> {
+    return requestVoid(`/api/v1/inquiries/${id}`, {
+      method: 'PATCH',
+      json: {
+        operatorInfo: data.operatorInfo,
+        status: data.status,
+        reasons: { status: data.reason },
+      },
+    }, '문의 상태를 변경하지 못했습니다.');
+  },
+
+  updateInquiryStatuses(
+    target: BatchUpdateInquiryStatusTarget,
+    status: InquiryStatus,
+    reason: string,
+  ): Promise<void> {
+    return requestVoid('/api/v1/inquiries/batch/status', {
+      method: 'PATCH',
+      json: { ...target, status, reason },
+    }, '문의 상태를 일괄 변경하지 못했습니다.');
+  },
+
+  updateInquiryFields(id: string, data: {
+    operatorInfo: Pick<OperatorInfo, 'id' | 'nickname' | 'email'>;
+    channel?: string;
+    userCode?: string | null;
+    deviceInfo?: { appVersion?: string; model?: string; osVersion?: string } | null;
+    content?: string;
+    imageUrls?: string[];
+    customFields?: Record<string, unknown>;
+    reasons: {
+      channel?: string;
+      userCode?: string;
+      deviceInfo?: string;
+      content?: string;
+      imageUrls?: string;
+      customFields?: string;
+    };
+  }): Promise<void> {
+    return requestVoid(`/api/v1/inquiries/${id}`, {
+      method: 'PATCH',
+      json: data,
+    }, '문의 정보를 수정하지 못했습니다.');
+  },
+
+  getWorkLogs(id: string): Promise<InquiryWorkLog[]> {
+    return requestJson(`/api/v1/inquiries/${id}/work-logs`, {}, '업무 처리 이력을 불러오지 못했습니다.');
+  },
+
+  getReplies(parentId: string): Promise<CustomerInquiry[]> {
+    return requestJson(`/api/v1/inquiries/${parentId}/replies`, {}, '고객 회신을 불러오지 못했습니다.');
+  },
+
+  getBookmarks(): Promise<string[]> {
+    return requestJson('/api/v1/inquiries/bookmarks', {}, '즐겨찾기 목록을 불러오지 못했습니다.');
+  },
+
+  addBookmark(inquiryId: string): Promise<void> {
+    return requestVoid(`/api/v1/inquiries/${inquiryId}/bookmark`, { method: 'POST' }, '즐겨찾기에 추가하지 못했습니다.');
+  },
+
+  removeBookmark(inquiryId: string): Promise<void> {
+    return requestVoid(`/api/v1/inquiries/${inquiryId}/bookmark`, { method: 'DELETE' }, '즐겨찾기에서 제거하지 못했습니다.');
+  },
+
+  getCustomFilters(): Promise<CustomFilterEntity[]> {
+    return requestJson('/api/v1/inquiries/custom-filters', {}, '저장된 필터를 불러오지 못했습니다.');
+  },
+
+  saveCustomFilter(name: string, filterData: CustomFilterEntity['filterData']): Promise<CustomFilterEntity> {
+    return requestJson('/api/v1/inquiries/custom-filters', {
+      method: 'POST',
+      json: { name, filterData },
+    }, '필터를 저장하지 못했습니다.');
+  },
+
+  deleteCustomFilter(id: number): Promise<void> {
+    return requestVoid(`/api/v1/inquiries/custom-filters/${id}`, { method: 'DELETE' }, '필터를 삭제하지 못했습니다.');
+  },
+
+  renewNaverSession(code: string): Promise<void> {
+    return requestVoid('/api/v1/naver/sessions/one-time-login', {
+      method: 'POST',
+      json: { id: NAVER_CAFE_SESSION_ID, code },
+    }, '네이버 세션을 갱신하지 못했습니다.');
+  },
+
+  getNaverSessionStatus(): Promise<NaverSessionStatus> {
+    return requestJson(`/api/v1/naver/sessions/status?id=${NAVER_CAFE_SESSION_ID}`, {}, '네이버 세션 상태를 불러오지 못했습니다.');
+  },
+
+  syncNaverSessionStatus(): Promise<NaverSessionStatus> {
+    return requestJson(`/api/v1/naver/sessions/sync?id=${NAVER_CAFE_SESSION_ID}`, { method: 'POST' }, '네이버 세션 상태를 확인하지 못했습니다.');
+  },
+
+  refreshInquiry(id: string): Promise<CustomerInquiry> {
+    return requestJson(`/api/v1/inquiries/${id}?refresh=true`, { method: 'PATCH' }, '문의 정보를 갱신하지 못했습니다.');
+  },
+
+  getMe(): Promise<OperatorInfo> {
+    return requestJson('/api/v1/auth/me', {}, '현재 로그인 계정을 확인하지 못했습니다.');
+  },
+
+  issueAdminAccess(): Promise<void> {
+    return requestVoid('/api/v1/auth/admin-tool-access', { method: 'POST' }, '관리자 도구 접근 권한을 발급하지 못했습니다.');
+  },
+};
 
 export const accountApi = {
-  async getAccounts(): Promise<AdminAccount[]> {
-    const response = await fetch("/api/v1/admin/accounts", {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok)
-      throw new Error(`Failed to fetch accounts: ${response.status}`);
-    return response.json();
+  getAccounts(): Promise<AdminAccount[]> {
+    return requestJson('/api/v1/admin/accounts', {}, '계정 목록을 불러오지 못했습니다.');
   },
 
-  async createAccount(request: CreateAccountRequest): Promise<void> {
-    const response = await fetch("/api/v1/admin/accounts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Failed to create account: ${response.status}`);
-    }
+  createAccount(request: CreateAccountRequest): Promise<void> {
+    return requestVoid('/api/v1/admin/accounts', { method: 'POST', json: request }, '계정을 생성하지 못했습니다.');
   },
 
-  async deleteAccount(username: string): Promise<void> {
-    const response = await fetch(
-      `/api/v1/admin/accounts/${encodeURIComponent(username)}`,
-      {
-        method: "DELETE",
-      },
-    );
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Failed to delete account: ${response.status}`);
-    }
+  deleteAccount(username: string): Promise<void> {
+    return requestVoid(`/api/v1/admin/accounts/${encodeURIComponent(username)}`, { method: 'DELETE' }, '계정을 삭제하지 못했습니다.');
   },
 };

@@ -18,10 +18,16 @@ import { useInquiryFieldEditor } from '../hooks/useInquiryFieldEditor';
 import { InquiryActionModal } from './InquiryActionModal';
 import type { InquiryActionModalState } from './InquiryActionModal';
 import { InquiryChannelMetadataSection, InquiryDeviceInfoSection } from './InquiryMetadataSections';
-
-const getErrorMessage = (error: unknown): string => (
-    error instanceof Error ? error.message : String(error)
-);
+import {
+    formatInquiryDate,
+    getChannelPresentation,
+    getStatusLabel,
+    IMAGE_POLICY,
+    isValidStatusReason,
+    MIN_STATUS_REASON_LENGTH,
+} from '../features/inquiry/policy';
+import { getErrorMessage } from '../lib/errors';
+import { InlineAlert } from './ui/InlineAlert';
 
 interface InquiryDetailPanelProps {
     inquiry: CustomerInquiry;
@@ -36,8 +42,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const {
         workLogs,
         loadingLogs,
-        logError,
-        setLogError,
+        activityError,
         replies,
         loadingReplies,
         refreshing,
@@ -64,6 +69,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [statusChanging, setStatusChanging] = useState(false);
     const [isEditingAnswer, setIsEditingAnswer] = useState(false);
     const [bookmarkChanging, setBookmarkChanging] = useState(false);
+    const [actionError, setActionError] = useState<string | null>(null);
 
     // Confirmation Modal state
     const [modal, setModal] = useState<InquiryActionModalState>({
@@ -140,56 +146,14 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         document.addEventListener('mouseup', onMouseUp);
     };
 
-    const formatDate = (dateStr: string) => {
-        try {
-            const date = new Date(dateStr);
-            return new Intl.DateTimeFormat('ko-KR', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: false,
-            }).format(date);
-        } catch {
-            return dateStr;
-        }
-    };
-
-    const getStatusKorean = (status: string) => {
-        switch (status) {
-            case 'OPEN': return '미처리';
-            case 'IN_PROGRESS': return '진행중';
-            case 'RESOLVED': return '완료';
-            default: return status;
-        }
-    };
-
-    const getChannelInfo = (channel: string) => {
-        const normalized = channel.toUpperCase();
-        if (normalized.includes('NAVER_CAFE') || normalized.includes('CAFE')) {
-            return { className: 'naver_cafe', label: '네이버 카페' };
-        }
-        if (normalized.includes('EMAIL')) {
-            return { className: 'email', label: '이메일' };
-        }
-        if (normalized.includes('GOOGLE_SHEET') || normalized.includes('SHEET')) {
-            return { className: 'google_sheet', label: '구글 시트' };
-        }
-        if (normalized.includes('PHONE')) {
-            return { className: 'phone', label: '전화 접수' };
-        }
-        return { className: 'manual', label: channel };
-    };
 
     const handleRegisterWorkLogClick = (e: React.FormEvent) => {
         e.preventDefault();
         if (!answerText.trim() && !memoText.trim()) {
-            setLogError('답변 내용 또는 메모 내용을 입력해 주세요.');
+            setActionError('답변 내용 또는 메모 내용을 입력해 주세요.');
             return;
         }
-        setLogError(null);
+        setActionError(null);
         setModal({
             isOpen: true,
             type: 'REGISTER_LOG',
@@ -199,7 +163,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
 
     const handleStatusChangeClick = (newStatus: InquiryStatus) => {
         if (newStatus === inquiry.status) return;
-        setLogError(null);
+        setActionError(null);
         setStatusChangeReason('');
         setModal({
             isOpen: true,
@@ -210,28 +174,28 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
 
     const executeRegisterWorkLog = async () => {
         setSubmittingLog(true);
-        setLogError(null);
+        setActionError(null);
         try {
+            const targetStatus = modal.selectedStatus && modal.selectedStatus !== inquiry.status
+                ? modal.selectedStatus
+                : undefined;
+            const changeReason = targetStatus
+                ? (isValidStatusReason(memoText)
+                    ? memoText.trim()
+                    : (isValidStatusReason(answerText)
+                        ? answerText.trim()
+                        : '답변/메모 등록에 따른 상태 변경'))
+                : undefined;
             await inquiryApi.createWorkLog(inquiry.id, {
                 operatorInfo: currentOperator,
                 answer: answerText.trim() || undefined,
-                memo: memoText.trim() || undefined
+                memo: memoText.trim() || undefined,
+                targetStatus,
+                statusReason: changeReason,
             });
 
-            if (modal.selectedStatus && modal.selectedStatus !== inquiry.status) {
-                const changeReason = memoText.trim().length >= 5
-                    ? memoText.trim()
-                    : (answerText.trim().length >= 5
-                        ? answerText.trim()
-                        : '답변/메모 등록에 따른 상태 변경');
-                await inquiryApi.updateInquiryStatus(inquiry.id, {
-                    operatorInfo: currentOperator,
-                    status: modal.selectedStatus,
-                    reason: changeReason
-                });
-                if (onUpdateInquiry) {
-                    onUpdateInquiry(inquiry.id, { status: modal.selectedStatus });
-                }
+            if (targetStatus && onUpdateInquiry) {
+                onUpdateInquiry(inquiry.id, { status: targetStatus });
             }
 
             setAnswerText('');
@@ -241,7 +205,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             setModal({ isOpen: false, type: 'REGISTER_LOG' });
         } catch (err) {
             console.error(err);
-            setLogError('등록 중 문제가 발생했습니다: ' + getErrorMessage(err));
+            setActionError('등록 중 문제가 발생했습니다: ' + getErrorMessage(err));
         } finally {
             setSubmittingLog(false);
         }
@@ -250,13 +214,13 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const executeStatusChange = async () => {
         const targetStatus = modal.targetStatus;
         if (!targetStatus) return;
-        if (statusChangeReason.trim().length < 5) {
-            setLogError('상태 변경 사유는 최소 5자 이상이어야 합니다.');
+        if (!isValidStatusReason(statusChangeReason)) {
+            setActionError(`상태 변경 사유는 최소 ${MIN_STATUS_REASON_LENGTH}자 이상이어야 합니다.`);
             return;
         }
 
         setStatusChanging(true);
-        setLogError(null);
+        setActionError(null);
         try {
             await inquiryApi.updateInquiryStatus(inquiry.id, {
                 operatorInfo: currentOperator,
@@ -271,7 +235,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             setStatusChangeReason('');
         } catch (err) {
             console.error(err);
-            setLogError('상태 변경에 실패했습니다: ' + getErrorMessage(err));
+            setActionError('상태 변경에 실패했습니다: ' + getErrorMessage(err));
         } finally {
             setStatusChanging(false);
         }
@@ -279,6 +243,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
 
     const handleToggleBookmark = () => {
         if (!onToggleBookmark || bookmarkChanging) return;
+        setActionError(null);
         setModal({
             isOpen: true,
             type: 'BOOKMARK'
@@ -317,7 +282,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         };
     };
 
-    const channelInfo = getChannelInfo(inquiry.channel);
+    const channelInfo = getChannelPresentation(inquiry.channel);
     const latestAnswerLog = workLogs.find(log => log.answer && log.answer.trim() !== '');
 
     const getDisplayImageUrl = (url: string) => {
@@ -527,11 +492,15 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const renderAttachedImagesSection = () => {
         if (activeImageUrl) return null;
         if (!((inquiry.imageUrls && inquiry.imageUrls.length > 0) || isEditing)) return null;
+        const imagesChanged = isEditing && (
+            newImageFiles.length > 0
+            || (inquiry.imageUrls || []).some((url) => !editImageUrls.includes(url))
+        );
         return (
             <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
                 <span className="detail-title">
                     <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                    첨부 이미지 {isEditing && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(최대 10개)</span>}
+                    첨부 이미지 {isEditing && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(최대 {IMAGE_POLICY.maxCount}개)</span>}
                 </span>
                 <div
                     className="detail-query-images"
@@ -582,7 +551,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                     </button>
                                 </div>
                             ))}
-                            {editImageUrls.length + newImageFiles.length < 10 && (
+                            {editImageUrls.length + newImageFiles.length < IMAGE_POLICY.maxCount && (
                                 <div
                                     onClick={() => imageInputRef.current?.click()}
                                     style={{
@@ -600,7 +569,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             <input
                                 ref={imageInputRef}
                                 type="file"
-                                accept="image/jpeg,image/png,image/gif,image/webp"
+                                accept={IMAGE_POLICY.allowedTypes.join(',')}
                                 multiple
                                 onChange={handleAddEditImages}
                                 style={{ display: 'none' }}
@@ -652,6 +621,16 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         })
                     )}
                 </div>
+                {imagesChanged && (
+                    <input
+                        type="text"
+                        className="text-input"
+                        placeholder="첨부 이미지 수정 사유 (필수)"
+                        value={reasons.imageUrls || ''}
+                        onChange={(event) => setReasons({ ...reasons, imageUrls: event.target.value })}
+                        required
+                    />
+                )}
             </div>
         );
     };
@@ -691,7 +670,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                     </span>
                     <span className="inquiry-time" style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Calendar size={12} />
-                        {formatDate(inquiry.timestamp)}
+                        {formatInquiryDate(inquiry.timestamp)}
                     </span>
                     <span
                         className={`status-badge ${inquiry.status.toLowerCase()}`}
@@ -701,7 +680,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                             background: 'rgba(255, 255, 255, 0.1)'
                         }}
                     >
-                        {getStatusKorean(inquiry.status)}
+                        {getStatusLabel(inquiry.status)}
                     </span>
                 </div>
             </div>
@@ -826,11 +805,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
 
                         {/* Scrollable Body */}
                         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '20px', minHeight: 0 }}>
-                            {editError && (
-                                <div style={{ color: '#f87171', fontSize: '13px', padding: '8px 12px', background: 'rgba(248, 113, 113, 0.1)', borderRadius: '8px', border: '1px solid rgba(248, 113, 113, 0.2)', marginBottom: '4px' }}>
-                                    ⚠️ {editError}
-                                </div>
-                            )}
+                            {editError && <InlineAlert>{editError}</InlineAlert>}
 
                             {(isContentLong || activeImageUrl) ? (
                                 /* Long Content Layout / 3-Column Layout: Left Column (Content), Right Column (Images + Metadata + Device Info) */
@@ -1045,7 +1020,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                         disabled={statusChanging || inquiry.status === 'OPEN'}
                                         onClick={() => handleStatusChangeClick('OPEN')}
                                     >
-                                        미처리
+                                        {getStatusLabel('OPEN')}
                                     </button>
                                     <button
                                         type="button"
@@ -1076,7 +1051,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                         disabled={statusChanging || inquiry.status === 'IN_PROGRESS'}
                                         onClick={() => handleStatusChangeClick('IN_PROGRESS')}
                                     >
-                                        진행중
+                                        {getStatusLabel('IN_PROGRESS')}
                                     </button>
                                     <button
                                         type="button"
@@ -1107,7 +1082,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                         disabled={statusChanging || inquiry.status === 'RESOLVED'}
                                         onClick={() => handleStatusChangeClick('RESOLVED')}
                                     >
-                                        완료
+                                        {getStatusLabel('RESOLVED')}
                                     </button>
                                 </div>
                             </div>
@@ -1384,7 +1359,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 items={timelineItems}
                                 loadingLogs={loadingLogs}
                                 loadingReplies={loadingReplies}
-                                error={logError}
+                                error={activityError}
                                 activeImageUrl={activeImageUrl}
                                 getImageUrl={getDisplayImageUrl}
                                 onSelectImage={selectImage}
@@ -1399,7 +1374,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                 currentStatus={inquiry.status}
                 isBookmarked={isBookmarked}
                 statusChangeReason={statusChangeReason}
-                error={logError}
+                error={actionError}
                 submitting={submittingLog || statusChanging || bookmarkChanging}
                 onModalChange={setModal}
                 onStatusChangeReason={setStatusChangeReason}

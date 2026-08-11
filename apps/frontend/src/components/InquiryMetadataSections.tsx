@@ -1,6 +1,9 @@
 import { Cpu, Info, Loader2, RefreshCw } from 'lucide-react';
 import type { ChannelMetadata, CustomerInquiry, DeviceInfo } from '../types/inquiry';
 import type { InquiryFieldEditor } from '../hooks/useInquiryFieldEditor';
+import { getChannelPresentation, normalizeUserCode, USER_CODE_LENGTH } from '../features/inquiry/policy';
+
+const EDITABLE_CHANNELS = ['EMAIL', 'PHONE', 'GOOGLE_SHEET', 'NAVER_CAFE'] as const;
 
 interface MetadataSectionProps {
   inquiry: CustomerInquiry;
@@ -13,15 +16,6 @@ interface DeviceSectionProps {
   device: DeviceInfo | null;
   editor: InquiryFieldEditor;
 }
-
-const displayChannel = (channel: string) => {
-  const normalized = channel.toUpperCase();
-  if (normalized.includes('NAVER_CAFE') || normalized.includes('CAFE')) return '네이버 카페';
-  if (normalized.includes('EMAIL')) return '이메일';
-  if (normalized.includes('GOOGLE_SHEET') || normalized.includes('SHEET')) return '구글 시트';
-  if (normalized.includes('PHONE')) return '전화 접수';
-  return channel;
-};
 
 const MetadataValue = ({ value }: { value: unknown }) => (
   <>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</>
@@ -122,19 +116,19 @@ export function InquiryChannelMetadataSection({ inquiry, editor, refreshing, onR
               <td>{editor.isEditing ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <select id="edit-channel" className="select-input" value={editor.editChannel} onChange={(event) => editor.setEditChannel(event.target.value)} style={{ padding: '4px 8px', fontSize: '12px', height: '28px', border: '1px solid var(--border-light)', borderRadius: '6px' }}>
-                    <option value="EMAIL">이메일 (EMAIL)</option><option value="PHONE">전화 (PHONE)</option><option value="GOOGLE_SHEET">구글 시트 (GOOGLE_SHEET)</option><option value="NAVER_CAFE">네이버 카페 (NAVER_CAFE)</option>
+                    {EDITABLE_CHANNELS.map((channel) => <option key={channel} value={channel}>{getChannelPresentation(channel).label} ({channel})</option>)}
                   </select>
                   {channelChanged && <input type="text" className="text-input" placeholder="채널 수정 사유 (필수)" value={editor.reasons.channel || ''} onChange={(event) => editor.setReasons({ ...editor.reasons, channel: event.target.value })} style={{ fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '4px 8px', height: '24px', marginTop: '2px' }} required />}
                 </div>
-              ) : <span>{displayChannel(inquiry.channel)} ({inquiry.channel})</span>}</td>
+              ) : <span>{getChannelPresentation(inquiry.channel).label} ({inquiry.channel})</span>}</td>
             </tr>
             <tr>
               <th>유저 코드</th>
               <td>{editor.isEditing ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input type="text" id="edit-usercode" className="text-input" value={editor.editUserCode} onChange={(event) => editor.setEditUserCode(event.target.value.replace(/[^0-9]/g, '').slice(0, 12))} placeholder="유저 코드 입력" style={{ padding: '4px 8px', fontSize: '12px', height: '28px', flex: 1 }} />
-                    <span style={{ fontSize: '11px', fontWeight: 500, color: editor.editUserCode.length === 12 ? 'var(--accent-indigo)' : 'var(--text-muted)' }}>({editor.editUserCode.length}/12)</span>
+                    <input type="text" id="edit-usercode" className="text-input" value={editor.editUserCode} onChange={(event) => editor.setEditUserCode(normalizeUserCode(event.target.value))} placeholder="유저 코드 입력" maxLength={USER_CODE_LENGTH} inputMode="numeric" style={{ padding: '4px 8px', fontSize: '12px', height: '28px', flex: 1 }} />
+                    <span style={{ fontSize: '11px', fontWeight: 500, color: editor.editUserCode.length === USER_CODE_LENGTH ? 'var(--accent-indigo)' : 'var(--text-muted)' }}>({editor.editUserCode.length}/{USER_CODE_LENGTH})</span>
                   </div>
                   {userCodeChanged && <input type="text" className="text-input" placeholder="유저 코드 수정 사유 (필수)" value={editor.reasons.userCode || ''} onChange={(event) => editor.setReasons({ ...editor.reasons, userCode: event.target.value })} style={{ fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '4px 8px', height: '24px', marginTop: '2px' }} required />}
                 </div>

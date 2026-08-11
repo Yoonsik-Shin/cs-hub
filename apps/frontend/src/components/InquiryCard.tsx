@@ -1,6 +1,7 @@
 import React from 'react';
 import { BookOpen, Pencil, Circle, RotateCcw, Check, CalendarDays, Mail, Phone, Star } from 'lucide-react';
 import type { CustomerInquiry } from '../types/inquiry';
+import { formatInquiryDate, getChannelPresentation, getStatusLabel } from '../features/inquiry/policy';
 
 interface InquiryCardProps {
   inquiry: CustomerInquiry;
@@ -23,50 +24,29 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({
   onCheckboxChange,
   index
 }) => {
-  const formatDate = (dateStr: string) => {
-    try {
-      const date = new Date(dateStr);
-      return new Intl.DateTimeFormat('ko-KR', {
-        year: '2-digit',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(date);
-    } catch {
-      return dateStr;
-    }
-  };
-
   const getStatusInfo = (status: string): { label: string; icon: React.ReactNode } => {
     switch (status) {
       case 'OPEN':
-        return { label: '미처리', icon: <Circle size={8} fill="currentColor" strokeWidth={0} /> };
+        return { label: getStatusLabel(status), icon: <Circle size={8} fill="currentColor" strokeWidth={0} /> };
       case 'IN_PROGRESS':
-        return { label: '진행중', icon: <RotateCcw size={10} /> };
+        return { label: getStatusLabel(status), icon: <RotateCcw size={10} /> };
       case 'RESOLVED':
-        return { label: '완료', icon: <Check size={10} strokeWidth={3} /> };
+        return { label: getStatusLabel(status), icon: <Check size={10} strokeWidth={3} /> };
       default:
         return { label: status, icon: null };
     }
   };
 
   const getChannelInfo = (channel: string): { className: string; label: string; icon: React.ReactNode } => {
-    const normalized = channel.toUpperCase();
-    if (normalized.includes('NAVER_CAFE') || normalized.includes('CAFE')) {
-      return { className: 'naver_cafe', label: '네이버카페', icon: <BookOpen size={10} /> };
-    }
-    if (normalized.includes('GOOGLE_SHEET') || normalized.includes('SHEET')) {
-      return { className: 'google_sheet', label: '구글시트', icon: <BookOpen size={10} /> };
-    }
-    if (normalized.includes('EMAIL')) {
-      return { className: 'email', label: '이메일', icon: <Mail size={10} /> };
-    }
-    if (normalized.includes('PHONE')) {
-      return { className: 'phone', label: '전화접수', icon: <Phone size={10} /> };
-    }
-    return { className: 'manual', label: channel, icon: <Pencil size={10} /> };
+    const presentation = getChannelPresentation(channel);
+    const icon = presentation.kind === 'EMAIL'
+      ? <Mail size={10} />
+      : presentation.kind === 'PHONE'
+        ? <Phone size={10} />
+        : presentation.kind === 'MANUAL'
+          ? <Pencil size={10} />
+          : <BookOpen size={10} />;
+    return { ...presentation, icon };
   };
 
   const channelInfo = getChannelInfo(inquiry.channel);
@@ -178,7 +158,7 @@ export const InquiryCard: React.FC<InquiryCardProps> = ({
         </span>
         <span className="inquiry-time" style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
           <CalendarDays size={11} />
-          {formatDate(inquiry.timestamp)}
+          {formatInquiryDate(inquiry.timestamp, 'minute', '2-digit')}
         </span>
       </div>
 

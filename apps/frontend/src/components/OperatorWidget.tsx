@@ -13,7 +13,8 @@ import {
   X,
 } from 'lucide-react';
 import { inquiryApi } from '../api/inquiryApi';
-import type { OperatorInfo } from '../api/inquiryApi';
+import type { OperatorInfo } from '../types/inquiry';
+import { useFeedback } from './ui/feedbackContext';
 
 interface OperatorWidgetProps {
   operator: OperatorInfo | null;
@@ -80,6 +81,7 @@ export function OperatorWidget({
   onManageAccounts,
   onSwitchAccount,
 }: OperatorWidgetProps) {
+  const { notify } = useFeedback();
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -116,7 +118,7 @@ export function OperatorWidget({
       window.open(tool.path, '_blank', 'noopener,noreferrer');
     } catch (error) {
       console.error(`Failed to open ${tool.path}:`, error);
-      alert(`${tool.label} 접근 권한을 확인하지 못했습니다. 관리자 계정으로 다시 로그인한 뒤 시도해주세요.`);
+      notify(`${tool.label} 접근 권한을 확인하지 못했습니다. 관리자 계정으로 다시 로그인한 뒤 시도해 주세요.`, 'error');
     }
   };
 

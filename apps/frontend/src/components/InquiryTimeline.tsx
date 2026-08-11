@@ -12,6 +12,8 @@ import {
   User,
 } from 'lucide-react';
 import type { TimelineItem } from '../features/inquiry/timeline';
+import { formatInquiryDate, getStatusLabel } from '../features/inquiry/policy';
+import { InlineAlert } from './ui/InlineAlert';
 
 interface InquiryTimelineProps {
   items: readonly TimelineItem[];
@@ -54,12 +56,9 @@ export function InquiryTimeline({
     return <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '8px 0', flex: 1 }}>회신 내역을 불러오는 중...</div>;
   }
 
-  if (error) {
-    return <div style={{ color: '#f87171', fontSize: '13px', padding: '8px 0', flex: 1 }}>⚠️ {error}</div>;
-  }
-
   return (
     <div className="timeline-scroll-area" style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 0 12px' }}>
+      {error && <InlineAlert>{error}</InlineAlert>}
       <div className="timeline-container">
         {items.map((item) => {
           const actionClass = getActionClass(item.actionType);
@@ -85,14 +84,14 @@ export function InquiryTimeline({
                     {item.operatorInfo.nickname}
                   </span>
                   {item.actionType !== 'PENDING_ACTION' && (
-                    <span className="timeline-date">{formatDate(item.createdAt)}</span>
+                  <span className="timeline-date">{formatInquiryDate(item.createdAt)}</span>
                   )}
                 </div>
                 {item.actionType === 'STATUS_CHANGED' && item.previousStatus !== item.currentStatus && (
                   <div className="timeline-status-change">
-                    {getStatusKorean(item.previousStatus || '')}
+                    {getStatusLabel(item.previousStatus || '')}
                     <ArrowRight size={10} style={{ margin: '0 4px' }} />
-                    <strong>{getStatusKorean(item.currentStatus || '')}</strong>
+                    <strong>{getStatusLabel(item.currentStatus || '')}</strong>
                   </div>
                 )}
                 <TimelineItemDetails
@@ -181,29 +180,6 @@ function TimelineItemDetails({ item, activeImageUrl, getImageUrl, onSelectImage 
       {item.memo && <div className="timeline-detail-box memo">{item.memo}</div>}
     </>
   );
-}
-
-function formatDate(dateString: string): string {
-  try {
-    return new Intl.DateTimeFormat('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).format(new Date(dateString));
-  } catch {
-    return dateString;
-  }
-}
-
-function getStatusKorean(status: string): string {
-  if (status === 'OPEN') return '미처리';
-  if (status === 'IN_PROGRESS') return '진행중';
-  if (status === 'RESOLVED') return '완료';
-  return status;
 }
 
 function getActionKorean(actionType: string): string {

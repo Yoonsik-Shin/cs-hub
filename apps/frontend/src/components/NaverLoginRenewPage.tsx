@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Lock, Smartphone, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import { inquiryApi } from '../api/inquiryApi';
+import { useModalLifecycle } from './ui/useModalLifecycle';
 
 interface NaverLoginRenewPageProps {
   onClose?: () => void;
@@ -12,6 +13,9 @@ export const NaverLoginRenewPage: React.FC<NaverLoginRenewPageProps> = ({ onClos
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const modalContentRef = useRef<HTMLDivElement>(null);
+  const closeModal = useCallback(() => onClose?.(), [onClose]);
+  useModalLifecycle({ active: isModal, closeDisabled: loading, onClose: closeModal, containerRef: modalContentRef });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,12 +64,17 @@ export const NaverLoginRenewPage: React.FC<NaverLoginRenewPageProps> = ({ onClos
         zIndex: isModal ? 1100 : undefined
       }}
       onClick={(e) => {
-        if (isModal && onClose && e.target === e.currentTarget) {
+        if (isModal && onClose && !loading && e.target === e.currentTarget) {
           onClose();
         }
       }}
+      role={isModal ? 'dialog' : undefined}
+      aria-modal={isModal ? 'true' : undefined}
+      aria-labelledby={isModal ? 'naver-session-renew-title' : undefined}
     >
       <div 
+        ref={modalContentRef}
+        tabIndex={isModal ? -1 : undefined}
         style={{
           width: '100%',
           maxWidth: '480px',
@@ -82,6 +91,8 @@ export const NaverLoginRenewPage: React.FC<NaverLoginRenewPageProps> = ({ onClos
           <button
             type="button"
             onClick={onClose}
+            disabled={loading}
+            aria-label="네이버 세션 갱신창 닫기"
             style={{
               position: 'absolute',
               top: '20px',
@@ -121,7 +132,7 @@ export const NaverLoginRenewPage: React.FC<NaverLoginRenewPageProps> = ({ onClos
           >
             <Lock size={32} color="#ffffff" />
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: 700, margin: '0 0 8px 0', background: 'linear-gradient(to right, #10b981, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <h2 id="naver-session-renew-title" style={{ fontSize: '24px', fontWeight: 700, margin: '0 0 8px 0', background: 'linear-gradient(to right, #10b981, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             네이버 카페 세션 갱신
           </h2>
           <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0 }}>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bookmark, ChevronLeft, ChevronRight, Plus, User } from 'lucide-react';
-import type { OperatorInfo } from '../api/inquiryApi';
+import type { OperatorInfo } from '../types/inquiry';
 import type { CustomFilterEntity } from '../types/inquiry';
 import type { FilterValues } from './FilterBar';
 import { OperatorWidget } from './OperatorWidget';

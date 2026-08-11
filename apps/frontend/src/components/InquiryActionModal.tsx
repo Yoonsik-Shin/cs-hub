@@ -1,5 +1,12 @@
-import { createPortal } from 'react-dom';
 import type { InquiryStatus } from '../types/inquiry';
+import {
+  getStatusLabel,
+  INQUIRY_STATUSES,
+  isValidStatusReason,
+  MIN_STATUS_REASON_LENGTH,
+} from '../features/inquiry/policy';
+import { ModalSurface } from './ui/ModalSurface';
+import { InlineAlert } from './ui/InlineAlert';
 
 export interface InquiryActionModalState {
   isOpen: boolean;
@@ -20,12 +27,6 @@ interface InquiryActionModalProps {
   onConfirm: () => void;
 }
 
-const STATUS_LABELS: Record<InquiryStatus, string> = {
-  OPEN: '미처리',
-  IN_PROGRESS: '진행중',
-  RESOLVED: '완료',
-};
-
 export function InquiryActionModal({
   modal,
   currentStatus,
@@ -39,31 +40,26 @@ export function InquiryActionModal({
 }: InquiryActionModalProps) {
   if (!modal.isOpen) return null;
 
-  const close = () => onModalChange({ ...modal, isOpen: false });
+  const close = () => {
+    if (!submitting) onModalChange({ ...modal, isOpen: false });
+  };
   const requiresReason = modal.type === 'STATUS_CHANGE';
-  const reasonIsValid = statusChangeReason.trim().length >= 5;
+  const reasonIsValid = isValidStatusReason(statusChangeReason);
   const title = modal.type === 'STATUS_CHANGE'
     ? '티켓 상태 변경'
     : modal.type === 'BOOKMARK' ? '즐겨찾기 상태 변경' : '업무 답변 및 메모 등록';
 
-  return createPortal(
-    <div
-      className="modal-overlay"
-      onClick={(event) => {
-        event.stopPropagation();
-        close();
-      }}
-    >
-      <div className="modal-content" onClick={(event) => event.stopPropagation()} style={{ maxWidth: '520px' }}>
+  return (
+    <ModalSurface title={title} onClose={close} closeDisabled={submitting} contentStyle={{ maxWidth: '520px' }}>
         <div className="modal-header">
           <h3 className="modal-title">{title}</h3>
-          <button type="button" className="close-btn" onClick={close}>✕</button>
+          <button type="button" className="close-btn" onClick={close} disabled={submitting} aria-label="작업 확인창 닫기">✕</button>
         </div>
 
         {modal.type === 'STATUS_CHANGE' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              티켓 상태를 <strong>[{modal.targetStatus ? STATUS_LABELS[modal.targetStatus] : ''}]</strong> 상태로 변경하시겠습니까?
+              티켓 상태를 <strong>[{modal.targetStatus ? getStatusLabel(modal.targetStatus) : ''}]</strong> 상태로 변경하시겠습니까?
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -71,13 +67,13 @@ export function InquiryActionModal({
                   상태 변경 사유 (필수)
                 </label>
                 <span style={{ fontSize: '11px', color: reasonIsValid ? 'var(--accent-indigo)' : 'var(--text-muted)', fontWeight: 500 }}>
-                  ({statusChangeReason.trim().length} / 최소 5자)
+                  ({statusChangeReason.trim().length} / 최소 {MIN_STATUS_REASON_LENGTH}자)
                 </span>
               </div>
               <textarea
                 id="status-change-reason"
                 className="form-textarea"
-                placeholder="상태를 변경하는 사유를 5자 이상 입력해주세요..."
+                placeholder={`상태를 변경하는 사유를 ${MIN_STATUS_REASON_LENGTH}자 이상 입력해 주세요.`}
                 value={statusChangeReason}
                 onChange={(event) => onStatusChangeReason(event.target.value)}
                 style={{ minHeight: '80px', height: '80px', padding: '10px 12px', fontSize: '12.5px', borderRadius: '8px', resize: 'none', border: '1px solid var(--border-light)', background: '#ffffff' }}
@@ -102,23 +98,19 @@ export function InquiryActionModal({
                 value={modal.selectedStatus}
                 onChange={(event) => onModalChange({ ...modal, selectedStatus: event.target.value as InquiryStatus })}
               >
-                <option value={currentStatus}>상태 유지 (현재: {STATUS_LABELS[currentStatus]})</option>
-                {currentStatus !== 'OPEN' && <option value="OPEN">미처리 (OPEN) 상태로 변경</option>}
-                {currentStatus !== 'IN_PROGRESS' && <option value="IN_PROGRESS">진행중 (IN_PROGRESS) 상태로 변경</option>}
-                {currentStatus !== 'RESOLVED' && <option value="RESOLVED">완료 (RESOLVED) 상태로 변경</option>}
+                <option value={currentStatus}>상태 유지 (현재: {getStatusLabel(currentStatus)})</option>
+                {INQUIRY_STATUSES.filter((status) => status !== currentStatus).map((status) => (
+                  <option key={status} value={status}>{getStatusLabel(status)} ({status}) 상태로 변경</option>
+                ))}
               </select>
             </div>
           </div>
         )}
 
-        {error && (
-          <div style={{ color: '#f87171', fontSize: '12px', padding: '0 4px', marginTop: '4px' }}>
-            ⚠️ {error}
-          </div>
-        )}
+        {error && <InlineAlert>{error}</InlineAlert>}
 
         <div className="modal-footer">
-          <button type="button" className="btn-secondary" onClick={close}>취소</button>
+          <button type="button" className="btn-secondary" onClick={close} disabled={submitting}>취소</button>
           <button
             type="button"
             className="btn-primary"
@@ -128,8 +120,6 @@ export function InquiryActionModal({
             {submitting ? '처리 중...' : (modal.type === 'REGISTER_LOG' ? '등록' : '확인')}
           </button>
         </div>
-      </div>
-    </div>,
-    document.body,
+    </ModalSurface>
   );
 }

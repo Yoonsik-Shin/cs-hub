@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { inquiryApi } from '../api/inquiryApi';
+import { prepareImageForUpload } from '../features/inquiry/imageProcessing';
+import { isValidUserCode, USER_CODE_LENGTH, validateImageFiles } from '../features/inquiry/policy';
+import { getErrorMessage } from '../lib/errors';
 import type { CustomerInquiry, OperatorInfo } from '../types/inquiry';
 
 type UpdateInquiryFieldsRequest = Parameters<typeof inquiryApi.updateInquiryFields>[1];
@@ -11,6 +14,7 @@ export interface InquiryEditReasons {
   deviceInfo?: string;
   content?: string;
   customFields?: string;
+  imageUrls?: string;
 }
 
 interface PendingImage {
@@ -26,10 +30,6 @@ interface UseInquiryFieldEditorOptions {
   onSaved: () => Promise<void>;
   onClearActiveImage: () => void;
 }
-
-const getErrorMessage = (error: unknown) => (
-  error instanceof Error ? error.message : String(error)
-);
 
 export function useInquiryFieldEditor({
   inquiry,
@@ -128,37 +128,24 @@ export function useInquiryFieldEditor({
 
   const addImages = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files?.length) return;
-    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const maxSize = 10 * 1024 * 1024;
     const files = Array.from(event.target.files);
-
-    if (editImageUrls.length + newImageFiles.length + files.length > 10) {
-      setEditError('이미지는 최대 10개까지 첨부할 수 있습니다.');
+    const validationError = validateImageFiles(files, editImageUrls.length + newImageFiles.length);
+    if (validationError) {
+      setEditError(validationError);
+      event.target.value = '';
       return;
     }
 
-    const validFiles = files.filter((file) => {
-      if (!allowed.includes(file.type)) {
-        setEditError(`지원하지 않는 파일 형식입니다: ${file.name}`);
-        return false;
-      }
-      if (file.size > maxSize) {
-        setEditError(`파일 크기가 10MB를 초과합니다: ${file.name}`);
-        return false;
-      }
-      return true;
-    });
-    if (validFiles.length === 0) return;
-
     setNewImageFiles((current) => [
       ...current,
-      ...validFiles.map((file) => ({
+      ...files.map((file) => ({
         id: `${Date.now()}-${Math.random()}`,
         file,
         previewUrl: URL.createObjectURL(file),
       })),
     ]);
     setEditError(null);
+    event.target.value = '';
   };
 
   const removeExistingImage = (url: string) => {
@@ -180,7 +167,7 @@ export function useInquiryFieldEditor({
 
     if (editChannel !== inquiry.channel) {
       if (!reasons.channel?.trim()) {
-        setEditError('채널 수정 사유를 입력해주세요.');
+        setEditError('채널 수정 사유를 입력해 주세요.');
         return;
       }
       changes.channel = editChannel;
@@ -190,12 +177,12 @@ export function useInquiryFieldEditor({
 
     const userCode = editUserCode.trim();
     if (userCode !== (inquiry.userCode || '')) {
-      if (userCode && !/^[0-9]{12}$/.test(userCode)) {
-        setEditError('유저 코드는 숫자 12자리여야 합니다.');
+      if (!isValidUserCode(userCode)) {
+        setEditError(`유저 코드는 숫자 ${USER_CODE_LENGTH}자리여야 합니다.`);
         return;
       }
       if (!reasons.userCode?.trim()) {
-        setEditError('유저 코드 수정 사유를 입력해주세요.');
+        setEditError('유저 코드 수정 사유를 입력해 주세요.');
         return;
       }
       changes.userCode = userCode || null;
@@ -205,7 +192,7 @@ export function useInquiryFieldEditor({
 
     if (editContent !== inquiry.content) {
       if (!reasons.content?.trim()) {
-        setEditError('문의 내용 수정 사유를 입력해주세요.');
+        setEditError('문의 내용 수정 사유를 입력해 주세요.');
         return;
       }
       changes.content = editContent;
@@ -223,7 +210,7 @@ export function useInquiryFieldEditor({
       || editOsVersion.trim() !== (inquiry.deviceInfo?.osVersion || '');
     if (deviceChanged) {
       if (!reasons.deviceInfo?.trim()) {
-        setEditError('디바이스 정보 수정 사유를 입력해주세요.');
+        setEditError('디바이스 정보 수정 사유를 입력해 주세요.');
         return;
       }
       changes.deviceInfo = nextDeviceInfo;
@@ -236,7 +223,7 @@ export function useInquiryFieldEditor({
     const customFieldsChanged = JSON.stringify(originalCustomFields) !== JSON.stringify(nextCustomFields);
     if (customFieldsChanged) {
       if (!reasons.customFields?.trim()) {
-        setEditError('임의 속성 수정 사유를 입력해주세요.');
+        setEditError('임의 속성 수정 사유를 입력해 주세요.');
         return;
       }
       changes.customFields = nextCustomFields;
@@ -246,6 +233,13 @@ export function useInquiryFieldEditor({
 
     const removedImages = (inquiry.imageUrls || []).filter((url) => !editImageUrls.includes(url));
     const imagesChanged = removedImages.length > 0 || newImageFiles.length > 0;
+    if (imagesChanged) {
+      if (!reasons.imageUrls?.trim()) {
+        setEditError('첨부 이미지 수정 사유를 입력해 주세요.');
+        return;
+      }
+      requestReasons.imageUrls = reasons.imageUrls.trim();
+    }
     if (!hasChanges && !imagesChanged) {
       setIsEditing(false);
       return;
@@ -257,13 +251,17 @@ export function useInquiryFieldEditor({
       const finalImageUrls = [...editImageUrls];
       if (newImageFiles.length > 0) {
         const timestamp = Date.now();
-        const requests = newImageFiles.map((image, index) => ({
-          objectName: `inquiries/${inquiry.id}/${timestamp}_${index}_${image.file.name.replace(/\s+/g, '_')}`,
-          contentType: image.file.type || 'image/jpeg',
+        const preparedImages = await Promise.all(newImageFiles.map(async (image) => ({
+          ...image,
+          uploadFile: await prepareImageForUpload(image.file),
+        })));
+        const requests = preparedImages.map((image, index) => ({
+          objectName: `inquiries/${inquiry.id}/${timestamp}_${index}_${image.uploadFile.name.replace(/\s+/g, '_')}`,
+          contentType: image.uploadFile.type || 'image/jpeg',
         }));
         const presignedUrls = await inquiryApi.getPresignedUrls(requests);
-        for (let index = 0; index < newImageFiles.length; index += 1) {
-          await inquiryApi.uploadToMinIO(presignedUrls[index].uploadUrl, newImageFiles[index].file);
+        for (let index = 0; index < preparedImages.length; index += 1) {
+          await inquiryApi.uploadToMinIO(presignedUrls[index].uploadUrl, preparedImages[index].uploadFile);
           finalImageUrls.push(presignedUrls[index].downloadUrl);
         }
       }
