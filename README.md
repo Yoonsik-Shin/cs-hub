@@ -149,7 +149,7 @@ docker compose up -d
 docker compose ps
 ```
 
-운영 콘솔은 [http://localhost:8888](http://localhost:8888)에서 확인할 수 있습니다. 로컬에서 이미 `5432`, `9000`, `9001`, `8888` 포트를 사용 중이면 Compose 포트 충돌을 먼저 해결해야 합니다.
+운영 콘솔은 [http://localhost:8888](http://localhost:8888)에서 확인할 수 있습니다. 기본 host port는 PostgreSQL `5432`, MinIO `19000/19001`, Nginx `8888`이며 `.env`에서 변경할 수 있습니다.
 
 ### DB를 사용하지 않는 showcase 화면
 

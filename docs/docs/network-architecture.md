@@ -25,7 +25,7 @@ frontend/nginx  -> cs-api, n8n, wiki, minio, grafana
 flowchart TD
     Client[LAN 브라우저] -->|8888| Nginx["frontend 서비스\ncs-frontend-nginx"]
     DevTool[개발 도구] -.->|5432| DB[(PostgreSQL)]
-    DevTool -.->|9000 / 9001| MinIO[(MinIO)]
+    DevTool -.->|19000 / 19001| MinIO[(MinIO)]
     Nginx --> API[cs-api:8080]
     Nginx --> n8n[n8n:5678]
     Nginx --> Wiki[wiki:80]
@@ -35,11 +35,11 @@ flowchart TD
 | 호스트 바인딩 | 용도 | 운영 시 주의 |
 | --- | --- | --- |
 | `8888:80` | 애플리케이션과 관리 도구의 Nginx 진입점 | LAN allowlist와 인증 적용 |
-| `5432:5432` | DBeaver 등 로컬 개발 도구 | 개발 편의 포트이므로 방화벽으로 제한하거나 운영 배포에서 제거 |
-| `9000:9000` | MinIO S3 API 테스트 | 외부 공개 금지 권장 |
-| `9001:9001` | MinIO 관리 콘솔 직접 접근 | Nginx `/minio/` 경로 사용을 권장하고 직접 포트는 제한 |
+| `127.0.0.1:5432:5432` | DBeaver 등 로컬 개발 도구 | `DB_HOST_PORT`로 변경 가능. 운영 배포에서는 제거 권장 |
+| `127.0.0.1:19000:9000` | MinIO S3 API 테스트 | `MINIO_API_PORT`로 변경 가능 |
+| `127.0.0.1:19001:9001` | MinIO 관리 콘솔 직접 접근 | `MINIO_CONSOLE_PORT`로 변경 가능. Nginx `/minio/` 사용 권장 |
 
-`cs-api`, `browser-worker`, `n8n`, `wiki`, `Loki`, `Alloy`, `Grafana`는 호스트 포트를 publish하지 않는다. Compose의 `5432`, `9000`, `9001` 바인딩은 기본적으로 모든 호스트 인터페이스에 열릴 수 있으므로 “외부 포트가 8888 하나뿐”이라고 가정해서는 안 된다.
+`cs-api`, `browser-worker`, `n8n`, `wiki`, `Loki`, `Alloy`, `Grafana`는 호스트 포트를 publish하지 않는다. PostgreSQL과 MinIO의 개발용 포트는 loopback에만 bind해 LAN에서 직접 접근할 수 없게 한다.
 
 ## Nginx 라우팅
 
@@ -74,4 +74,4 @@ allow fc00::/7;
 deny all;
 ```
 
-이 정책은 `8888`을 통해 들어오는 요청에 적용된다. PostgreSQL과 MinIO의 직접 host binding에는 Nginx allowlist가 적용되지 않으므로 호스트 방화벽 또는 포트 제거가 별도로 필요하다.
+이 정책은 `8888`을 통해 들어오는 요청에 적용된다. PostgreSQL과 MinIO의 직접 host binding에는 Nginx allowlist가 적용되지 않지만, 현재 Compose는 `127.0.0.1`에만 bind한다.

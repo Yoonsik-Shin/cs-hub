@@ -42,7 +42,7 @@ flowchart LR
 MinIO는 문의 첨부파일용 S3 호환 저장소다.
 
 - `cs-api`는 내부 주소 `http://minio:9000`으로 업로드 URL을 생성한다.
-- 호스트의 `9000`은 S3 API, `9001`은 관리 콘솔에 바인딩된다.
+- 컨테이너의 `9000`은 S3 API, `9001`은 관리 콘솔이다. host port 기본값은 충돌을 피하기 위해 `127.0.0.1:19000/19001`이며 환경 변수로 바꿀 수 있다.
 - `minio-init`은 MinIO가 준비될 때까지 기다린 뒤 `${S3_BUCKET}` 버킷을 만들고 익명 다운로드 정책을 설정한다.
 - 객체 데이터는 `minio_storage` named volume에 보존한다.
 - 브라우저 읽기 주소는 Nginx의 `/attachments/` 프록시를 사용한다.

@@ -17,7 +17,7 @@ flowchart LR
     n8n[n8n] -->|X-Internal-Token| API
 ```
 
-Nginx의 `8888` 경로는 LAN allowlist를 적용한 애플리케이션 진입점이다. 다만 개발 편의를 위한 PostgreSQL `5432`와 MinIO `9000/9001` host binding도 존재하므로 호스트 방화벽으로 제한하거나 운영 배포에서 제거해야 한다.
+Nginx의 `8888` 경로는 LAN allowlist를 적용한 애플리케이션 진입점이다. 개발 편의를 위한 PostgreSQL `5432`와 MinIO `19000/19001` host binding은 `127.0.0.1`로 제한한다. 운영 배포에서는 필요하지 않은 직접 포트를 제거하는 편이 안전하다.
 
 ## 사용자 인증과 역할
 
