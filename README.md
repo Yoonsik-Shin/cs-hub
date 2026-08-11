@@ -47,6 +47,16 @@ graph TD
 
 ## 🚀 빠른 시작 가이드 (Quick Start)
 
+### 개발 검증
+
+백엔드 테스트, 프론트엔드 테스트·lint·프로덕션 빌드와 Docker Compose 설정을 루트에서 한 번에 검증할 수 있습니다.
+
+```bash
+./scripts/verify.sh
+```
+
+프론트엔드 의존성은 `apps/frontend`에서 `npm install` 또는 `npm ci`로 먼저 설치해야 합니다.
+
 ### 1. 환경 설정 (.env)
 
 루트 폴더에 있는 `.env.example` 파일을 복사하여 `.env` 파일을 생성하고 필요한 값을 입력합니다.
