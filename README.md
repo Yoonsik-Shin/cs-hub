@@ -22,6 +22,7 @@
 | 중복 수집 | 채널 메타데이터에서 고유키를 만들고 저장 경계에서 중복 방지 | [InquiryUniqueKeyGenerator](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/domain/service/InquiryUniqueKeyGenerator.java), [CustomerInquiry](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/domain/entity/CustomerInquiry.java) |
 | 이메일 회신 연결 | `In-Reply-To` → `References` → 발신자 HMAC+정규화 제목 순으로 탐색 | [EmailThreadResolver](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/EmailThreadResolver.java), [테스트](apps/cs-api/src/test/java/com/ttam/cs/feature/inquiry/usecase/EmailThreadResolverTest.java) |
 | 완료 문의 후속 회신 | `RESOLVED`인 부모만 `OPEN`으로 변경하고 시스템 작업 이력 저장 | [ResolvedInquiryReopener](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/ResolvedInquiryReopener.java), [테스트](apps/cs-api/src/test/java/com/ttam/cs/feature/inquiry/usecase/ResolvedInquiryReopenerTest.java) |
+| API 업무 오류 | 문의 부재와 잘못된 업무 요청을 타입으로 구분하고 안정적인 오류 코드로 응답 | [문의 예외](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/exception), [HTTP 계약 테스트](apps/cs-api/src/test/java/com/ttam/cs/infra/web/exception/GlobalExceptionHandlerTest.java) |
 | PII 저장과 검색 | AES-GCM 저장 암호화와 HMAC-SHA256 검색 보조값을 분리 | [PiiEncryptionUtils](apps/cs-api/src/main/java/com/ttam/cs/infra/security/crypto/PiiEncryptionUtils.java), [암호화 경계 테스트](apps/cs-api/src/test/java/com/ttam/cs/infra/security/crypto/PiiEncryptionUtilsTest.java) |
 | 내부 워커 인증 | 토큰 미설정 시 fail-fast, 상수 시간 비교, 요청 토큰 비로깅 | [internalToken.js](apps/browser-worker/src/security/internalToken.js), [테스트](apps/browser-worker/test/internalToken.test.js) |
 | 자동 갱신 중 사용자 맥락 | 선택 정책과 상세 유지 규칙을 React 밖의 순수 함수로 분리 | [batchSelection](apps/frontend/src/features/inquiry/batchSelection.ts), [selectedInquiry](apps/frontend/src/features/inquiry/selectedInquiry.ts), [테스트](apps/frontend/tests) |
@@ -66,7 +67,7 @@ flowchart LR
 
 [EmailThreadResolver](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/EmailThreadResolver.java)는 명시적인 메일 헤더를 먼저 신뢰하고, 마지막 수단으로 최근 7일의 발신자 HMAC과 정규화 제목을 사용합니다. 회신의 회신은 최초 부모 ID로 연결합니다.
 
-[ResolvedInquiryReopener](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/ResolvedInquiryReopener.java)는 완료 문의에 새 회신이 들어온 경우만 상태와 감사 이력을 함께 변경합니다. 시간은 `Clock`으로 주입해 테스트를 결정적으로 만들었습니다.
+[ResolvedInquiryReopener](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/ResolvedInquiryReopener.java)는 완료 문의에 새 회신이 들어온 경우만 상태와 감사 이력을 함께 변경합니다. 시간은 `Clock`으로, 시스템 작업자 정보는 [SystemOperatorProvider](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/SystemOperatorProvider.java)로 주입해 테스트와 운영 설정을 분리했습니다.
 
 ### 3. 개인정보가 DB 경계를 통과하는 흐름
 
@@ -107,7 +108,7 @@ flowchart LR
 - TypeScript 및 Vite 프로덕션 빌드
 - Docker Compose 설정 유효성
 
-현재 저장소 기준으로 백엔드 41개, 브라우저 워커 4개, 프론트엔드 11개 테스트가 통과합니다.
+현재 저장소 기준으로 백엔드 43개, 브라우저 워커 4개, 프론트엔드 11개 테스트가 통과합니다.
 
 ## 로컬 실행
 
