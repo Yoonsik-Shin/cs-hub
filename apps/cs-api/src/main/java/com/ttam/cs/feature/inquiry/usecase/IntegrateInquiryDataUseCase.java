@@ -10,9 +10,6 @@ import com.ttam.cs.infra.storage.StorageService;
 import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
 import com.ttam.cs.common.util.EmailAddressUtils;
 import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
-import org.springframework.beans.factory.annotation.Value;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -29,11 +26,9 @@ public class IntegrateInquiryDataUseCase {
     private final AdminMemberRepository adminMemberRepository;
     private final PiiEncryptionUtils piiEncryptionUtils;
     private final EmailIntegrationValidator emailIntegrationValidator;
+    private final EmailArticleUrlResolver emailArticleUrlResolver;
     private final EmailThreadResolver emailThreadResolver;
     private final ResolvedInquiryReopener resolvedInquiryReopener;
-
-    @Value("${cs.email.webmail-url:https://company.daouoffice.com/app/mail}")
-    private String webmailUrl;
 
     @Transactional
     public void execute(String channel, List<IntegrationItem> items) {
@@ -67,16 +62,7 @@ public class IntegrateInquiryDataUseCase {
 
                     ChannelMetadata resolvedMetadata = item.channelMetadata();
                     if ("EMAIL".equalsIgnoreCase(channel) && item.channelMetadata() instanceof EmailMetadata emailMeta) {
-                        resolvedMetadata = new EmailMetadata(
-                                emailMeta.from(),
-                                emailMeta.to(),
-                                emailMeta.subject(),
-                                emailMeta.date(),
-                                emailMeta.headers(),
-                                emailMeta.attributes(),
-                                resolveEmailArticleUrl(emailMeta),
-                                emailMeta.customFields()
-                        );
+                        resolvedMetadata = emailArticleUrlResolver.resolve(emailMeta);
                     }
 
                     CustomerInquiry inquiry = CustomerInquiry.create(
@@ -118,39 +104,9 @@ public class IntegrateInquiryDataUseCase {
             List<String> imageUrls) {
     }
 
-    private String resolveEmailArticleUrl(EmailMetadata emailMeta) {
-        if (hasText(emailMeta.articleUrl())) {
-            return emailMeta.articleUrl();
-        }
-
-        Long uid = emailUid(emailMeta);
-        if (uid != null) {
-            return appendQueryParam(webmailUrl, "uid", String.valueOf(uid));
-        }
-
-        return appendQueryParam(webmailUrl, "messageId", cleanMessageId(emailMeta.getMessageId()));
-    }
-
-    private String appendQueryParam(String baseUrl, String name, String value) {
-        String base = hasText(baseUrl) ? baseUrl : "https://company.daouoffice.com/app/mail";
-        String separator = base.contains("?") ? "&" : "?";
-        return base + separator + name + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8);
-    }
-
     private String computeEmailSenderHash(String from) {
         String normalized = EmailAddressUtils.normalizeForHash(from);
         return normalized != null ? piiEncryptionUtils.hmacHex(normalized) : null;
     }
 
-    private Long emailUid(EmailMetadata emailMeta) {
-        return emailMeta.attributes() != null ? emailMeta.attributes().uid() : null;
-    }
-
-    private String cleanMessageId(String messageId) {
-        return messageId != null ? messageId.replace("<", "").replace(">", "").trim() : null;
-    }
-
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
 }
