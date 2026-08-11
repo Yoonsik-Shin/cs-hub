@@ -3,7 +3,7 @@ import {themes as prismThemes} from 'prism-react-renderer';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'CS Test Bed 개발팀 위키',
+  title: 'CS Hub 개발팀 위키',
   tagline: '사내 기술 위키 및 API 명세서 통합 관리',
   favicon: 'img/favicon.ico',
 

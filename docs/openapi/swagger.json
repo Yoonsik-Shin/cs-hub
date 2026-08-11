@@ -849,7 +849,7 @@
   },
   "info": {
     "description": "고객 서비스 백엔드 API 명세서입니다. 문의 사항 관리, 웹훅 처리, 네이버 세션 관리 등의 기능을 제공합니다.\n\n/api/** endpoint는 nginx Basic Auth 인증 후 전달되는 X-Remote-User 또는 내부 시스템용 X-Internal-Token 인증이 필요합니다.\n@RequireRoles가 적용된 endpoint는 문서에 필요 역할과 x-required-roles 확장값으로 표시됩니다.\n",
-    "title": "CS Test Bed API 명세서",
+    "title": "CS Hub API 명세서",
     "version": "1.0.0"
   },
   "openapi": "3.0.1",

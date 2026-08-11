@@ -23,7 +23,7 @@ public class OpenApiConfig {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("CS Test Bed API 명세서")
+                        .title("CS Hub API 명세서")
                         .version("1.0.0")
                         .description("""
                                 고객 서비스 백엔드 API 명세서입니다. 문의 사항 관리, 웹훅 처리, 네이버 세션 관리 등의 기능을 제공합니다.
