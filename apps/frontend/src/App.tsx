@@ -21,6 +21,13 @@ import {
   toggleVisibleSelection,
 } from './features/inquiry/batchSelection';
 import { resolveSelectedInquiry } from './features/inquiry/selectedInquiry';
+import {
+  replaceWithFirstPage,
+  resolveRefreshTarget,
+  storePage,
+  updateCachedItem,
+} from './features/inquiry/pageCache';
+import type { PageCache } from './features/inquiry/pageCache';
 
 const SIDEBAR_EXPANDED_WIDTH = 300;
 const SIDEBAR_COLLAPSED_WIDTH = 64;
@@ -82,11 +89,7 @@ export const App: React.FC = () => {
   const [batchSelectionScope, setBatchSelectionScope] = useState<BatchSelectionScope>('PAGE');
   const [selectedInquiryIds, setSelectedInquiryIds] = useState<Set<string>>(new Set());
   const [batchBaseOffset, setBatchBaseOffset] = useState(0);
-  const [pageCache, setPageCache] = useState<Record<number, {
-    inquiries: CustomerInquiry[];
-    nextCursor: string | null;
-    hasNext: boolean;
-  }>>({});
+  const [pageCache, setPageCache] = useState<PageCache<CustomerInquiry>>({});
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [batchModal, setBatchModal] = useState<{
     isOpen: boolean;
@@ -591,13 +594,7 @@ export const App: React.FC = () => {
 
       // Cache Page 1 on initial fetch or when cursorVal is null
       if (!cursorVal) {
-        setPageCache({
-          1: {
-            inquiries: res.content,
-            nextCursor: res.nextCursor,
-            hasNext: res.hasNext
-          }
-        });
+        setPageCache(replaceWithFirstPage(res));
         setCurrentPage(1);
         if (!keepSelection) {
           setSelectedInquiryId(null);
@@ -653,38 +650,19 @@ export const App: React.FC = () => {
         }
         setError(null);
         try {
-          let currentCursor: string | null = null;
-          let targetPage = currentPageRef.current;
+          const refreshTarget = resolveRefreshTarget(currentPageRef.current, pageCacheRef.current);
 
-          // 2페이지 이상인 경우 이전 페이지의 마지막 커서 획득 시도
-          if (targetPage > 1) {
-            const prevPageCache = pageCacheRef.current[targetPage - 1];
-            if (prevPageCache) {
-              currentCursor = prevPageCache.nextCursor;
-            } else {
-              // 이전 페이지의 캐시가 없다면 안전하게 1페이지로 대체
-              targetPage = 1;
-            }
-          }
-
-          const searchParams = buildCurrentSearchParams(currentCursor);
+          const searchParams = buildCurrentSearchParams(refreshTarget.cursor);
           const res = await inquiryApi.searchInquiries({
             ...searchParams,
             size: 20,
           });
 
           // 캐시의 해당 페이지 정보 업데이트
-          setPageCache((prev) => ({
-            ...prev,
-            [targetPage]: {
-              inquiries: res.content,
-              nextCursor: res.nextCursor,
-              hasNext: res.hasNext
-            }
-          }));
+          setPageCache((prev) => storePage(prev, refreshTarget.page, res));
 
           // 현재 페이지 설정
-          setCurrentPage(targetPage);
+          setCurrentPage(refreshTarget.page);
 
           // 현재 리스트에 보여줄 상태들 업데이트
           setInquiries(res.content);
@@ -869,14 +847,7 @@ export const App: React.FC = () => {
         });
 
         // Cache the newly fetched page
-        setPageCache((prev) => ({
-          ...prev,
-          [targetPage]: {
-            inquiries: res.content,
-            nextCursor: res.nextCursor,
-            hasNext: res.hasNext
-          }
-        }));
+        setPageCache((prev) => storePage(prev, targetPage, res));
 
         // Set inquiries for the target page
         setInquiries(res.content);
@@ -912,19 +883,7 @@ export const App: React.FC = () => {
     setInquiries((prev) =>
       prev.map((inq) => (inq.id === id ? { ...inq, ...updatedFields } : inq))
     );
-    setPageCache((prev) => {
-      const updated = { ...prev };
-      Object.keys(updated).forEach((key) => {
-        const pageNum = Number(key);
-        updated[pageNum] = {
-          ...updated[pageNum],
-          inquiries: updated[pageNum].inquiries.map((inq) =>
-            inq.id === id ? { ...inq, ...updatedFields } : inq
-          ),
-        };
-      });
-      return updated;
-    });
+    setPageCache((prev) => updateCachedItem(prev, id, updatedFields));
     fetchStats();
   }, [fetchStats]);
 
