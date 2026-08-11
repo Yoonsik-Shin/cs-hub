@@ -66,7 +66,7 @@ class IntegrateInquiryDataUseCaseTest {
                 repository,
                 uniqueKeyGenerator,
                 storageService,
-                adminMemberRepository,
+                new AdminEmailSenderPolicy(adminMemberRepository),
                 emailSenderHasher,
                 new EmailIntegrationValidator(),
                 new EmailArticleUrlResolver(WEBMAIL_URL),

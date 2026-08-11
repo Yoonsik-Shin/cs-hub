@@ -7,8 +7,6 @@ import com.ttam.cs.feature.inquiry.domain.vo.DeviceInfo;
 import com.ttam.cs.feature.inquiry.domain.vo.EmailMetadata;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.infra.storage.StorageService;
-import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
-import com.ttam.cs.common.util.EmailAddressUtils;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +20,7 @@ public class IntegrateInquiryDataUseCase {
     private final CustomerInquiryRepository repository;
     private final InquiryUniqueKeyGenerator uniqueKeyGenerator;
     private final StorageService storageService;
-    private final AdminMemberRepository adminMemberRepository;
+    private final AdminEmailSenderPolicy adminEmailSenderPolicy;
     private final EmailSenderHasher emailSenderHasher;
     private final EmailIntegrationValidator emailIntegrationValidator;
     private final EmailArticleUrlResolver emailArticleUrlResolver;
@@ -34,10 +32,7 @@ public class IntegrateInquiryDataUseCase {
         List<CustomerInquiry> inquiries = items.stream()
                 .filter(item -> {
                     if ("EMAIL".equalsIgnoreCase(channel) && item.channelMetadata() instanceof EmailMetadata emailMeta) {
-                        String fromEmail = EmailAddressUtils.extractEmailAddress(emailMeta.from());
-                        if (fromEmail != null && adminMemberRepository.existsByEmail(fromEmail)) {
-                            return false;
-                        }
+                        return !adminEmailSenderPolicy.isAdmin(emailMeta.from());
                     }
                     return true;
                 })
