@@ -62,6 +62,15 @@ export interface ChannelMetadata {
   date?: string;
   phoneNumber?: string;
   memo?: string;
+  isOperator?: boolean;
+  comments?: Array<{
+    commentId: string | number;
+    content: string;
+    writer?: { id?: string; nickname?: string };
+    writeDate: string;
+    isOperator?: boolean;
+    imageUrls?: string[];
+  }>;
   customFields?: Record<string, unknown>;
   [key: string]: unknown;
 }

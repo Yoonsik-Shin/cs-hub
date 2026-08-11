@@ -10,10 +10,33 @@ import type {
     ChannelMetadata,
     CustomerInquiry,
     DeviceInfo,
+    FieldModification,
+    InquiryStatus,
     InquiryWorkLog,
     OperatorInfo,
 } from '../types/inquiry';
 import { inquiryApi } from '../api/inquiryApi';
+
+type UpdateInquiryFieldsRequest = Parameters<typeof inquiryApi.updateInquiryFields>[1];
+type InquiryFieldChanges = Omit<Partial<UpdateInquiryFieldsRequest>, 'operatorInfo' | 'reasons'>;
+
+interface TimelineItem {
+    id: string;
+    actionType: InquiryWorkLog['actionType'];
+    createdAt: string;
+    operatorInfo: { id: string; nickname: string; email: string; role?: string };
+    memo: string | null;
+    answer: string | null;
+    previousStatus: InquiryStatus | null;
+    currentStatus: InquiryStatus | null;
+    imageUrls?: string[] | null;
+    ipAddress?: string | null;
+    modificationDetails?: FieldModification[] | null;
+}
+
+const getErrorMessage = (error: unknown): string => (
+    error instanceof Error ? error.message : String(error)
+);
 
 interface InquiryDetailPanelProps {
     inquiry: CustomerInquiry;
@@ -26,10 +49,10 @@ interface InquiryDetailPanelProps {
 
 export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry, operator, onUpdateInquiry, isBookmarked = false, onToggleBookmark, onRequireNaverSessionRenew }) => {
     const [workLogs, setWorkLogs] = useState<InquiryWorkLog[]>([]);
-    const [loadingLogs, setLoadingLogs] = useState(false);
+    const [loadingLogs, setLoadingLogs] = useState(true);
     const [logError, setLogError] = useState<string | null>(null);
     const [replies, setReplies] = useState<CustomerInquiry[]>([]);
-    const [loadingReplies, setLoadingReplies] = useState(false);
+    const [loadingReplies, setLoadingReplies] = useState(true);
 
     // Resizable columns states
     const [leftWidth, setLeftWidth] = useState(75); // Left Pane % (default 75)
@@ -65,8 +88,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [modal, setModal] = useState<{
         isOpen: boolean;
         type: 'STATUS_CHANGE' | 'REGISTER_LOG' | 'EDIT_FIELDS' | 'BOOKMARK';
-        targetStatus?: string;
-        selectedStatus?: string;
+        targetStatus?: InquiryStatus;
+        selectedStatus?: InquiryStatus;
     }>({
         isOpen: false,
         type: 'STATUS_CHANGE',
@@ -114,16 +137,14 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [isPanning, setIsPanning] = useState(false);
     const panStartRef = useRef({ x: 0, y: 0 });
 
-    useEffect(() => {
-        if (activeImageUrl) {
-            setLastActiveImageUrl(activeImageUrl);
+    const selectImage = (imageUrl: string | null) => {
+        setActiveImageUrl(imageUrl);
+        if (imageUrl) {
+            setLastActiveImageUrl(imageUrl);
         }
-    }, [activeImageUrl]);
-
-    useEffect(() => {
         setZoomScale(1);
         setPanPosition({ x: 0, y: 0 });
-    }, [activeImageUrl]);
+    };
 
     const handleZoomIn = () => {
         setZoomScale(prev => Math.min(prev + 0.25, 3));
@@ -232,7 +253,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                 second: '2-digit',
                 hour12: false,
             }).format(date);
-        } catch (e) {
+        } catch {
             return dateStr;
         }
     };
@@ -301,7 +322,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         try {
             const logs = await inquiryApi.getWorkLogs(inquiry.id);
             setWorkLogs(logs);
-        } catch (e: any) {
+        } catch (e) {
             console.error(e);
             setLogError('업무 처리 이력을 불러오는 데 실패했습니다.');
         } finally {
@@ -330,9 +351,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             }
             await fetchReplies();
             await fetchWorkLogs();
-        } catch (e: any) {
+        } catch (e) {
             console.error('Failed to refresh inquiry:', e);
-            const errStr = String(e.message || e);
+            const errStr = getErrorMessage(e);
             if (
                 errStr.includes('410') ||
                 errStr.includes('401') ||
@@ -355,15 +376,32 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     }, [inquiry.id, onUpdateInquiry, fetchReplies, fetchWorkLogs, onRequireNaverSessionRenew]);
 
     useEffect(() => {
-        fetchWorkLogs();
-        fetchReplies();
-        setAnswerText('');
-        setMemoText('');
-        setIsEditing(false); // Reset edit state when ticket changes
-        setIsEditingAnswer(false);
-        setActiveImageUrl(null);
-        setLastActiveImageUrl(null);
-    }, [inquiry.id, fetchWorkLogs, fetchReplies]);
+        let cancelled = false;
+        inquiryApi.getWorkLogs(inquiry.id)
+            .then((logs) => {
+                if (!cancelled) setWorkLogs(logs);
+            })
+            .catch((error: unknown) => {
+                console.error(error);
+                if (!cancelled) setLogError('업무 처리 이력을 불러오는 데 실패했습니다.');
+            })
+            .finally(() => {
+                if (!cancelled) setLoadingLogs(false);
+            });
+        inquiryApi.getReplies(inquiry.id)
+            .then((childInquiries) => {
+                if (!cancelled) setReplies(childInquiries);
+            })
+            .catch((error: unknown) => {
+                console.error('Failed to fetch replies:', error);
+            })
+            .finally(() => {
+                if (!cancelled) setLoadingReplies(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [inquiry.id]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -371,12 +409,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         }, 100);
         return () => clearTimeout(timer);
     }, [workLogs, replies]);
-
-    useEffect(() => {
-        if (isEditing) {
-            setActiveImageUrl(null);
-        }
-    }, [isEditing]);
 
     const adjustTextareaHeight = () => {
         if (contentTextareaRef.current) {
@@ -408,7 +440,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         });
     };
 
-    const handleStatusChangeClick = (newStatus: string) => {
+    const handleStatusChangeClick = (newStatus: InquiryStatus) => {
         if (newStatus === inquiry.status) return;
         setLogError(null);
         setStatusChangeReason('');
@@ -441,7 +473,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                     reason: changeReason
                 });
                 if (onUpdateInquiry) {
-                    onUpdateInquiry(inquiry.id, { status: modal.selectedStatus as any });
+                    onUpdateInquiry(inquiry.id, { status: modal.selectedStatus });
                 }
             }
 
@@ -450,9 +482,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             setIsEditingAnswer(false);
             await fetchWorkLogs();
             setModal({ isOpen: false, type: 'REGISTER_LOG' });
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
-            setLogError('등록 중 문제가 발생했습니다: ' + err.message);
+            setLogError('등록 중 문제가 발생했습니다: ' + getErrorMessage(err));
         } finally {
             setSubmittingLog(false);
         }
@@ -476,19 +508,20 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             });
             await fetchWorkLogs();
             if (onUpdateInquiry) {
-                onUpdateInquiry(inquiry.id, { status: targetStatus as any });
+                onUpdateInquiry(inquiry.id, { status: targetStatus });
             }
             setModal({ isOpen: false, type: 'STATUS_CHANGE' });
             setStatusChangeReason('');
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
-            setLogError('상태 변경에 실패했습니다: ' + err.message);
+            setLogError('상태 변경에 실패했습니다: ' + getErrorMessage(err));
         } finally {
             setStatusChanging(false);
         }
     };
 
     const handleStartEdit = () => {
+        selectImage(null);
         setEditChannel(inquiry.channel);
         setEditUserCode(inquiry.userCode || '');
         setEditContent(inquiry.content);
@@ -599,8 +632,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     };
 
     const executeEditFields = async () => {
-        const changes: any = {};
-        const reqReasons: any = {};
+        const changes: InquiryFieldChanges = {};
+        const reqReasons: UpdateInquiryFieldsRequest['reasons'] = {};
         let hasChanges = false;
 
         // Check Channel
@@ -689,7 +722,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         setEditError(null);
         try {
             // Upload new images first
-            let finalImageUrls = [...editImageUrls];
+            const finalImageUrls = [...editImageUrls];
             if (newImageFiles.length > 0) {
                 const timestamp = Date.now();
                 const fileRequests = newImageFiles.map((img, idx) => ({
@@ -733,9 +766,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
 
             await fetchWorkLogs();
             setIsEditing(false);
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
-            setEditError('수정 중 오류가 발생했습니다: ' + err.message);
+            setEditError('수정 중 오류가 발생했습니다: ' + getErrorMessage(err));
         } finally {
             setSubmittingLog(false);
         }
@@ -1109,7 +1142,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     };
 
     // Construct combined timeline items (ascending order: oldest first, newest last)
-    const timelineItems: any[] = [];
+    const timelineItems: TimelineItem[] = [];
 
     // 1. Initial Customer Submission (Always added first as it is the oldest item)
     timelineItems.push({
@@ -1128,9 +1161,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     });
 
     const isParentNaverCafe = inquiry.channel.toUpperCase() === 'NAVER_CAFE';
-    const commentsList = (isParentNaverCafe && (inquiry.channelMetadata as any)?.comments) || [];
+    const commentsList = (isParentNaverCafe && inquiry.channelMetadata?.comments) || [];
 
-    const parsedCommentsTimelineItems = commentsList.map((comment: any) => {
+    const parsedCommentsTimelineItems: TimelineItem[] = commentsList.map((comment) => {
         const isOperatorReply = comment.isOperator === true;
         const writerNick = comment.writer?.nickname || '네이버 카페 유저';
         return {
@@ -1152,12 +1185,12 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         };
     });
 
-    const replyTimelineItems = [
-        ...replies.map(reply => {
-            const fromEmail = (reply.channelMetadata as any)?.from || '';
+    const replyTimelineItems: TimelineItem[] = [
+        ...replies.map((reply): TimelineItem => {
+            const fromEmail = reply.channelMetadata?.from || '';
             const isNaverCafe = reply.channel.toUpperCase() === 'NAVER_CAFE';
             const isOperatorReply = isNaverCafe
-                ? (reply.channelMetadata as any)?.isOperator === true
+                ? reply.channelMetadata?.isOperator === true
                 : fromEmail.includes('runday@ttam.ai');
 
             return {
@@ -1480,7 +1513,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                     onClick={(e) => {
                                         if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
                                             e.preventDefault();
-                                            setActiveImageUrl(isActive ? null : url);
+                                            selectImage(isActive ? null : url);
                                         }
                                     }}
                                 >
@@ -1859,14 +1892,14 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                         const showPrev = (e: React.MouseEvent) => {
                             e.stopPropagation();
                             if (hasPrev && inquiry.imageUrls) {
-                                setActiveImageUrl(inquiry.imageUrls[currentIndex - 1]);
+                                selectImage(inquiry.imageUrls[currentIndex - 1]);
                             }
                         };
 
                         const showNext = (e: React.MouseEvent) => {
                             e.stopPropagation();
                             if (hasNext && inquiry.imageUrls) {
-                                setActiveImageUrl(inquiry.imageUrls[currentIndex + 1]);
+                                selectImage(inquiry.imageUrls[currentIndex + 1]);
                             }
                         };
 
@@ -2057,7 +2090,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                         )}
                                         <button
                                             type="button"
-                                            onClick={() => setActiveImageUrl(null)}
+                                            onClick={() => selectImage(null)}
                                             style={{
                                                 background: 'transparent',
                                                 border: 'none',
@@ -2199,7 +2232,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             <button
                                                 key={`preview-thumb-${index}`}
                                                 type="button"
-                                                onClick={() => setActiveImageUrl(url)}
+                                                onClick={() => selectImage(url)}
                                                 style={{
                                                     width: '50px',
                                                     height: '50px',
@@ -2736,7 +2769,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                                                     요청 IP: {log.ipAddress}
                                                                 </div>
                                                             )}
-                                                            {log.modificationDetails && log.modificationDetails.map((mod: any, index: number) => (
+                                                            {log.modificationDetails && log.modificationDetails.map((mod, index) => (
                                                                 <div key={index} className="timeline-detail-box modify" style={{
                                                                     padding: '8px 12px',
                                                                     background: 'rgba(124, 58, 237, 0.03)',
@@ -2788,7 +2821,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                                                             onClick={(e) => {
                                                                                 if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
                                                                                     e.preventDefault();
-                                                                                    setActiveImageUrl(activeImageUrl === url ? null : url);
+                                                                                    selectImage(activeImageUrl === url ? null : url);
                                                                                 }
                                                                             }}
                                                                         >
@@ -2913,7 +2946,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                         id="status-select-modal"
                                         className="select-input"
                                         value={modal.selectedStatus}
-                                        onChange={(e) => setModal({ ...modal, selectedStatus: e.target.value })}
+                                        onChange={(e) => setModal({ ...modal, selectedStatus: e.target.value as InquiryStatus })}
                                     >
                                         <option value={inquiry.status}>상태 유지 (현재: {getStatusKorean(inquiry.status)})</option>
                                         {inquiry.status !== 'OPEN' && <option value="OPEN">미처리 (OPEN) 상태로 변경</option>}

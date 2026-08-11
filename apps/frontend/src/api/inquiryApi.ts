@@ -215,7 +215,7 @@ export const inquiryApi = {
     id: string,
     data: {
       operatorInfo: { id: string; nickname: string; email: string };
-      status: string;
+      status: InquiryStatus;
       reason: string;
     },
   ): Promise<void> {
@@ -279,7 +279,7 @@ export const inquiryApi = {
     data: {
       operatorInfo: { id: string; nickname: string; email: string };
       channel?: string;
-      userCode?: string;
+      userCode?: string | null;
       deviceInfo?: {
         appVersion?: string;
         model?: string;
