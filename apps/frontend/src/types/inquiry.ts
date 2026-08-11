@@ -32,23 +32,45 @@ export interface DeviceInfo {
   appVersion?: string;
   os?: string;
   deviceModel?: string;
-  [key: string]: any;
+  model?: string;
+  osVersion?: string;
+  [key: string]: unknown;
 }
 
 export interface ChannelMetadata {
+  metadataType?: string;
   uniqueKey?: string;
   title?: string;
   author?: string;
+  articleUrl?: string;
   imageUrls?: string[];
-  customFields?: Record<string, any>;
-  [key: string]: any;
+  cafeId?: string | number;
+  articleId?: string | number;
+  menu?: { id?: string | number; name?: string };
+  writer?: { id?: string; nickname?: string };
+  metrics?: { readCount?: number; commentCount?: number; likeCount?: number };
+  rowNumber?: string | number;
+  category?: string;
+  type?: string;
+  contact?: string;
+  reply?: { type?: string; email?: string };
+  headers?: { 'message-id'?: string; messageId?: string; [key: string]: unknown };
+  attributes?: { uid?: number; [key: string]: unknown };
+  from?: string;
+  to?: string;
+  subject?: string;
+  date?: string;
+  phoneNumber?: string;
+  memo?: string;
+  customFields?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface PhoneMetadata {
   metadataType: 'PHONE';
   phoneNumber: string;
   memo?: string;
-  customFields?: Record<string, any>;
+  customFields?: Record<string, unknown>;
 }
 
 export interface CustomerInquiry {

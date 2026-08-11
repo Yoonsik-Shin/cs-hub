@@ -6,7 +6,13 @@ import {
     ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit, ImagePlus, Loader2, Star, X as XIcon,
     Image, ZoomIn, ZoomOut, Mail, ExternalLink
 } from 'lucide-react';
-import type { CustomerInquiry, InquiryWorkLog, OperatorInfo } from '../types/inquiry';
+import type {
+    ChannelMetadata,
+    CustomerInquiry,
+    DeviceInfo,
+    InquiryWorkLog,
+    OperatorInfo,
+} from '../types/inquiry';
 import { inquiryApi } from '../api/inquiryApi';
 
 interface InquiryDetailPanelProps {
@@ -765,7 +771,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         };
     };
 
-    const renderChannelMetadata = (meta: any) => {
+    const renderChannelMetadata = (meta: ChannelMetadata | null) => {
         const hasChannelChanged = editChannel !== inquiry.channel;
         const hasUserCodeChanged = editUserCode.trim() !== (inquiry.userCode || '');
 
@@ -986,7 +992,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         );
     };
 
-    const renderDeviceInfo = (device: any) => {
+    const renderDeviceInfo = (device: DeviceInfo | null) => {
         if (!device && !isEditing) return <div style={{ color: 'var(--text-muted)' }}>디바이스 정보 없음</div>;
 
         const hasDeviceInfoChanged =

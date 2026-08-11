@@ -1,5 +1,6 @@
 import type {
   CustomerInquiry,
+  ChannelMetadata,
   CustomFilterEntity,
   InquiryStatus,
   InquiryWorkLog,
@@ -23,7 +24,7 @@ const NAVER_CAFE_SESSION_ID = "9f2b4d68-4d2c-4db6-a9ec-285809470036";
 /**
  * Helper to build query parameters string from object, omitting undefined/null values
  */
-function buildQueryString(params: Record<string, any>): string {
+function buildQueryString(params: object): string {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (Array.isArray(value)) {
@@ -96,7 +97,7 @@ export const inquiryApi = {
     channel: string;
     userCode?: string;
     content: string;
-    channelMetadata?: any;
+    channelMetadata?: ChannelMetadata;
     imageUrls?: string[];
   }): Promise<void> {
     const response = await fetch("/api/v1/inquiries", {
@@ -418,7 +419,7 @@ export const inquiryApi = {
 
   async saveCustomFilter(
     name: string,
-    filterData: Record<string, any>,
+    filterData: CustomFilterEntity['filterData'],
   ): Promise<CustomFilterEntity> {
     const response = await fetch("/api/v1/inquiries/custom-filters", {
       method: "POST",
