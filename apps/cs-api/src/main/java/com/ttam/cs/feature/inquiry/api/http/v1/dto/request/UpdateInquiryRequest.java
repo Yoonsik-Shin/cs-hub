@@ -1,10 +1,12 @@
 package com.ttam.cs.feature.inquiry.api.http.v1.dto.request;
 
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
+import com.ttam.cs.feature.inquiry.domain.service.InquiryPolicy;
 import com.ttam.cs.feature.inquiry.domain.vo.DeviceInfo;
 import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import java.util.List;
 import java.util.Map;
 
@@ -12,11 +14,10 @@ public record UpdateInquiryRequest(
     @NotNull(message = "작업자 정보는 필수입니다.") @Valid OperatorInfo operatorInfo,
     CustomerInquiry.Status status,
     String channel,
-    String userCode,
+    @Pattern(regexp = InquiryPolicy.USER_CODE_PATTERN, message = InquiryPolicy.USER_CODE_MESSAGE) String userCode,
     DeviceInfo deviceInfo,
     String content,
     List<String> imageUrls,
     Map<String, Object> customFields,
     Map<String, String> reasons
 ) {}
-

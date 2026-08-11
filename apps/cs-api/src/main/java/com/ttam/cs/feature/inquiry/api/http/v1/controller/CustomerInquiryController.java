@@ -23,22 +23,18 @@ import com.ttam.cs.feature.auth.usecase.AdminUserResolver;
 import com.ttam.cs.feature.auth.usecase.dto.CurrentAdminUser;
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.BatchUpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.CreateInquiryRequest;
-import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.UpdateInquiryFieldsRequest;
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.UpdateInquiryRequest;
-import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.UpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.response.InquiryCountResponse;
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.response.SearchCustomerInquiryResponse;
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
-import com.ttam.cs.feature.inquiry.exception.InvalidInquiryRequestException;
 import com.ttam.cs.feature.inquiry.usecase.BatchUpdateInquiryStatusUseCase;
 import com.ttam.cs.feature.inquiry.usecase.CountCustomerInquiriesUseCase;
 import com.ttam.cs.feature.inquiry.usecase.CountInquiryRepliesUseCase;
 import com.ttam.cs.feature.inquiry.usecase.CreateCustomerInquiryUseCase;
 import com.ttam.cs.feature.inquiry.usecase.GetInquiryRepliesUseCase;
 import com.ttam.cs.feature.inquiry.usecase.SearchCustomerInquiriesUseCase;
-import com.ttam.cs.feature.inquiry.usecase.UpdateInquiryFieldsUseCase;
-import com.ttam.cs.feature.inquiry.usecase.UpdateInquiryStatusUseCase;
+import com.ttam.cs.feature.inquiry.usecase.UpdateInquiryUseCase;
 import com.ttam.cs.feature.inquiry.usecase.RefreshInquiryUseCase;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,8 +53,7 @@ public class CustomerInquiryController {
     private final SearchCustomerInquiriesUseCase searchCustomerInquiriesUseCase;
     private final CountInquiryRepliesUseCase countInquiryRepliesUseCase;
     private final CreateCustomerInquiryUseCase createCustomerInquiryUseCase;
-    private final UpdateInquiryStatusUseCase updateInquiryStatusUseCase;
-    private final UpdateInquiryFieldsUseCase updateInquiryFieldsUseCase;
+    private final UpdateInquiryUseCase updateInquiryUseCase;
     private final BatchUpdateInquiryStatusUseCase batchUpdateInquiryStatusUseCase;
     private final GetInquiryRepliesUseCase getInquiryRepliesUseCase;
     private final AdminUserResolver adminUserResolver;
@@ -153,42 +148,7 @@ public class CustomerInquiryController {
             @RequestBody @Valid UpdateInquiryRequest request,
             HttpServletRequest servletRequest) {
 
-        // 1. 상태 변경 건 처리
-        if (request.status() != null) {
-            String statusReason = request.reasons() != null ? request.reasons().get("status") : null;
-            if (statusReason == null || statusReason.trim().isEmpty()) {
-                throw new InvalidInquiryRequestException("상태 변경 사유는 필수입니다.");
-            }
-            if (statusReason.trim().length() < 5) {
-                throw new InvalidInquiryRequestException("상태 변경 사유는 최소 5자 이상이어야 합니다.");
-            }
-            UpdateInquiryStatusRequest statusRequest = new UpdateInquiryStatusRequest(
-                    request.operatorInfo(),
-                    request.status(),
-                    statusReason.trim());
-            updateInquiryStatusUseCase.execute(id, statusRequest);
-        }
-
-        // 2. 정보 필드 수정 건 처리
-        if (request.channel() != null ||
-                request.userCode() != null ||
-                request.deviceInfo() != null ||
-                request.content() != null ||
-                request.imageUrls() != null ||
-                request.customFields() != null) {
-
-            UpdateInquiryFieldsRequest fieldsRequest = new UpdateInquiryFieldsRequest(
-                    request.operatorInfo(),
-                    request.channel(),
-                    request.userCode(),
-                    request.deviceInfo(),
-                    request.content(),
-                    request.imageUrls(),
-                    request.customFields(),
-                    request.reasons());
-            String ipAddress = getClientIp(servletRequest);
-            updateInquiryFieldsUseCase.execute(id, fieldsRequest, ipAddress);
-        }
+        updateInquiryUseCase.execute(id, request, getClientIp(servletRequest));
 
         return ResponseEntity.ok().build();
     }

@@ -18,6 +18,7 @@ import com.ttam.cs.infra.webhooks.handler.kakao.KakaoChatbotSkillHandlerRegistry
 import com.ttam.cs.infra.webhooks.handler.n8n.N8nWorkflowHandler;
 import com.ttam.cs.infra.webhooks.handler.n8n.N8nWorkflowRegistry;
 import com.ttam.cs.infra.webhooks.logging.WebhookLoggerService;
+import com.ttam.cs.feature.inquiry.domain.service.InquiryPolicy;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -103,14 +104,14 @@ public class WebhookController {
 
         rawValue = rawValue.trim();
 
-        if (rawValue.matches("^[0-9]{12}$")) {
+        if (rawValue.matches(InquiryPolicy.REQUIRED_USER_CODE_PATTERN)) {
             log.info("User code validation success: {}", rawValue);
             return ResponseEntity
                     .ok(KakaoParameterValidationResponse.success(rawValue));
         } else {
             log.warn("User code validation failed: '{}'", rawValue);
             return ResponseEntity.ok(KakaoParameterValidationResponse.fail(
-                    "유저 코드는 숫자 12자리여야 합니다. 앱의 '프로필 > 나의 정보'에서 확인 후 다시 입력해 주세요."));
+                    InquiryPolicy.USER_CODE_MESSAGE + " 앱의 '프로필 > 나의 정보'에서 확인 후 다시 입력해 주세요."));
         }
     }
 }

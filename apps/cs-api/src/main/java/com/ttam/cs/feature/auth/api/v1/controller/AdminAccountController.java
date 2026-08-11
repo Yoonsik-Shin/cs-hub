@@ -14,11 +14,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.ttam.cs.feature.auth.domain.entity.AdminMember;
 import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
-import com.ttam.cs.feature.auth.usecase.HtpasswdUseCase;
+import com.ttam.cs.feature.auth.usecase.AdminAccountUseCase;
 import com.ttam.cs.infra.security.AdminRole;
 import com.ttam.cs.infra.security.RequireRoles;
 
@@ -39,7 +38,7 @@ import lombok.RequiredArgsConstructor;
 public class AdminAccountController {
 
     private final AdminMemberRepository adminMemberRepository;
-    private final HtpasswdUseCase htpasswdUseCase;
+    private final AdminAccountUseCase adminAccountUseCase;
 
     @Operation(summary = "관리자 목록 조회", description = "시스템에 등록된 모든 관리자/운영자 목록을 조회합니다.")
     @GetMapping
@@ -55,21 +54,12 @@ public class AdminAccountController {
     @PostMapping
     @RequireRoles(AdminRole.ADMIN)
     public ResponseEntity<Void> createAccount(@Valid @RequestBody CreateAccountRequest request) {
-        String username = request.getUsername().trim();
-        if (adminMemberRepository.existsById(username)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미 존재하는 사용자 아이디입니다.");
-        }
-
-        // DB 저장
-        AdminMember member = new AdminMember(
-                username,
+        adminAccountUseCase.create(
+                request.getUsername(),
+                request.getPassword(),
                 request.getNickname(),
                 request.getEmail(),
                 request.getRole());
-        adminMemberRepository.save(member);
-
-        // htpasswd 저장
-        htpasswdUseCase.saveOrUpdateUser(username, request.getPassword());
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
@@ -80,25 +70,7 @@ public class AdminAccountController {
     public ResponseEntity<Void> deleteAccount(
             @PathVariable String username,
             @RequestHeader(value = "X-Remote-User", required = false) String remoteUser) {
-        String targetUsername = username.trim();
-
-        if (targetUsername.equals("runday-cs-admin")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "마스터 관리자 계정은 삭제할 수 없습니다.");
-        }
-
-        if (remoteUser != null && targetUsername.equals(remoteUser.trim())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "현재 로그인한 본인 계정은 삭제할 수 없습니다.");
-        }
-
-        if (!adminMemberRepository.existsById(targetUsername)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "해당 계정을 찾을 수 없습니다.");
-        }
-
-        // DB 삭제
-        adminMemberRepository.deleteById(targetUsername);
-
-        // htpasswd 삭제
-        htpasswdUseCase.deleteUser(targetUsername);
+        adminAccountUseCase.delete(username, remoteUser);
 
         return ResponseEntity.ok().build();
     }

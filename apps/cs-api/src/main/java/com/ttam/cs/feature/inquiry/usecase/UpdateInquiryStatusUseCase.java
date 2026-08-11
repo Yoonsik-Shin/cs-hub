@@ -4,6 +4,7 @@ import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.UpdateInquiryStatusRe
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
 import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
+import com.ttam.cs.feature.inquiry.domain.service.InquiryPolicy;
 import com.ttam.cs.feature.inquiry.exception.InquiryNotFoundException;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
@@ -38,6 +39,7 @@ public class UpdateInquiryStatusUseCase {
 
     private void updateStatus(CustomerInquiry inquiry, CustomerInquiry.Status newStatus, OperatorInfo operatorInfo,
             String reason, OffsetDateTime at) {
+        String normalizedReason = InquiryPolicy.requireStatusReason(reason);
         CustomerInquiry.Status previousStatus = inquiry.getStatus();
         if (previousStatus == newStatus) {
             return;
@@ -50,7 +52,7 @@ public class UpdateInquiryStatusUseCase {
                 inquiry.getId(),
                 InquiryWorkLog.ActionType.STATUS_CHANGED,
                 null,
-                reason,
+                normalizedReason,
                 operatorInfo,
                 previousStatus,
                 newStatus);

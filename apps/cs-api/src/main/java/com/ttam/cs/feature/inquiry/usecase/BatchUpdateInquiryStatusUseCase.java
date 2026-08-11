@@ -3,6 +3,7 @@ package com.ttam.cs.feature.inquiry.usecase;
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.BatchUpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
+import com.ttam.cs.feature.inquiry.domain.service.InquiryPolicy;
 import com.ttam.cs.feature.inquiry.exception.InvalidInquiryRequestException;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import java.time.OffsetDateTime;
@@ -23,8 +24,9 @@ public class BatchUpdateInquiryStatusUseCase {
 
     @Transactional
     public void execute(BatchUpdateInquiryStatusRequest request, OperatorInfo operatorInfo, String operatorId) {
+        String reason = InquiryPolicy.requireStatusReason(request.reason());
         if (request.mode() == BatchUpdateInquiryStatusRequest.TargetMode.IDS) {
-            updateStatuses(request.inquiryIds(), request.status(), operatorInfo, request.reason());
+            updateStatuses(request.inquiryIds(), request.status(), operatorInfo, reason);
             return;
         }
 
@@ -50,7 +52,7 @@ public class BatchUpdateInquiryStatusUseCase {
             throw new InvalidInquiryRequestException("변경할 문의를 선택해 주세요.");
         }
 
-        updateStatuses(ids, request.status(), operatorInfo, request.reason());
+        updateStatuses(ids, request.status(), operatorInfo, reason);
     }
 
     private void updateStatuses(List<UUID> inquiryIds, CustomerInquiry.Status newStatus, OperatorInfo operatorInfo, String reason) {
