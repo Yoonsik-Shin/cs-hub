@@ -13,7 +13,6 @@ import com.ttam.cs.infra.storage.StorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -47,13 +46,22 @@ class IntegrateInquiryDataUseCaseTest {
     @Mock
     private PiiEncryptionUtils piiEncryptionUtils;
 
-    @InjectMocks
     private IntegrateInquiryDataUseCase useCase;
 
     private static final String WEBMAIL_URL = "https://company.daouoffice.com/app/mail";
 
     @BeforeEach
     void setUp() {
+        EmailThreadResolver emailThreadResolver = new EmailThreadResolver(repository, piiEncryptionUtils);
+        useCase = new IntegrateInquiryDataUseCase(
+                repository,
+                workLogRepository,
+                uniqueKeyGenerator,
+                storageService,
+                adminMemberRepository,
+                piiEncryptionUtils,
+                emailThreadResolver
+        );
         ReflectionTestUtils.setField(useCase, "webmailUrl", WEBMAIL_URL);
     }
 
