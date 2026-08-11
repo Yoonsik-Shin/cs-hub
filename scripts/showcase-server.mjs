@@ -23,6 +23,7 @@ const inquiries = [
     userCode: '202608110001',
     status: 'OPEN',
     content: '러닝 기록이 두 번 저장되어 한 건을 삭제하고 싶습니다. 확인 부탁드립니다.',
+    imageUrls: ['/showcase-attachment.svg'],
     channelMetadata: {
       metadataType: 'EMAIL',
       from: 'demo.runner@example.com',
@@ -176,6 +177,20 @@ function handleApi(request, response, url) {
 
 const server = createServer((request, response) => {
   const url = new URL(request.url || '/', `http://${request.headers.host}`);
+  if (url.pathname === '/showcase-attachment.svg') {
+    response.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8' });
+    response.end(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+        <rect width="1200" height="720" fill="#eef2ff"/>
+        <rect x="90" y="80" width="1020" height="560" rx="32" fill="#ffffff" stroke="#c7d2fe" stroke-width="4"/>
+        <text x="150" y="180" fill="#4338ca" font-family="system-ui, sans-serif" font-size="42" font-weight="700">합성 첨부 이미지</text>
+        <text x="150" y="245" fill="#475569" font-family="system-ui, sans-serif" font-size="28">실제 고객 데이터 없이 이미지 뷰어 동작을 검증합니다.</text>
+        <path d="M150 520 L360 330 L510 460 L690 270 L960 520 Z" fill="#a5b4fc"/>
+        <circle cx="890" cy="220" r="64" fill="#fbbf24"/>
+      </svg>
+    `);
+    return;
+  }
   if (url.pathname.startsWith('/api/')) {
     handleApi(request, response, url);
     return;
