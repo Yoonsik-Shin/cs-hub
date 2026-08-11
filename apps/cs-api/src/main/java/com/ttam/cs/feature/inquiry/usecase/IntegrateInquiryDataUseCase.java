@@ -1,14 +1,11 @@
 package com.ttam.cs.feature.inquiry.usecase;
 
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
-import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
 import com.ttam.cs.feature.inquiry.domain.service.InquiryUniqueKeyGenerator;
 import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
 import com.ttam.cs.feature.inquiry.domain.vo.DeviceInfo;
 import com.ttam.cs.feature.inquiry.domain.vo.EmailMetadata;
-import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
-import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import com.ttam.cs.infra.storage.StorageService;
 import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
 import com.ttam.cs.common.util.EmailAddressUtils;
@@ -16,8 +13,6 @@ import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
 import org.springframework.beans.factory.annotation.Value;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -29,12 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class IntegrateInquiryDataUseCase {
 
     private final CustomerInquiryRepository repository;
-    private final InquiryWorkLogRepository workLogRepository;
     private final InquiryUniqueKeyGenerator uniqueKeyGenerator;
     private final StorageService storageService;
     private final AdminMemberRepository adminMemberRepository;
     private final PiiEncryptionUtils piiEncryptionUtils;
     private final EmailThreadResolver emailThreadResolver;
+    private final ResolvedInquiryReopener resolvedInquiryReopener;
 
     @Value("${cs.email.webmail-url:https://company.daouoffice.com/app/mail}")
     private String webmailUrl;
@@ -92,7 +87,7 @@ public class IntegrateInquiryDataUseCase {
 
                     emailThreadResolver.resolve(channel, resolvedMetadata).ifPresent(parentId -> {
                         inquiry.updateParentId(parentId);
-                        reopenResolvedParent(parentId);
+                        resolvedInquiryReopener.reopen(parentId);
                     });
 
                     if (resolvedMetadata instanceof EmailMetadata emailMeta) {
@@ -150,28 +145,6 @@ public class IntegrateInquiryDataUseCase {
         String base = hasText(baseUrl) ? baseUrl : "https://company.daouoffice.com/app/mail";
         String separator = base.contains("?") ? "&" : "?";
         return base + separator + name + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8);
-    }
-
-    private void reopenResolvedParent(UUID parentId) {
-        repository.findById(parentId).ifPresent(parent -> {
-            if (parent.getStatus() != CustomerInquiry.Status.RESOLVED) {
-                return;
-            }
-
-            CustomerInquiry.Status previousStatus = parent.getStatus();
-            parent.updateStatus(CustomerInquiry.Status.OPEN, OffsetDateTime.now(ZoneOffset.UTC));
-            repository.save(parent);
-
-            InquiryWorkLog workLog = InquiryWorkLog.create(
-                    parent.getId(),
-                    InquiryWorkLog.ActionType.STATUS_CHANGED,
-                    null,
-                    "[시스템] 회신 메일 유입으로 인해 문의가 다시 오픈되었습니다.",
-                    new OperatorInfo("system", "시스템", ""),
-                    previousStatus,
-                    CustomerInquiry.Status.OPEN);
-            workLogRepository.save(workLog);
-        });
     }
 
     private String computeEmailSenderHash(String from) {

@@ -20,6 +20,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,14 +56,19 @@ class IntegrateInquiryDataUseCaseTest {
     @BeforeEach
     void setUp() {
         EmailThreadResolver emailThreadResolver = new EmailThreadResolver(repository, piiEncryptionUtils);
-        useCase = new IntegrateInquiryDataUseCase(
+        ResolvedInquiryReopener resolvedInquiryReopener = new ResolvedInquiryReopener(
                 repository,
                 workLogRepository,
+                Clock.fixed(Instant.parse("2026-07-10T00:00:00Z"), ZoneOffset.UTC)
+        );
+        useCase = new IntegrateInquiryDataUseCase(
+                repository,
                 uniqueKeyGenerator,
                 storageService,
                 adminMemberRepository,
                 piiEncryptionUtils,
-                emailThreadResolver
+                emailThreadResolver,
+                resolvedInquiryReopener
         );
         ReflectionTestUtils.setField(useCase, "webmailUrl", WEBMAIL_URL);
     }
