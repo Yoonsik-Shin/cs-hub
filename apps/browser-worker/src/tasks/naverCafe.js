@@ -9,7 +9,7 @@ const isMock = process.env.NODE_ENV === 'test' || process.argv.includes('--mock'
  * @returns {Promise<{success: boolean, cookies?: Array<Object>, reason?: string}>}
  */
 async function oneTimeLogin(code) {
-    console.log(`[TASK] Starting Naver One-Time login. Code: ${code}`);
+    console.log('[TASK] Starting Naver One-Time login.');
 
     const targetUrl = isMock
         ? 'http://localhost:3003/login' // Local Mock server login url

@@ -84,7 +84,7 @@ public class NaverSessionUseCase {
     @SuppressWarnings("unchecked")
     public void renewSessionWithOneTimeCode(String id, String code) {
         id = normalizeSessionId(id);
-        log.info("Requesting Naver one-time login for session ID: {}, code: {}", id, code);
+        log.info("Requesting Naver one-time login for session ID: {}", id);
 
         Map<String, String> requestBody = new HashMap<>();
         requestBody.put("code", code);
