@@ -24,7 +24,7 @@ services:
     networks:
       - n8n_network
     ports:
-      - "5432:5432" # 로컬 DB 툴(DBeaver 등)에서 접속하기 위한 포트
+      - "127.0.0.1:${DB_HOST_PORT:-5432}:5432" # 로컬 DB 툴(DBeaver 등)에서 접속하기 위한 포트
 
   n8n:
     image: docker.n8n.io/n8nio/n8n
@@ -40,16 +40,20 @@ services:
       - DB_POSTGRESDB_USER=${DB_USERNAME}
       - DB_POSTGRESDB_PASSWORD=${DB_PASSWORD}
       - DB_POSTGRESDB_SCHEMA=n8n_schema
-      - N8N_HOST=${N8N_HOST}
+      - N8N_HOST=${N8N_HOST:-localhost}
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
       - N8N_PATH=/n8n/
       - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE:-false}
       - NODE_ENV=production
-      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:8888/n8n/}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:8888/n8n/}
       - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-http://localhost:8888/n8n/}
       - N8N_PROXY_HOPS=1
       - GENERIC_TIMEZONE=Asia/Seoul
+      - N8N_UNVERIFIED_PACKAGES_ENABLED=false
+      - N8N_RUNNERS_TASK_TIMEOUT=60
+      - N8N_COMPRESSION_NODE_MAX_DECOMPRESSED_SIZE_BYTES=268435456
+      - N8N_COMPRESSION_NODE_MAX_ZIP_ENTRIES=1000
     volumes:
       - ./data/n8n:/home/node/.n8n
     networks:
@@ -71,8 +75,8 @@ services:
       MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
       MINIO_BROWSER_REDIRECT_URL: http://localhost:8888/minio/
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:${MINIO_API_PORT:-19000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-19001}:9001"
     volumes:
       - minio_storage:/data
     command: server /data --console-address ":9001"
@@ -133,7 +137,7 @@ services:
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
     depends_on:
       - loki
     networks:
@@ -215,5 +219,3 @@ services:
       - cs-api
     networks:
       - n8n_network
-
-

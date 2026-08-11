@@ -51,18 +51,21 @@ local.file_match "cs_api_app" {
 }
 
 loki.source.file "cs_api_access" {
-  targets    = local.file_match.cs_api_access.targets
-  forward_to = [loki.write.local.receiver]
+  targets       = local.file_match.cs_api_access.targets
+  forward_to    = [loki.write.local.receiver]
+  tail_from_end = true
 }
 
 loki.source.file "cs_api_webhooks" {
-  targets    = local.file_match.cs_api_webhooks.targets
-  forward_to = [loki.write.local.receiver]
+  targets       = local.file_match.cs_api_webhooks.targets
+  forward_to    = [loki.write.local.receiver]
+  tail_from_end = true
 }
 
 loki.source.file "cs_api_app" {
-  targets    = local.file_match.cs_api_app.targets
-  forward_to = [loki.write.local.receiver]
+  targets       = local.file_match.cs_api_app.targets
+  forward_to    = [loki.write.local.receiver]
+  tail_from_end = true
 }
 
 loki.write "local" {
