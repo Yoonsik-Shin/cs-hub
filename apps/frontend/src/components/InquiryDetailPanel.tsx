@@ -1,25 +1,23 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState } from 'react';
 import {
-    Cpu, Info, Calendar, Clock, History,
-    FileText, CheckCircle, MessageSquare, Pin, RefreshCw,
+    Info, Calendar, Clock, History,
+    FileText, CheckCircle, MessageSquare, Pin,
     ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ImagePlus, Loader2, Star, X as XIcon
 } from 'lucide-react';
 import type {
-    ChannelMetadata,
     CustomerInquiry,
-    DeviceInfo,
     InquiryStatus,
-    InquiryWorkLog,
     OperatorInfo,
 } from '../types/inquiry';
 import { inquiryApi } from '../api/inquiryApi';
 import { InquiryTimeline } from './InquiryTimeline';
 import { InquiryImageViewer } from './InquiryImageViewer';
 import { buildInquiryTimeline } from '../features/inquiry/timeline';
-
-type UpdateInquiryFieldsRequest = Parameters<typeof inquiryApi.updateInquiryFields>[1];
-type InquiryFieldChanges = Omit<Partial<UpdateInquiryFieldsRequest>, 'operatorInfo' | 'reasons'>;
+import { useInquiryActivity } from '../hooks/useInquiryActivity';
+import { useInquiryFieldEditor } from '../hooks/useInquiryFieldEditor';
+import { InquiryActionModal } from './InquiryActionModal';
+import type { InquiryActionModalState } from './InquiryActionModal';
+import { InquiryChannelMetadataSection, InquiryDeviceInfoSection } from './InquiryMetadataSections';
 
 const getErrorMessage = (error: unknown): string => (
     error instanceof Error ? error.message : String(error)
@@ -35,11 +33,21 @@ interface InquiryDetailPanelProps {
 }
 
 export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry, operator, onUpdateInquiry, isBookmarked = false, onToggleBookmark, onRequireNaverSessionRenew }) => {
-    const [workLogs, setWorkLogs] = useState<InquiryWorkLog[]>([]);
-    const [loadingLogs, setLoadingLogs] = useState(true);
-    const [logError, setLogError] = useState<string | null>(null);
-    const [replies, setReplies] = useState<CustomerInquiry[]>([]);
-    const [loadingReplies, setLoadingReplies] = useState(true);
+    const {
+        workLogs,
+        loadingLogs,
+        logError,
+        setLogError,
+        replies,
+        loadingReplies,
+        refreshing,
+        fetchWorkLogs,
+        refreshInquiry: handleRefresh,
+    } = useInquiryActivity({
+        inquiryId: inquiry.id,
+        onInquiryRefresh: (updated) => onUpdateInquiry?.(inquiry.id, updated),
+        onRequireNaverSessionRenew,
+    });
 
     // Resizable columns states
     const [leftWidth, setLeftWidth] = useState(75); // Left Pane % (default 75)
@@ -50,56 +58,20 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
 
     // Form states
-    const [isEditing, setIsEditing] = useState(false);
     const [answerText, setAnswerText] = useState('');
     const [memoText, setMemoText] = useState('');
     const [submittingLog, setSubmittingLog] = useState(false);
     const [statusChanging, setStatusChanging] = useState(false);
     const [isEditingAnswer, setIsEditingAnswer] = useState(false);
     const [bookmarkChanging, setBookmarkChanging] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
 
     // Confirmation Modal state
-    const [modal, setModal] = useState<{
-        isOpen: boolean;
-        type: 'STATUS_CHANGE' | 'REGISTER_LOG' | 'EDIT_FIELDS' | 'BOOKMARK';
-        targetStatus?: InquiryStatus;
-        selectedStatus?: InquiryStatus;
-    }>({
+    const [modal, setModal] = useState<InquiryActionModalState>({
         isOpen: false,
         type: 'STATUS_CHANGE',
     });
 
     const [statusChangeReason, setStatusChangeReason] = useState('');
-
-    const [editChannel, setEditChannel] = useState(inquiry.channel);
-    const [editUserCode, setEditUserCode] = useState(inquiry.userCode || '');
-    const [editContent, setEditContent] = useState(inquiry.content);
-    const [editAppVersion, setEditAppVersion] = useState(inquiry.deviceInfo?.appVersion || '');
-    const [editModel, setEditModel] = useState(inquiry.deviceInfo?.model || '');
-    const [editOsVersion, setEditOsVersion] = useState(inquiry.deviceInfo?.osVersion || '');
-    const [editError, setEditError] = useState<string | null>(null);
-
-    // Reasons for modification
-    const [reasons, setReasons] = useState<{
-        channel?: string;
-        userCode?: string;
-        deviceInfo?: string;
-        content?: string;
-        customFields?: string;
-    }>({});
-
-    // Custom fields (channel metadata dynamic attributes) editing state
-    const [editCustomFields, setEditCustomFields] = useState<{ key: string; value: string }[]>([]);
-    const [newCustomFieldKey, setNewCustomFieldKey] = useState('');
-    const [newCustomFieldValue, setNewCustomFieldValue] = useState('');
-
-    // Image editing state
-    const [editImageUrls, setEditImageUrls] = useState<string[]>([]);
-    const [newImageFiles, setNewImageFiles] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
-    const imageInputRef = useRef<HTMLInputElement>(null);
-    const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
-    const gutterRef = useRef<HTMLDivElement>(null);
 
     // Image preview state
     const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
@@ -114,6 +86,35 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         email: '',
         role: 'OPERATOR'
     };
+
+    const fieldEditor = useInquiryFieldEditor({
+        inquiry,
+        operator: currentOperator,
+        onUpdateInquiry,
+        onSaved: fetchWorkLogs,
+        onClearActiveImage: () => selectImage(null),
+    });
+
+    const {
+        isEditing,
+        savingFields,
+        editContent,
+        setEditContent,
+        editError,
+        reasons,
+        setReasons,
+        editImageUrls,
+        newImageFiles,
+        imageInputRef,
+        contentTextareaRef,
+        gutterRef,
+        startEditing: handleStartEdit,
+        cancelEditing: handleCancelEdit,
+        addImages: handleAddEditImages,
+        removeExistingImage: handleRemoveExistingImage,
+        removeNewImage: handleRemoveNewImage,
+        saveFields: executeEditFields,
+    } = fieldEditor;
 
     const startResizingLeft = (mouseDownEvent: React.MouseEvent) => {
         mouseDownEvent.preventDefault();
@@ -181,109 +182,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         }
         return { className: 'manual', label: channel };
     };
-
-    const fetchWorkLogs = useCallback(async () => {
-        setLoadingLogs(true);
-        setLogError(null);
-        try {
-            const logs = await inquiryApi.getWorkLogs(inquiry.id);
-            setWorkLogs(logs);
-        } catch (e) {
-            console.error(e);
-            setLogError('업무 처리 이력을 불러오는 데 실패했습니다.');
-        } finally {
-            setLoadingLogs(false);
-        }
-    }, [inquiry.id]);
-
-    const fetchReplies = useCallback(async () => {
-        setLoadingReplies(true);
-        try {
-            const childInquiries = await inquiryApi.getReplies(inquiry.id);
-            setReplies(childInquiries);
-        } catch (e) {
-            console.error('Failed to fetch replies:', e);
-        } finally {
-            setLoadingReplies(false);
-        }
-    }, [inquiry.id]);
-
-    const handleRefresh = useCallback(async () => {
-        setRefreshing(true);
-        try {
-            const updated = await inquiryApi.refreshInquiry(inquiry.id);
-            if (onUpdateInquiry) {
-                onUpdateInquiry(inquiry.id, updated);
-            }
-            await fetchReplies();
-            await fetchWorkLogs();
-        } catch (e) {
-            console.error('Failed to refresh inquiry:', e);
-            const errStr = getErrorMessage(e);
-            if (
-                errStr.includes('410') ||
-                errStr.includes('401') ||
-                errStr.includes('GONE') ||
-                errStr.includes('Unauthorized') ||
-                errStr.includes('Session has expired') ||
-                errStr.includes('로그인하지 않았습니다')
-            ) {
-                if (onRequireNaverSessionRenew) {
-                    onRequireNaverSessionRenew();
-                } else {
-                    alert('네이버 세션이 만료되었습니다. 상단 메뉴나 로그인 페이지에서 세션을 갱신해 주세요.');
-                }
-            } else {
-                alert('데이터 갱신에 실패했습니다: ' + errStr);
-            }
-        } finally {
-            setRefreshing(false);
-        }
-    }, [inquiry.id, onUpdateInquiry, fetchReplies, fetchWorkLogs, onRequireNaverSessionRenew]);
-
-    useEffect(() => {
-        let cancelled = false;
-        inquiryApi.getWorkLogs(inquiry.id)
-            .then((logs) => {
-                if (!cancelled) setWorkLogs(logs);
-            })
-            .catch((error: unknown) => {
-                console.error(error);
-                if (!cancelled) setLogError('업무 처리 이력을 불러오는 데 실패했습니다.');
-            })
-            .finally(() => {
-                if (!cancelled) setLoadingLogs(false);
-            });
-        inquiryApi.getReplies(inquiry.id)
-            .then((childInquiries) => {
-                if (!cancelled) setReplies(childInquiries);
-            })
-            .catch((error: unknown) => {
-                console.error('Failed to fetch replies:', error);
-            })
-            .finally(() => {
-                if (!cancelled) setLoadingReplies(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [inquiry.id]);
-
-    const adjustTextareaHeight = () => {
-        if (contentTextareaRef.current) {
-            contentTextareaRef.current.style.height = 'auto';
-            const scrollHeight = contentTextareaRef.current.scrollHeight;
-            contentTextareaRef.current.style.height = `${Math.max(180, scrollHeight + 4)}px`;
-        }
-    };
-
-    useEffect(() => {
-        if (isEditing) {
-            adjustTextareaHeight();
-            const timer = setTimeout(adjustTextareaHeight, 50);
-            return () => clearTimeout(timer);
-        }
-    }, [isEditing, editContent]);
 
     const handleRegisterWorkLogClick = (e: React.FormEvent) => {
         e.preventDefault();
@@ -379,46 +277,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         }
     };
 
-    const handleStartEdit = () => {
-        selectImage(null);
-        setEditChannel(inquiry.channel);
-        setEditUserCode(inquiry.userCode || '');
-        setEditContent(inquiry.content);
-        setEditAppVersion(inquiry.deviceInfo?.appVersion || '');
-        setEditModel(inquiry.deviceInfo?.model || '');
-        setEditOsVersion(inquiry.deviceInfo?.osVersion || '');
-        setReasons({});
-        setEditError(null);
-        setEditImageUrls(inquiry.imageUrls || []);
-        setNewImageFiles([]);
-        const customFields = inquiry.channelMetadata?.customFields || {};
-        setEditCustomFields(Object.entries(customFields).map(([key, value]) => ({ key, value: String(value) })));
-        setNewCustomFieldKey('');
-        setNewCustomFieldValue('');
-        setIsEditing(true);
-    };
-
-    const handleAddCustomField = () => {
-        const key = newCustomFieldKey.trim();
-        const value = newCustomFieldValue.trim();
-        if (!key || !value) {
-            setEditError('속성명과 속성값을 모두 입력해 주세요.');
-            return;
-        }
-        if (editCustomFields.some(f => f.key.toLowerCase() === key.toLowerCase())) {
-            setEditError('이미 존재하는 속성명입니다.');
-            return;
-        }
-        setEditCustomFields(prev => [...prev, { key, value }]);
-        setNewCustomFieldKey('');
-        setNewCustomFieldValue('');
-        setEditError(null);
-    };
-
-    const handleRemoveCustomField = (key: string) => {
-        setEditCustomFields(prev => prev.filter(f => f.key !== key));
-    };
-
     const handleToggleBookmark = () => {
         if (!onToggleBookmark || bookmarkChanging) return;
         setModal({
@@ -436,200 +294,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             fetchWorkLogs();
         } finally {
             setBookmarkChanging(false);
-        }
-    };
-
-    const handleAddEditImages = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            const maxSize = 10 * 1024 * 1024; // 10MB
-            const arr = Array.from(e.target.files);
-
-            if (editImageUrls.length + newImageFiles.length + arr.length > 10) {
-                setEditError('이미지는 최대 10개까지 첨부할 수 있습니다.');
-                return;
-            }
-
-            const valid = arr.filter(f => {
-                if (!allowed.includes(f.type)) { setEditError(`지원하지 않는 파일 형식입니다: ${f.name}`); return false; }
-                if (f.size > maxSize) { setEditError(`파일 크기가 10MB를 초과합니다: ${f.name}`); return false; }
-                return true;
-            });
-
-            if (valid.length === 0) return;
-
-            const newPending = valid.map(file => ({
-                id: `${Date.now()}-${Math.random()}`,
-                file,
-                previewUrl: URL.createObjectURL(file),
-            }));
-
-            setNewImageFiles(prev => [...prev, ...newPending]);
-            setEditError(null);
-        }
-    };
-
-    const handleRemoveExistingImage = (url: string) => {
-        setEditImageUrls(prev => prev.filter(u => u !== url));
-    };
-
-    const handleRemoveNewImage = (id: string) => {
-        setNewImageFiles(prev => {
-            const img = prev.find(i => i.id === id);
-            if (img) URL.revokeObjectURL(img.previewUrl);
-            return prev.filter(i => i.id !== id);
-        });
-    };
-
-    const handleCancelEdit = () => {
-        setIsEditing(false);
-        setEditError(null);
-        setReasons({});
-        // Revoke new image previews
-        newImageFiles.forEach(img => URL.revokeObjectURL(img.previewUrl));
-        setNewImageFiles([]);
-    };
-
-    const executeEditFields = async () => {
-        const changes: InquiryFieldChanges = {};
-        const reqReasons: UpdateInquiryFieldsRequest['reasons'] = {};
-        let hasChanges = false;
-
-        // Check Channel
-        if (editChannel !== inquiry.channel) {
-            if (!reasons.channel || !reasons.channel.trim()) {
-                setEditError('채널 수정 사유를 입력해주세요.');
-                return;
-            }
-            changes.channel = editChannel;
-            reqReasons.channel = reasons.channel.trim();
-            hasChanges = true;
-        }
-
-        // Check User Code
-        const currentUserCode = inquiry.userCode || '';
-        if (editUserCode.trim() !== currentUserCode) {
-            const trimmed = editUserCode.trim();
-            if (trimmed !== '' && !/^[0-9]{12}$/.test(trimmed)) {
-                setEditError('유저 코드는 숫자 12자리여야 합니다.');
-                return;
-            }
-            if (!reasons.userCode || !reasons.userCode.trim()) {
-                setEditError('유저 코드 수정 사유를 입력해주세요.');
-                return;
-            }
-            changes.userCode = trimmed || null;
-            reqReasons.userCode = reasons.userCode.trim();
-            hasChanges = true;
-        }
-
-        // Check Content
-        if (editContent !== inquiry.content) {
-            if (!reasons.content || !reasons.content.trim()) {
-                setEditError('문의 내용 수정 사유를 입력해주세요.');
-                return;
-            }
-            changes.content = editContent;
-            reqReasons.content = reasons.content.trim();
-            hasChanges = true;
-        }
-
-        // Check Device Info
-        const deviceChanged = editAppVersion.trim() !== (inquiry.deviceInfo?.appVersion || '') ||
-            editModel.trim() !== (inquiry.deviceInfo?.model || '') ||
-            editOsVersion.trim() !== (inquiry.deviceInfo?.osVersion || '');
-        if (deviceChanged) {
-            if (!reasons.deviceInfo || !reasons.deviceInfo.trim()) {
-                setEditError('디바이스 정보 수정 사유를 입력해주세요.');
-                return;
-            }
-            changes.deviceInfo = {
-                appVersion: editAppVersion.trim() || undefined,
-                model: editModel.trim() || undefined,
-                osVersion: editOsVersion.trim() || undefined
-            };
-            reqReasons.deviceInfo = reasons.deviceInfo.trim();
-            hasChanges = true;
-        }
-
-        // Check customFields changes
-        const originalCustomFields = inquiry.channelMetadata?.customFields || {};
-        const newCustomFieldsObj: Record<string, string> = {};
-        editCustomFields.forEach(f => { newCustomFieldsObj[f.key] = f.value; });
-        const customFieldsChanged = JSON.stringify(originalCustomFields) !== JSON.stringify(newCustomFieldsObj);
-        if (customFieldsChanged) {
-            if (!reasons.customFields || !reasons.customFields.trim()) {
-                setEditError('임의 속성 수정 사유를 입력해주세요.');
-                return;
-            }
-            changes.customFields = newCustomFieldsObj;
-            reqReasons.customFields = reasons.customFields.trim();
-            hasChanges = true;
-        }
-
-        // Check imageUrls changes
-        const originalUrls = inquiry.imageUrls || [];
-        const removedUrls = originalUrls.filter(u => !editImageUrls.includes(u));
-        const imagesChanged = removedUrls.length > 0 || newImageFiles.length > 0;
-
-        if (!hasChanges && !imagesChanged) {
-            setIsEditing(false);
-            return;
-        }
-
-        setSubmittingLog(true);
-        setEditError(null);
-        try {
-            // Upload new images first
-            const finalImageUrls = [...editImageUrls];
-            if (newImageFiles.length > 0) {
-                const timestamp = Date.now();
-                const fileRequests = newImageFiles.map((img, idx) => ({
-                    objectName: `inquiries/${inquiry.id}/${timestamp}_${idx}_${img.file.name.replace(/\s+/g, '_')}`,
-                    contentType: img.file.type || 'image/jpeg',
-                }));
-                const presignedList = await inquiryApi.getPresignedUrls(fileRequests);
-                for (let i = 0; i < newImageFiles.length; i++) {
-                    await inquiryApi.uploadToMinIO(presignedList[i].uploadUrl, newImageFiles[i].file);
-                    finalImageUrls.push(presignedList[i].downloadUrl);
-                }
-            }
-
-            await inquiryApi.updateInquiryFields(inquiry.id, {
-                operatorInfo: currentOperator,
-                ...changes,
-                imageUrls: imagesChanged ? finalImageUrls : undefined,
-                reasons: reqReasons
-            });
-
-            // Clean up new image previews
-            newImageFiles.forEach(img => URL.revokeObjectURL(img.previewUrl));
-            setNewImageFiles([]);
-
-            if (onUpdateInquiry) {
-                onUpdateInquiry(inquiry.id, {
-                    channel: editChannel,
-                    userCode: editUserCode.trim() || null,
-                    content: editContent,
-                    imageUrls: finalImageUrls,
-                    deviceInfo: deviceChanged ? {
-                        appVersion: editAppVersion.trim() || undefined,
-                        model: editModel.trim() || undefined,
-                        osVersion: editOsVersion.trim() || undefined
-                    } : inquiry.deviceInfo,
-                    channelMetadata: customFieldsChanged
-                        ? { ...(inquiry.channelMetadata || {}), customFields: newCustomFieldsObj }
-                        : inquiry.channelMetadata
-                });
-            }
-
-            await fetchWorkLogs();
-            setIsEditing(false);
-        } catch (err) {
-            console.error(err);
-            setEditError('수정 중 오류가 발생했습니다: ' + getErrorMessage(err));
-        } finally {
-            setSubmittingLog(false);
         }
     };
 
@@ -651,321 +315,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
             alignItems: 'center',
             flexShrink: 0
         };
-    };
-
-    const renderChannelMetadata = (meta: ChannelMetadata | null) => {
-        const hasChannelChanged = editChannel !== inquiry.channel;
-        const hasUserCodeChanged = editUserCode.trim() !== (inquiry.userCode || '');
-
-        // 1. Channel Row
-        const channelRow = (
-            <tr key="edit-row-channel">
-                <th style={{ width: '35%' }}>접수 채널</th>
-                <td>
-                    {isEditing ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <select
-                                id="edit-channel"
-                                className="select-input"
-                                value={editChannel}
-                                onChange={(e) => setEditChannel(e.target.value)}
-                                style={{ padding: '4px 8px', fontSize: '12px', height: '28px', border: '1px solid var(--border-light)', borderRadius: '6px' }}
-                            >
-                                <option value="EMAIL">이메일 (EMAIL)</option>
-                                <option value="PHONE">전화 (PHONE)</option>
-                                <option value="GOOGLE_SHEET">구글 시트 (GOOGLE_SHEET)</option>
-                                <option value="NAVER_CAFE">네이버 카페 (NAVER_CAFE)</option>
-                            </select>
-                            {hasChannelChanged && (
-                                <input
-                                    type="text"
-                                    className="text-input"
-                                    placeholder="채널 수정 사유 (필수)"
-                                    value={reasons.channel || ''}
-                                    onChange={(e) => setReasons({ ...reasons, channel: e.target.value })}
-                                    style={{ fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '4px 8px', height: '24px', marginTop: '2px' }}
-                                    required
-                                />
-                            )}
-                        </div>
-                    ) : (
-                        <span>{getChannelInfo(inquiry.channel).label} ({inquiry.channel})</span>
-                    )}
-                </td>
-            </tr>
-        );
-
-        // 2. UserCode Row
-        const userCodeRow = (
-            <tr key="edit-row-usercode">
-                <th>유저 코드</th>
-                <td>
-                    {isEditing ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <input
-                                    type="text"
-                                    id="edit-usercode"
-                                    className="text-input"
-                                    value={editUserCode}
-                                    onChange={(e) => {
-                                        const onlyNums = e.target.value.replace(/[^0-9]/g, '');
-                                        setEditUserCode(onlyNums.slice(0, 12));
-                                    }}
-                                    placeholder="유저 코드 입력"
-                                    style={{ padding: '4px 8px', fontSize: '12px', height: '28px', flex: 1 }}
-                                />
-                                <span style={{ fontSize: '11px', fontWeight: '500', color: editUserCode.length === 12 ? 'var(--accent-indigo)' : 'var(--text-muted)', flexShrink: 0 }}>
-                                    ({editUserCode.length}/12)
-                                </span>
-                            </div>
-                            {hasUserCodeChanged && (
-                                <input
-                                    type="text"
-                                    className="text-input"
-                                    placeholder="유저 코드 수정 사유 (필수)"
-                                    value={reasons.userCode || ''}
-                                    onChange={(e) => setReasons({ ...reasons, userCode: e.target.value })}
-                                    style={{ fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '4px 8px', height: '24px', marginTop: '2px' }}
-                                    required
-                                />
-                            )}
-                        </div>
-                    ) : (
-                        <span>{inquiry.userCode || '(없음)'}</span>
-                    )}
-                </td>
-            </tr>
-        );
-
-        // 3. Other Channel specific metadata rows
-        const metadataRows: React.ReactNode[] = [];
-        if (meta) {
-            const isNaverCafe = inquiry.channel.toUpperCase().includes('NAVER_CAFE') || meta.metadataType === 'NAVER_CAFE';
-            const isGoogleSheet = inquiry.channel.toUpperCase().includes('GOOGLE_SHEET') || meta.metadataType === 'GOOGLE_SHEET';
-            const isEmail = inquiry.channel.toUpperCase().includes('EMAIL') || meta.metadataType === 'EMAIL';
-            const isPhone = inquiry.channel.toUpperCase().includes('PHONE') || meta.metadataType === 'PHONE';
-
-            if (isNaverCafe) {
-                if (meta.cafeId) metadataRows.push(<tr key="cafeId"><th>카페 ID</th><td style={{ wordBreak: 'break-all' }}>{meta.cafeId}</td></tr>);
-                if (meta.articleId) metadataRows.push(<tr key="articleId"><th>게시글 ID</th><td style={{ wordBreak: 'break-all' }}>{meta.articleId}</td></tr>);
-                if (meta.menu) metadataRows.push(<tr key="menu"><th>게시판</th><td style={{ wordBreak: 'break-all' }}>{meta.menu.name} <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>(ID: {meta.menu.id})</span></td></tr>);
-                if (meta.writer) metadataRows.push(<tr key="writer"><th>작성자</th><td style={{ wordBreak: 'break-all' }}>{meta.writer.nickname} <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({meta.writer.id})</span></td></tr>);
-                if (meta.metrics) {
-                    metadataRows.push(
-                        <tr key="metrics">
-                            <th>지표</th>
-                            <td>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    <span>조회 {meta.metrics.readCount ?? 0}</span>
-                                    <span>•</span>
-                                    <span>댓글 {meta.metrics.commentCount ?? 0}</span>
-                                    <span>•</span>
-                                    <span>좋아요 {meta.metrics.likeCount ?? 0}</span>
-                                </div>
-                            </td>
-                        </tr>
-                    );
-                }
-            } else if (isGoogleSheet) {
-                if (meta.rowNumber) metadataRows.push(<tr key="rowNumber"><th>행 번호</th><td style={{ wordBreak: 'break-all' }}>{meta.rowNumber}번 행</td></tr>);
-                if (meta.category) metadataRows.push(<tr key="category"><th>카테고리</th><td style={{ wordBreak: 'break-all' }}>{meta.category}</td></tr>);
-                if (meta.type) metadataRows.push(<tr key="type"><th>문의 항목</th><td style={{ wordBreak: 'break-all' }}>{meta.type}</td></tr>);
-                if (meta.contact) metadataRows.push(<tr key="contact"><th>연락처</th><td style={{ wordBreak: 'break-all' }}>{meta.contact}</td></tr>);
-                if (meta.reply) {
-                    metadataRows.push(
-                        <tr key="reply">
-                            <th>답변 수신</th>
-                            <td style={{ wordBreak: 'break-all' }}>
-                                {meta.reply.type} {meta.reply.email && <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({meta.reply.email})</span>}
-                            </td>
-                        </tr>
-                    );
-                }
-            } else if (isEmail) {
-                const messageId = meta.headers ? (meta.headers['message-id'] || meta.headers.messageId) : null;
-                const uid = meta.attributes ? meta.attributes.uid : null;
-                if (meta.from) metadataRows.push(<tr key="from"><th>보낸 사람</th><td style={{ wordBreak: 'break-all' }}>{meta.from}</td></tr>);
-                if (meta.to) metadataRows.push(<tr key="to"><th>받는 사람</th><td style={{ wordBreak: 'break-all' }}>{meta.to}</td></tr>);
-                if (meta.subject) metadataRows.push(<tr key="subject"><th>제목</th><td style={{ wordBreak: 'break-all' }}>{meta.subject}</td></tr>);
-                if (messageId) metadataRows.push(<tr key="messageId"><th>메시지 ID</th><td style={{ wordBreak: 'break-all', fontSize: '11px', fontFamily: 'monospace' }}>{messageId}</td></tr>);
-                if (uid) metadataRows.push(<tr key="uid"><th>IMAP UID</th><td style={{ wordBreak: 'break-all' }}>{uid}</td></tr>);
-                if (meta.date) metadataRows.push(<tr key="date"><th>작성 일시</th><td style={{ wordBreak: 'break-all' }}>{meta.date}</td></tr>);
-            } else if (isPhone) {
-                if (meta.phoneNumber) metadataRows.push(<tr key="phoneNumber"><th>전화번호</th><td style={{ wordBreak: 'break-all' }}>{meta.phoneNumber}</td></tr>);
-                if (meta.memo) metadataRows.push(<tr key="memo"><th>상담 메모</th><td style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{meta.memo}</td></tr>);
-            } else {
-                Object.entries(meta).forEach(([key, val]) => {
-                    if (key === 'metadataType' || key === 'imageUrls' || key === 'articleUrl' || key === 'customFields') return;
-                    metadataRows.push(
-                        <tr key={key}>
-                            <th style={{ textTransform: 'capitalize' }}>{key}</th>
-                            <td style={{ wordBreak: 'break-all' }}>
-                                {typeof val === 'object' ? JSON.stringify(val) : String(val)}
-                            </td>
-                        </tr>
-                    );
-                });
-            }
-
-            // Dynamic custom fields row: supported by every channel's metadata
-            if (isEditing) {
-                const hasCustomFieldsChanged = reasons.customFields !== undefined || (() => {
-                    const original = meta.customFields || {};
-                    const current: Record<string, string> = {};
-                    editCustomFields.forEach(f => { current[f.key] = f.value; });
-                    return JSON.stringify(original) !== JSON.stringify(current);
-                })();
-
-                metadataRows.push(
-                    <tr key="customFields-edit">
-                        <th>임의 속성</th>
-                        <td>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                {editCustomFields.map(field => (
-                                    <div key={field.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-secondary, #f8fafc)', padding: '4px 8px', borderRadius: '6px', gap: '8px' }}>
-                                        <span style={{ fontSize: '11px', fontWeight: 700 }}>{field.key}</span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                                            <span style={{ fontSize: '11.5px', wordBreak: 'break-all' }}>{field.value}</span>
-                                            <button type="button" onClick={() => handleRemoveCustomField(field.key)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>×</button>
-                                        </div>
-                                    </div>
-                                ))}
-                                <div style={{ display: 'flex', gap: '6px' }}>
-                                    <input type="text" placeholder="속성명" value={newCustomFieldKey} onChange={(e) => setNewCustomFieldKey(e.target.value)} className="text-input" style={{ flex: 1, fontSize: '11px', padding: '4px 8px', height: '26px' }} />
-                                    <input type="text" placeholder="속성값" value={newCustomFieldValue} onChange={(e) => setNewCustomFieldValue(e.target.value)} className="text-input" style={{ flex: 1, fontSize: '11px', padding: '4px 8px', height: '26px' }} />
-                                    <button type="button" onClick={handleAddCustomField} className="btn-secondary" style={{ fontSize: '11px', padding: '4px 10px', height: '26px' }}>추가</button>
-                                </div>
-                                {hasCustomFieldsChanged && (
-                                    <input
-                                        type="text"
-                                        className="text-input"
-                                        placeholder="임의 속성 수정 사유 (필수)"
-                                        value={reasons.customFields || ''}
-                                        onChange={(e) => setReasons({ ...reasons, customFields: e.target.value })}
-                                        style={{ fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '4px 8px', height: '24px' }}
-                                        required
-                                    />
-                                )}
-                            </div>
-                        </td>
-                    </tr>
-                );
-            } else if (meta.customFields && typeof meta.customFields === 'object') {
-                Object.entries(meta.customFields).forEach(([key, val]) => {
-                    metadataRows.push(
-                        <tr key={`custom_${key}`}>
-                            <th>{key}</th>
-                            <td style={{ wordBreak: 'break-all' }}>{String(val)}</td>
-                        </tr>
-                    );
-                });
-            }
-        }
-
-        return (
-            <table className="profile-table" style={{ width: '100%', tableLayout: 'fixed' }}>
-                <tbody>
-                    {channelRow}
-                    {userCodeRow}
-                    {metadataRows}
-                </tbody>
-            </table>
-        );
-    };
-
-    const renderDeviceInfo = (device: DeviceInfo | null) => {
-        if (!device && !isEditing) return <div style={{ color: 'var(--text-muted)' }}>디바이스 정보 없음</div>;
-
-        const hasDeviceInfoChanged =
-            editAppVersion.trim() !== (device?.appVersion || '') ||
-            editModel.trim() !== (device?.model || '') ||
-            editOsVersion.trim() !== (device?.osVersion || '');
-
-        return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <table className="profile-table" style={{ width: '100%', tableLayout: 'fixed' }}>
-                    <tbody>
-                        <tr>
-                            <th style={{ width: '35%' }}>앱 버전</th>
-                            <td>
-                                {isEditing ? (
-                                    <input
-                                        type="text"
-                                        id="edit-appversion"
-                                        className="text-input"
-                                        style={{ padding: '4px 8px', fontSize: '12px', height: '28px' }}
-                                        value={editAppVersion}
-                                        onChange={(e) => setEditAppVersion(e.target.value)}
-                                        placeholder="예: 1.0.0"
-                                    />
-                                ) : (
-                                    <span>{device?.appVersion || '(값 없음)'}</span>
-                                )}
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>기기 모델</th>
-                            <td>
-                                {isEditing ? (
-                                    <input
-                                        type="text"
-                                        id="edit-model"
-                                        className="text-input"
-                                        style={{ padding: '4px 8px', fontSize: '12px', height: '28px' }}
-                                        value={editModel}
-                                        onChange={(e) => setEditModel(e.target.value)}
-                                        placeholder="예: iPhone 15"
-                                    />
-                                ) : (
-                                    <span>{device?.model || '(값 없음)'}</span>
-                                )}
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>OS 버전</th>
-                            <td>
-                                {isEditing ? (
-                                    <input
-                                        type="text"
-                                        id="edit-osversion"
-                                        className="text-input"
-                                        style={{ padding: '4px 8px', fontSize: '12px', height: '28px' }}
-                                        value={editOsVersion}
-                                        onChange={(e) => setEditOsVersion(e.target.value)}
-                                        placeholder="예: 17.2"
-                                    />
-                                ) : (
-                                    <span>{device?.osVersion || '(값 없음)'}</span>
-                                )}
-                            </td>
-                        </tr>
-                        {device && Object.entries(device).map(([key, val]) => {
-                            if (key === 'appVersion' || key === 'model' || key === 'osVersion') return null;
-                            return (
-                                <tr key={key}>
-                                    <th style={{ textTransform: 'capitalize' }}>{key}</th>
-                                    <td style={{ wordBreak: 'break-all' }}>
-                                        {typeof val === 'object' ? JSON.stringify(val) : String(val)}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-                {isEditing && hasDeviceInfoChanged && (
-                    <input
-                        type="text"
-                        className="text-input"
-                        placeholder="디바이스 정보 수정 사유 (필수)"
-                        value={reasons.deviceInfo || ''}
-                        onChange={(e) => setReasons({ ...reasons, deviceInfo: e.target.value })}
-                        style={{ fontSize: '11px', borderColor: 'var(--accent-indigo)', padding: '4px 8px', height: '28px' }}
-                        required
-                    />
-                )}
-            </div>
-        );
     };
 
     const channelInfo = getChannelInfo(inquiry.channel);
@@ -1307,67 +656,6 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
         );
     };
 
-    const renderChannelMetadataSection = () => (
-        <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
-            <span className="detail-title">
-                <Info size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                채널 메타데이터
-            </span>
-            <div className="detail-box" style={{ background: 'transparent', border: 'none', padding: 0, overflow: 'visible' }}>
-                {renderChannelMetadata(inquiry.channelMetadata)}
-                {inquiry.channelMetadata && inquiry.channelMetadata.articleUrl && (
-                    <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center' }}>
-                        <a
-                            href={inquiry.channelMetadata.articleUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn-primary"
-                            style={{ display: 'inline-flex', padding: '6px 12px', fontSize: '12px', borderRadius: '8px' }}
-                        >
-                            {inquiry.channel.toUpperCase() === 'EMAIL' ? '이메일 바로가기 (새 창)' : '원문 게시글 바로가기 (새 창)'}
-                        </a>
-                        {inquiry.channel.toUpperCase() === 'NAVER_CAFE' && (
-                            <button
-                                onClick={handleRefresh}
-                                disabled={refreshing}
-                                className="btn-secondary"
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '6px 12px',
-                                    fontSize: '12px',
-                                    borderRadius: '8px',
-                                    marginLeft: '8px',
-                                    cursor: refreshing ? 'not-allowed' : 'pointer'
-                                }}
-                            >
-                                {refreshing ? (
-                                    <Loader2 size={12} className="animate-spin" />
-                                ) : (
-                                    <RefreshCw size={12} />
-                                )}
-                                데이터 갱신
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-
-    const renderDeviceInfoSection = () => (
-        <div className="detail-section" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
-            <span className="detail-title">
-                <Cpu size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                디바이스 정보
-            </span>
-            <div className="detail-box" style={{ background: 'transparent', border: 'none', padding: 0, overflow: 'visible' }}>
-                {renderDeviceInfo(inquiry.deviceInfo)}
-            </div>
-        </div>
-    );
-
     return (
         <div className="detail-pane-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <div className="detail-pane-header" style={getStatusHeaderStyle(inquiry.status)}>
@@ -1517,9 +805,9 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             className="btn-primary"
                                             style={{ padding: '0 14px', fontSize: '12.5px', fontWeight: '600', borderRadius: '8px', cursor: 'pointer', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                                             onClick={executeEditFields}
-                                            disabled={submittingLog}
+                                            disabled={savingFields}
                                         >
-                                            {submittingLog && <Loader2 size={12} style={{ animation: 'spin-anim 1s linear infinite' }} />}
+                                            {savingFields && <Loader2 size={12} style={{ animation: 'spin-anim 1s linear infinite' }} />}
                                             저장
                                         </button>
                                     </>
@@ -1575,8 +863,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                         }}
                                     >
                                         {renderAttachedImagesSection()}
-                                        {renderChannelMetadataSection()}
-                                        {renderDeviceInfoSection()}
+                                        <InquiryChannelMetadataSection inquiry={inquiry} editor={fieldEditor} refreshing={refreshing} onRefresh={handleRefresh} />
+                                        <InquiryDeviceInfoSection device={inquiry.deviceInfo} editor={fieldEditor} />
                                     </div>
                                 </div>
                             ) : (
@@ -1623,14 +911,14 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             flexDirection: 'column',
                                             flex: 1
                                         }}>
-                                            {renderChannelMetadataSection()}
+                                            <InquiryChannelMetadataSection inquiry={inquiry} editor={fieldEditor} refreshing={refreshing} onRefresh={handleRefresh} />
                                         </div>
                                         <div style={{
                                             display: 'flex',
                                             flexDirection: 'column',
                                             flex: 1
                                         }}>
-                                            {renderDeviceInfoSection()}
+                                            <InquiryDeviceInfoSection device={inquiry.deviceInfo} editor={fieldEditor} />
                                         </div>
                                     </div>
                                 </>
@@ -2106,135 +1394,25 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                 </div>
             </div>
 
-            {/* Custom Confirmation / Action Modals */}
-            {modal.isOpen && createPortal(
-                <div
-                    className="modal-overlay"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setModal({ ...modal, isOpen: false });
-                    }}
-                >
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
-                        <div className="modal-header">
-                            <h3 className="modal-title">
-                                {modal.type === 'STATUS_CHANGE' ? '티켓 상태 변경' :
-                                    modal.type === 'EDIT_FIELDS' ? '문의 정보 수정' :
-                                    modal.type === 'BOOKMARK' ? '즐겨찾기 상태 변경' : '업무 답변 및 메모 등록'}
-                            </h3>
-                            <button
-                                type="button"
-                                className="close-btn"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setModal({ ...modal, isOpen: false });
-                                }}
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        {modal.type === 'STATUS_CHANGE' ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                                    티켓 상태를 <strong>[{getStatusKorean(modal.targetStatus || '')}]</strong> 상태로 변경하시겠습니까?
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <label htmlFor="status-change-reason" className="detail-title" style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', margin: 0 }}>
-                                            상태 변경 사유 (필수)
-                                        </label>
-                                        <span style={{ fontSize: '11px', color: statusChangeReason.trim().length >= 5 ? 'var(--accent-indigo)' : 'var(--text-muted)', fontWeight: 500 }}>
-                                            ({statusChangeReason.trim().length} / 최소 5자)
-                                        </span>
-                                    </div>
-                                    <textarea
-                                        id="status-change-reason"
-                                        className="form-textarea"
-                                        placeholder="상태를 변경하는 사유를 5자 이상 입력해주세요..."
-                                        value={statusChangeReason}
-                                        onChange={(e) => setStatusChangeReason(e.target.value)}
-                                        style={{
-                                            minHeight: '80px',
-                                            height: '80px',
-                                            padding: '10px 12px',
-                                            fontSize: '12.5px',
-                                            borderRadius: '8px',
-                                            resize: 'none',
-                                            border: '1px solid var(--border-light)',
-                                            background: '#ffffff'
-                                        }}
-                                        required
-                                    />
-                                </div>
-                            </div>
-                        ) : modal.type === 'BOOKMARK' ? (
-                            <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                                이 문의를 즐겨찾기 <strong>{isBookmarked ? '[해제]' : '[등록]'}</strong> 하시겠습니까?
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                                    작성하신 공식 답변과 내부 메모를 등록하시겠습니까?
-                                </p>
-                                <div className="form-group">
-                                    <label htmlFor="status-select-modal">등록과 동시에 티켓 상태를 변경하시겠습니까?</label>
-                                    <select
-                                        id="status-select-modal"
-                                        className="select-input"
-                                        value={modal.selectedStatus}
-                                        onChange={(e) => setModal({ ...modal, selectedStatus: e.target.value as InquiryStatus })}
-                                    >
-                                        <option value={inquiry.status}>상태 유지 (현재: {getStatusKorean(inquiry.status)})</option>
-                                        {inquiry.status !== 'OPEN' && <option value="OPEN">미처리 (OPEN) 상태로 변경</option>}
-                                        {inquiry.status !== 'IN_PROGRESS' && <option value="IN_PROGRESS">진행중 (IN_PROGRESS) 상태로 변경</option>}
-                                        {inquiry.status !== 'RESOLVED' && <option value="RESOLVED">완료 (RESOLVED) 상태로 변경</option>}
-                                    </select>
-                                </div>
-                            </div>
-                        )}
-
-                        {logError && (
-                            <div style={{ color: '#f87171', fontSize: '12px', padding: '0 4px', marginTop: '4px' }}>
-                                ⚠️ {logError}
-                            </div>
-                        )}
-
-                        <div className="modal-footer">
-                            <button
-                                type="button"
-                                className="btn-secondary"
-                                onClick={() => setModal({ ...modal, isOpen: false })}
-                            >
-                                취소
-                            </button>
-                            <button
-                                type="button"
-                                className="btn-primary"
-                                disabled={
-                                    submittingLog ||
-                                    statusChanging ||
-                                    bookmarkChanging ||
-                                    (modal.type === 'STATUS_CHANGE' && statusChangeReason.trim().length < 5)
-                                }
-                                onClick={() => {
-                                    if (modal.type === 'STATUS_CHANGE') {
-                                        executeStatusChange();
-                                    } else if (modal.type === 'BOOKMARK') {
-                                        executeToggleBookmark();
-                                    } else {
-                                        executeRegisterWorkLog();
-                                    }
-                                }}
-                            >
-                                {submittingLog || statusChanging || bookmarkChanging ? '처리 중...' :
-                                    (modal.type === 'STATUS_CHANGE' || modal.type === 'BOOKMARK' ? '확인' : '등록')}
-                            </button>
-                        </div>
-                    </div>
-                </div>,
-                document.body
-            )}
+            <InquiryActionModal
+                modal={modal}
+                currentStatus={inquiry.status}
+                isBookmarked={isBookmarked}
+                statusChangeReason={statusChangeReason}
+                error={logError}
+                submitting={submittingLog || statusChanging || bookmarkChanging}
+                onModalChange={setModal}
+                onStatusChangeReason={setStatusChangeReason}
+                onConfirm={() => {
+                    if (modal.type === 'STATUS_CHANGE') {
+                        executeStatusChange();
+                    } else if (modal.type === 'BOOKMARK') {
+                        executeToggleBookmark();
+                    } else {
+                        executeRegisterWorkLog();
+                    }
+                }}
+            />
         </div>
     );
 };
