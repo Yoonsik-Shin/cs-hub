@@ -170,6 +170,9 @@ scripts/verify.sh   저장소 통합 검증 진입점
 
 ## 상세 문서
 
+- [ADR-001 이메일 스레드 연결](docs/docs/adr/001-email-thread-resolution.md)
+- [ADR-002 PII 저장과 검색](docs/docs/adr/002-pii-storage-and-search.md)
+- [ADR-003 워커 내부 토큰](docs/docs/adr/003-worker-internal-token.md)
 - [리팩터링 로드맵](docs/docs/refactoring-roadmap.md)
 - [코드 아키텍처](docs/docs/code-architecture.md)
 - [인프라 아키텍처](docs/docs/infrastructure-architecture.md)
