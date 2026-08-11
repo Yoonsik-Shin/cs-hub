@@ -19,6 +19,7 @@ import {
   toggleSelection,
   toggleVisibleSelection,
 } from './features/inquiry/batchSelection';
+import { resolveSelectedInquiry } from './features/inquiry/selectedInquiry';
 
 const SIDEBAR_EXPANDED_WIDTH = 300;
 const SIDEBAR_COLLAPSED_WIDTH = 64;
@@ -121,23 +122,12 @@ export const App: React.FC = () => {
   const [selectedInquiryDetail, setSelectedInquiryDetail] = useState<CustomerInquiry | null>(null);
 
   useEffect(() => {
-    if (!selectedInquiryId) {
-      setSelectedInquiryDetail(null);
-      return;
-    }
-    const found = inquiries.find((inq) => inq.id === selectedInquiryId);
-    if (found) {
-      setSelectedInquiryDetail(found);
-      return;
-    }
-    for (const pageNum of Object.keys(pageCache).map(Number)) {
-      const cacheEntry = pageCache[pageNum];
-      const cachedFound = cacheEntry.inquiries.find((inq) => inq.id === selectedInquiryId);
-      if (cachedFound) {
-        setSelectedInquiryDetail(cachedFound);
-        return;
-      }
-    }
+    setSelectedInquiryDetail((previousSelection) => resolveSelectedInquiry(
+      selectedInquiryId,
+      inquiries,
+      Object.values(pageCache).map((page) => page.inquiries),
+      previousSelection,
+    ));
   }, [selectedInquiryId, inquiries, pageCache]);
 
   // Nested Sidebar Widget Groups DND
