@@ -2256,11 +2256,12 @@ export const App: React.FC = () => {
       />
 
       {/* Account Management Modal (ADMIN only) */}
-      <AccountManagementModal
-        isOpen={isAccountModalOpen}
-        onClose={() => setIsAccountModalOpen(false)}
-        currentUsername={currentOperator?.id || ''}
-      />
+      {isAccountModalOpen && (
+        <AccountManagementModal
+          onClose={() => setIsAccountModalOpen(false)}
+          currentUsername={currentOperator?.id || ''}
+        />
+      )}
 
       {/* Batch Status Confirmation Modal */}
       {batchModal.isOpen && (

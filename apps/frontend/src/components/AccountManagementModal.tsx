@@ -12,18 +12,16 @@ import type { AdminAccount, CreateAccountRequest } from "../api/inquiryApi";
 import { accountApi } from "../api/inquiryApi";
 
 interface AccountManagementModalProps {
-  isOpen: boolean;
   onClose: () => void;
   currentUsername: string;
 }
 
 export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
-  isOpen,
   onClose,
   currentUsername,
 }) => {
   const [accounts, setAccounts] = useState<AdminAccount[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [deleteConfirmUsername, setDeleteConfirmUsername] = useState<
@@ -45,7 +43,7 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
     try {
       const data = await accountApi.getAccounts();
       setAccounts(data);
-    } catch (err: any) {
+    } catch (err) {
       setError("계정 목록을 불러오는 데 실패했습니다.");
       console.error(err);
     } finally {
@@ -54,14 +52,22 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      fetchAccounts();
-      setShowCreateForm(false);
-      setDeleteConfirmUsername(null);
-    }
-  }, [isOpen, fetchAccounts]);
-
-  if (!isOpen) return null;
+    let cancelled = false;
+    accountApi.getAccounts()
+      .then((data) => {
+        if (!cancelled) setAccounts(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError("계정 목록을 불러오는 데 실패했습니다.");
+        console.error(err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const resetCreateForm = () => {
     setNewUsername("");
@@ -99,8 +105,8 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
       resetCreateForm();
       setShowCreateForm(false);
       fetchAccounts();
-    } catch (err: any) {
-      setCreateError(err.message || "계정 생성에 실패했습니다.");
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "계정 생성에 실패했습니다.");
     } finally {
       setActionLoading(false);
     }
@@ -112,8 +118,8 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
       await accountApi.deleteAccount(username);
       setDeleteConfirmUsername(null);
       fetchAccounts();
-    } catch (err: any) {
-      setError(err.message || "계정 삭제에 실패했습니다.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "계정 삭제에 실패했습니다.");
     } finally {
       setActionLoading(false);
     }

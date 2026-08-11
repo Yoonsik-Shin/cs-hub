@@ -29,10 +29,10 @@ export const NaverLoginRenewPage: React.FC<NaverLoginRenewPageProps> = ({ onClos
       await inquiryApi.renewNaverSession(cleanCode);
       setSuccess(true);
       setCode('');
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setError(
-        err.message || 
+        (err instanceof Error && err.message) ||
         '세션 갱신에 실패했습니다. 번호가 만료되었거나 워커 서버에 문제가 있을 수 있습니다. 다시 확인해 주세요.'
       );
     } finally {
