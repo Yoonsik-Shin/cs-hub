@@ -6,6 +6,7 @@ import type { FilterValues } from './components/FilterBar';
 import { InquiryList } from './components/InquiryList';
 import { Pagination } from './components/Pagination';
 import { CreateTicketModal } from './components/CreateTicketModal';
+import type { CreateTicketInput } from './components/CreateTicketModal';
 import { inquiryApi } from './api/inquiryApi';
 import type { BatchUpdateInquiryStatusTarget, OperatorInfo } from './api/inquiryApi';
 import type { CustomFilterEntity, CustomerInquiry, InquiryStatus } from './types/inquiry';
@@ -25,6 +26,10 @@ const SIDEBAR_EXPANDED_WIDTH = 300;
 const SIDEBAR_COLLAPSED_WIDTH = 64;
 const MAX_FILTER_BATCH_COUNT = 100;
 type BatchSelectionScope = 'PAGE' | 'FILTER';
+
+const getErrorMessage = (error: unknown): string => (
+  error instanceof Error ? error.message : '알 수 없는 오류'
+);
 
 export const App: React.FC = () => {
   const isNaverLogin = window.location.pathname === '/naver-login';
@@ -151,7 +156,7 @@ export const App: React.FC = () => {
           nextItems.splice(bookmarksIndex === -1 ? nextItems.length : bookmarksIndex, 0, 'USER_CODE_MISSING');
           return { ...group, items: nextItems };
         });
-      } catch (e) {
+      } catch {
         // fallback
       }
     }
@@ -176,7 +181,7 @@ export const App: React.FC = () => {
     if (saved) {
       try {
         return JSON.parse(saved);
-      } catch (e) {
+      } catch {
         // fallback
       }
     }
@@ -606,7 +611,7 @@ export const App: React.FC = () => {
       });
       setTotalListCount(countRes.count);
       setTotalListHasMore(countRes.hasMore);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setError('데이터를 불러오는 중 문제가 발생했습니다. 백엔드 서버 연결 상태를 확인해 주세요.');
     } finally {
@@ -637,7 +642,7 @@ export const App: React.FC = () => {
     if (loadingRef.current || refreshingRef.current) return;
     setIsRefreshing(true);
     try {
-      const promises: Promise<any>[] = [
+      const promises: Promise<unknown>[] = [
         fetchStats(),
         fetchNaverSessionStatus(),
       ];
@@ -839,7 +844,7 @@ export const App: React.FC = () => {
   }, [fetchStats, fetchNaverSessionStatus]);
 
   // Pagination Handlers
-  const handleNextPage = async () => {
+  const handleNextPage = useCallback(async () => {
     if (hasNext && nextCursor) {
       const targetPage = currentPage + 1;
       
@@ -885,7 +890,7 @@ export const App: React.FC = () => {
         setLoading(false);
       }
     }
-  };
+  }, [hasNext, nextCursor, currentPage, pageCache, buildCurrentSearchParams]);
 
   const handlePageClick = useCallback(async (p: number) => {
     if (p === currentPage || p < 1) return;
@@ -901,7 +906,7 @@ export const App: React.FC = () => {
         handleNextPage();
       }
     }
-  }, [currentPage, pageCache, hasNext, nextCursor]);
+  }, [currentPage, pageCache, hasNext, nextCursor, handleNextPage]);
 
   const handleUpdateInquiry = useCallback((id: string, updatedFields: Partial<CustomerInquiry>) => {
     setInquiries((prev) =>
@@ -1002,17 +1007,17 @@ export const App: React.FC = () => {
       setBatchSelectionScope('PAGE');
       setBatchNotice(null);
       setIsBatchSelectionMode(false);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setBatchModal((prev) => ({
         ...prev,
         isSubmitting: false,
-        error: '상태 일괄 변경 중 오류가 발생했습니다: ' + err.message
+        error: '상태 일괄 변경 중 오류가 발생했습니다: ' + getErrorMessage(err)
       }));
     }
   };
 
-  const handleCreateTicket = async (ticketData: { channel: string; userCode: string; content: string; channelMetadata?: any; imageUrls?: string[] }) => {
+  const handleCreateTicket = async (ticketData: CreateTicketInput) => {
     try {
       await inquiryApi.createInquiry({
         channel: ticketData.channel,
@@ -1023,9 +1028,9 @@ export const App: React.FC = () => {
       });
       fetchStats();
       fetchPage(null);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      alert('티켓 생성에 실패했습니다: ' + err.message);
+      alert('티켓 생성에 실패했습니다: ' + getErrorMessage(err));
     }
   };
 
@@ -1110,7 +1115,7 @@ export const App: React.FC = () => {
       if (queryFilters.bookmarkedOnly && wasBookmarked) {
         fetchPage(null);
       }
-    } catch (err: any) {
+    } catch (err) {
       setBookmarkedIds((prev) => {
         const next = new Set(prev);
         if (wasBookmarked) {
@@ -1120,7 +1125,7 @@ export const App: React.FC = () => {
         }
         return next;
       });
-      alert('즐겨찾기 변경에 실패했습니다: ' + err.message);
+      alert('즐겨찾기 변경에 실패했습니다: ' + getErrorMessage(err));
     }
   };
 
@@ -2171,45 +2176,6 @@ export const App: React.FC = () => {
                   isBatchSelectionMode={isBatchSelectionMode}
                   indexOffset={(currentPage - 1) * 20}
                 />
-              </div>
-            )}
-
-            {false && isBatchSelectionMode && selectedBatchCount > 0 && (
-              <div className="batch-action-panel">
-                <div className="batch-panel-summary">
-                  <span className="batch-info-count">{selectedBatchCount}</span>
-                  <span>{batchSelectionScope === 'FILTER' ? '검색 결과 선택됨' : '개 선택됨'}</span>
-                </div>
-                <div className="batch-actions-section">
-                  <button
-                    type="button"
-                    className="batch-action-btn open-status"
-                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'OPEN', isSubmitting: false, error: null, reason: '' })}
-                  >
-                    미처리
-                  </button>
-                  <button
-                    type="button"
-                    className="batch-action-btn inprogress-status"
-                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'IN_PROGRESS', isSubmitting: false, error: null, reason: '' })}
-                  >
-                    진행중
-                  </button>
-                  <button
-                    type="button"
-                    className="batch-action-btn resolved-status"
-                    onClick={() => setBatchModal({ isOpen: true, targetStatus: 'RESOLVED', isSubmitting: false, error: null, reason: '' })}
-                  >
-                    완료
-                  </button>
-                  <button
-                    type="button"
-                    className="batch-cancel-btn"
-                    onClick={handleCancelBatchSelection}
-                  >
-                    취소
-                  </button>
-                </div>
               </div>
             )}
 

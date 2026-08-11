@@ -1,11 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { X, Send, Mail, FileText, Phone, Plus, Trash2, ImagePlus, Loader2 } from 'lucide-react';
 import { inquiryApi } from '../api/inquiryApi';
+import type { CreateInquiryInput } from '../api/inquiryApi';
+import type { ChannelMetadata } from '../types/inquiry';
+
+export type CreateTicketInput = Omit<CreateInquiryInput, 'userCode'> & { userCode: string };
 
 interface CreateTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (ticketData: { channel: string; userCode: string; content: string; channelMetadata?: any; imageUrls?: string[] }) => void;
+  onSubmit: (ticketData: CreateTicketInput) => void;
 }
 
 interface PendingImage {
@@ -262,9 +266,9 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
         await inquiryApi.uploadToMinIO(uploadUrl, img.uploadFile);
         downloadUrls.push(downloadUrl);
         setPendingImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'done', uploadedUrl: downloadUrl } : p));
-      } catch (e) {
+      } catch (cause) {
         setPendingImages(prev => prev.map(p => p.id === img.id ? { ...p, status: 'error' } : p));
-        throw new Error(`이미지 업로드 실패: ${img.file.name}`);
+        throw new Error(`이미지 업로드 실패: ${img.file.name}`, { cause });
       }
     }
 
@@ -316,7 +320,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
     if (!content.trim()) { setError('문의 내용을 입력해 주세요.'); return; }
     if (userCode && !/^[0-9]{12}$/.test(userCode.trim())) { setError('유저 코드는 숫자 12자리여야 합니다.'); return; }
 
-    let channelMetadata: any = null;
+    let channelMetadata: ChannelMetadata;
 
     if (activeTab === 'EMAIL') {
       if (!emailFrom.trim()) { setError('보낸 사람 이메일은 필수입니다.'); return; }
@@ -334,7 +338,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
     } else {
       if (!phoneNum.trim()) { setError('전화번호 입력은 필수입니다.'); return; }
 
-      const customFieldsObj: Record<string, any> = {};
+      const customFieldsObj: Record<string, string> = {};
       customFields.forEach(f => { customFieldsObj[f.key] = f.value; });
 
       channelMetadata = {
@@ -357,8 +361,8 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
       });
       resetForm();
       onClose();
-    } catch (err: any) {
-      setError(err.message || '이미지 업로드 중 오류가 발생했습니다.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '이미지 업로드 중 오류가 발생했습니다.');
     } finally {
       setIsSubmitting(false);
     }

@@ -19,6 +19,14 @@ export type BatchUpdateInquiryStatusTarget =
       excludedInquiryIds: string[];
     };
 
+export interface CreateInquiryInput {
+  channel: string;
+  userCode?: string;
+  content: string;
+  channelMetadata?: ChannelMetadata;
+  imageUrls?: string[];
+}
+
 const NAVER_CAFE_SESSION_ID = "9f2b4d68-4d2c-4db6-a9ec-285809470036";
 
 /**
@@ -93,13 +101,7 @@ export const inquiryApi = {
   /**
    * Create a new manual inquiry ticket on the backend
    */
-  async createInquiry(data: {
-    channel: string;
-    userCode?: string;
-    content: string;
-    channelMetadata?: ChannelMetadata;
-    imageUrls?: string[];
-  }): Promise<void> {
+  async createInquiry(data: CreateInquiryInput): Promise<void> {
     const response = await fetch("/api/v1/inquiries", {
       method: "POST",
       headers: {
