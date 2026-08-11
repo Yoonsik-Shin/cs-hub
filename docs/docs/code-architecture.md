@@ -41,15 +41,22 @@ flowchart LR
 - `src/App.tsx`: 문의 작업 화면을 조립하고 선택 상태와 모달을 연결하는 최상위 오케스트레이터
 - `src/api/inquiryApi.ts`: 브라우저 기본 `fetch`를 사용하는 API 함수와 HTTP 오류 변환
 - `src/components/`: 화면 표현과 사용자 입력 책임
-  - `InquiryDetailPanel.tsx`: 선택 문의의 상세 작업 조립
+  - `AdminSidebar.tsx`: 사이드바 접힘·폭·위젯 및 저장 필터 순서 관리
+  - `OperatorWidget.tsx`: 계정 정보와 권한별 관리자 도구 진입점
+  - `NaverSessionWidget.tsx`: 네이버 세션 상태 표시와 갱신 명령
+  - `InquiryDetailPanel.tsx`: 선택 문의의 상세 섹션과 처리 명령 조립
+  - `InquiryMetadataSections.tsx`: 채널별 메타데이터와 디바이스 표시·편집
+  - `InquiryActionModal.tsx`: 상태 변경·작업 기록·즐겨찾기 확인 계약
   - `InquiryTimeline.tsx`: 작업 로그·회신 타임라인 표현
   - `InquiryImageViewer.tsx`: 이미지 선택, 확대 보기, 키보드 탐색
   - `NaverLoginRenewPage.tsx`: 네이버 일회용 로그인 흐름
 - `src/features/inquiry/`: 페이지 캐시, 목록 병합, 선택 유지, 일괄 선택, 이미지·타임라인 변환 같은 순수 정책
 - `src/hooks/useAutoRefresh.ts`: 자동 갱신 주기와 실행 생명주기
+- `src/hooks/useInquiryActivity.ts`: 작업 이력·회신 조회와 외부 데이터 갱신
+- `src/hooks/useInquiryFieldEditor.ts`: 필드 변경 감지, 사유 검증, 이미지 업로드와 저장
 - `src/types/inquiry.ts`: 서버 계약과 UI 상태에 사용하는 TypeScript 타입
 
-대형 화면 컴포넌트에서 순수 정책과 표현 컴포넌트를 분리해, 사용자 맥락 유지 규칙을 DOM 없이 테스트할 수 있게 했다.
+`App.tsx`는 API 상태와 문의 작업 흐름을 조율하고, `InquiryDetailPanel.tsx`는 상세 화면 배치와 사용자 명령을 조립한다. 사이드바 개인화와 상세 데이터 조회·편집은 전용 컴포넌트와 훅이 소유한다. 순수 사용자 맥락 정책은 DOM 없이 테스트하고, 컴포넌트 조합은 합성 showcase를 데스크톱과 `390x844`에서 실행해 검증한다.
 
 ## 브라우저 워커: Node.js + Playwright
 

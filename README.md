@@ -26,7 +26,7 @@
 | PII 저장과 검색 | AES-GCM 저장 암호화와 HMAC-SHA256 검색 보조값을 분리 | [PiiEncryptionUtils](apps/cs-api/src/main/java/com/ttam/cs/infra/security/crypto/PiiEncryptionUtils.java), [암호화 경계 테스트](apps/cs-api/src/test/java/com/ttam/cs/infra/security/crypto/PiiEncryptionUtilsTest.java) |
 | 내부 워커 인증 | 토큰 미설정 시 fail-fast, 상수 시간 비교, 요청 토큰 비로깅 | [internalToken.js](apps/browser-worker/src/security/internalToken.js), [테스트](apps/browser-worker/test/internalToken.test.js) |
 | 자동 갱신 중 사용자 맥락 | 조회·페이지 캐시·선택 유지·갱신 주기를 React 밖의 정책과 전용 훅으로 분리 | [inquiryListLoader](apps/frontend/src/features/inquiry/inquiryListLoader.ts), [pageCache](apps/frontend/src/features/inquiry/pageCache.ts), [useAutoRefresh](apps/frontend/src/hooks/useAutoRefresh.ts), [테스트](apps/frontend/tests) |
-| 상세 화면 책임 분리 | 타임라인 표시 모델과 이미지 탐색·줌 상태를 상세 패널에서 분리 | [InquiryTimeline](apps/frontend/src/components/InquiryTimeline.tsx), [InquiryImageViewer](apps/frontend/src/components/InquiryImageViewer.tsx), [타임라인 정책](apps/frontend/src/features/inquiry/timeline.ts) |
+| 화면 조립과 업무 상태 분리 | 관리자 사이드바, 계정·세션 위젯, 상세 활동 조회, 필드 편집 트랜잭션, 메타데이터 섹션을 전용 컴포넌트와 훅으로 분리 | [AdminSidebar](apps/frontend/src/components/AdminSidebar.tsx), [useInquiryActivity](apps/frontend/src/hooks/useInquiryActivity.ts), [useInquiryFieldEditor](apps/frontend/src/hooks/useInquiryFieldEditor.ts), [InquiryMetadataSections](apps/frontend/src/components/InquiryMetadataSections.tsx) |
 | 워크플로 중복 실행과 실패 알림 | 채널별 실행 lock과 동일 오류 30분 억제 | [수집 워크플로](infra/n8n/scratch_workflow.json), [공통 오류 워크플로](infra/n8n/error_workflow.json) |
 
 ## 아키텍처
@@ -92,7 +92,11 @@ flowchart LR
 
 이 정책은 브라우저 없이 [Node 내장 테스트](apps/frontend/tests)로 실행됩니다.
 
-타임라인과 이미지 뷰어는 각각 전용 컴포넌트로 분리했습니다. 다음 화면은 실제 고객 데이터가 아닌 [합성 fixture](scripts/showcase-server.mjs)로 이미지 선택과 확대 동작을 검증한 결과입니다.
+`App.tsx`에서는 개인화 사이드바를 `AdminSidebar`로 분리하고, 계정 메뉴와 네이버 세션 상태도 전용 위젯으로 옮겼습니다. `InquiryDetailPanel.tsx`에서는 작업 이력·회신 조회를 `useInquiryActivity`, 수정값 검증·이미지 업로드·저장을 `useInquiryFieldEditor`, 채널·디바이스 표시를 `InquiryMetadataSections`가 담당합니다. 타임라인과 이미지 뷰어 역시 전용 컴포넌트로 유지합니다.
+
+이 분리 후 `App.tsx`는 2,343줄에서 1,349줄로, `InquiryDetailPanel.tsx`는 2,240줄에서 1,418줄로 줄었습니다. 줄 수 자체보다 API 상태 조율, 사이드바 개인화, 필드 편집 트랜잭션, 상세 표현을 서로 독립적으로 변경할 수 있게 된 점을 기준으로 경계를 정했습니다.
+
+다음 화면은 실제 고객 데이터가 아닌 [합성 fixture](scripts/showcase-server.mjs)로 이미지 선택과 확대 동작을 검증한 결과입니다.
 
 ![합성 첨부 이미지로 실행한 상세 이미지 뷰어](docs/static/img/cs-dashboard-image-viewer.jpg)
 

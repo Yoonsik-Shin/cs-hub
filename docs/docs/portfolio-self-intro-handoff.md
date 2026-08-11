@@ -179,6 +179,9 @@ Self-Intro의 `experience_detail` 구조에 맞춰 `상황 → 과제 → 행동
 
 - `pageCache.ts`, `inquiryListLoader.ts`, `batchSelection.ts`, `selectedInquiry.ts`
 - `useAutoRefresh.ts`
+- `AdminSidebar.tsx`, `OperatorWidget.tsx`, `NaverSessionWidget.tsx`
+- `useInquiryActivity.ts`, `useInquiryFieldEditor.ts`
+- `InquiryMetadataSections.tsx`, `InquiryActionModal.tsx`
 - `InquiryTimeline.tsx`, `InquiryImageViewer.tsx`
 - `apps/frontend/tests`
 - 주요 커밋: `ceedb5a`, `67cb908`, `39a4e12`, `7d6d712`, `5cb951d`
@@ -265,4 +268,3 @@ Self-Intro에서 저장소로 이동한 채용 담당자는 다음 순서로 읽
 4. 기술 스택 연결은 기존 스킬 ID를 조회해 중복 없이 갱신한다.
 5. 로컬 DB에 마이그레이션을 적용하고 공개 경험 API 응답을 확인한다.
 6. 프로젝트 상세 화면과 인쇄 화면을 함께 캡처해 문장 길이와 줄바꿈을 검증한다.
-
