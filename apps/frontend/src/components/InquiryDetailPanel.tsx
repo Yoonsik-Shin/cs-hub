@@ -1548,6 +1548,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                 /* Long Content Layout / 3-Column Layout: Left Column (Content), Right Column (Images + Metadata + Device Info) */
                                 <div style={{
                                     display: 'flex',
+                                    flexDirection: activeImageUrl ? 'column' : 'row',
                                     gap: '20px',
                                     alignItems: 'flex-start',
                                     width: '100%',
@@ -1569,8 +1570,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                                             overflow: 'hidden',
                                             pointerEvents: 'auto',
                                             transition: 'flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                            position: 'sticky',
-                                            top: '0px'
+                                            position: activeImageUrl ? 'static' : 'sticky',
+                                            top: activeImageUrl ? undefined : '0px'
                                         }}
                                     >
                                         {renderAttachedImagesSection()}

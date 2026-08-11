@@ -26,7 +26,9 @@ export function InquiryImageViewer({
 }: InquiryImageViewerProps) {
   const [lastActiveImageUrl, setLastActiveImageUrl] = useState<string | null>(activeImageUrl);
   const [previousActiveImageUrl, setPreviousActiveImageUrl] = useState<string | null>(activeImageUrl);
-  const [previewWidth, setPreviewWidth] = useState(500);
+  const [previewWidth, setPreviewWidth] = useState(() => (
+    Math.max(320, Math.min(500, window.innerWidth * 0.28))
+  ));
   const [isResizing, setIsResizing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [zoomScale, setZoomScale] = useState(1);
