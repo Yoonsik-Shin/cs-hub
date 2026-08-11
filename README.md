@@ -1,106 +1,179 @@
-# CS Test Bed (CS 문의 및 세션 자동화 테스트베드)
+# CS Operations Test Bed
 
-이 프로젝트는 대고객 서비스 과정에서 발생하는 고객 문의(CS)의 수집, 네이버 카페 등 외부 채널로의 자동 답변 전송, 그리고 이에 필요한 네이버 로그인 세션 우회 및 백그라운드 자동화(Playwright) 과정을 실습하고 검증하기 위한 통합 테스트베드 환경입니다.
+이메일, 네이버 카페, 구글 시트, 전화로 흩어진 고객 문의를 한 화면에서 처리하기 위한 멀티채널 CS 운영 테스트베드입니다.
 
-컨테이너 기반으로 설계되었으며, API 백엔드, 프론트엔드, 자동화 워커, 그리고 워크플로우 자동화 도구(n8n)와 옵저버빌리티 스택(Loki, Grafana, Alloy)이 긴밀하게 연동되어 있습니다.
+단순한 CRUD 화면보다 **중복 수집, 이메일 회신 연결, 완료 문의 재오픈, PII 보호, 외부 자동화 실패**처럼 실제 운영에서 문제가 되는 경계를 코드로 검증하는 데 집중했습니다.
 
----
+## 해결하려던 문제
 
-## 🛠️ 기술 스택 및 컴포넌트
+- 채널마다 다른 식별자와 메타데이터를 하나의 문의 모델로 수집해야 합니다.
+- 폴링과 워크플로 재시도로 같은 문의가 중복 저장될 수 있습니다.
+- 고객의 이메일 회신은 기존 문의에 연결되고, 완료된 문의라면 다시 열려야 합니다.
+- 문의 본문과 연락처는 암호화하되 이메일 발신자 기준 검색은 가능해야 합니다.
+- 관리자 브라우저, n8n, API, Playwright 워커 사이의 신뢰 경계를 구분해야 합니다.
+- 자동 갱신 중에도 운영자가 보고 있던 상세 문의와 일괄 선택 맥락을 보존해야 합니다.
 
-이 시스템은 단일 컴퓨터에서 Docker Compose 환경을 기반으로 유기적으로 동작하도록 설계되었습니다.
+## 핵심 설계 판단
+
+| 운영 문제 | 선택한 방법 | 코드로 확인 |
+| --- | --- | --- |
+| 중복 수집 | 채널 메타데이터에서 고유키를 만들고 저장 경계에서 중복 방지 | [InquiryUniqueKeyGenerator](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/domain/service/InquiryUniqueKeyGenerator.java), [CustomerInquiry](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/domain/entity/CustomerInquiry.java) |
+| 이메일 회신 연결 | `In-Reply-To` → `References` → 발신자 HMAC+정규화 제목 순으로 탐색 | [EmailThreadResolver](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/EmailThreadResolver.java), [테스트](apps/cs-api/src/test/java/com/ttam/cs/feature/inquiry/usecase/EmailThreadResolverTest.java) |
+| 완료 문의 후속 회신 | `RESOLVED`인 부모만 `OPEN`으로 변경하고 시스템 작업 이력 저장 | [ResolvedInquiryReopener](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/ResolvedInquiryReopener.java), [테스트](apps/cs-api/src/test/java/com/ttam/cs/feature/inquiry/usecase/ResolvedInquiryReopenerTest.java) |
+| PII 저장과 검색 | AES-GCM 저장 암호화와 HMAC-SHA256 검색 보조값을 분리 | [PiiEncryptionUtils](apps/cs-api/src/main/java/com/ttam/cs/infra/security/crypto/PiiEncryptionUtils.java), [암호화 경계 테스트](apps/cs-api/src/test/java/com/ttam/cs/infra/security/crypto/PiiEncryptionUtilsTest.java) |
+| 내부 워커 인증 | 토큰 미설정 시 fail-fast, 상수 시간 비교, 요청 토큰 비로깅 | [internalToken.js](apps/browser-worker/src/security/internalToken.js), [테스트](apps/browser-worker/test/internalToken.test.js) |
+| 자동 갱신 중 사용자 맥락 | 선택 정책과 상세 유지 규칙을 React 밖의 순수 함수로 분리 | [batchSelection](apps/frontend/src/features/inquiry/batchSelection.ts), [selectedInquiry](apps/frontend/src/features/inquiry/selectedInquiry.ts), [테스트](apps/frontend/tests) |
+| 워크플로 중복 실행과 실패 알림 | 채널별 실행 lock과 동일 오류 30분 억제 | [수집 워크플로](infra/n8n/scratch_workflow.json), [공통 오류 워크플로](infra/n8n/error_workflow.json) |
+
+## 아키텍처
 
 ```mermaid
-graph TD
-    User([사용자/관리자]) -->|포트 8888| Nginx[cs-frontend-nginx]
-    Nginx -->|정적 리소스 서빙| Frontend[cs-frontend-React]
-    Nginx -->|리버스 프록시 /api/*| API[cs-api Spring Boot]
-    Nginx -->|보안인증 /n8n/*| n8n[n8n Workflow]
-    Nginx -->|보안인증 /wiki/*| Wiki[cs-wiki Docusaurus]
-    Nginx -->|보안인증 /grafana/*| Grafana[Grafana]
-    Nginx -->|보안인증 /minio/*| MinIO[MinIO Console]
-    Nginx -->|첨부파일 /attachments/*| MinIO_S3[MinIO S3 API:9000]
+flowchart LR
+    Admin["CS 운영자"] --> Nginx["Nginx :8888\nBasic Auth + Reverse Proxy"]
+    Nginx --> React["React 운영 콘솔"]
+    Nginx --> API["Spring Boot API"]
+    Nginx --> Wiki["Docusaurus Wiki"]
+    Nginx --> Grafana["Grafana"]
 
-    API -->|인명 DB 질의| Postgres[(PostgreSQL 16)]
-    API -->|첨부파일 업로드| MinIO_S3
-    API -->|자동화 의뢰 /api/naver/*| Worker[browser-worker Playwright]
+    N8N["n8n\n채널 수집 워크플로"] --> API
+    API --> Postgres[("PostgreSQL 16")]
+    API --> MinIO["MinIO\n첨부파일"]
+    API --> Worker["Playwright Worker"]
 
-    n8n -->|백그라운드 트리거 /webhooks/*| API
-    n8n -->|워크플로우 메타 정보 저장| Postgres
-    
-    Alloy[Grafana Alloy] -->|로그 수집| Loki[Grafana Loki]
-    Grafana -->|로그 시각화 쿼리| Loki
+    Worker --> External["Naver Cafe"]
+    Alloy["Grafana Alloy"] --> Loki["Loki"]
+    Grafana --> Loki
 ```
 
-### 1. 주요 서비스 구성
+사용자 웹 트래픽의 기본 진입점은 Nginx의 `8888` 포트입니다. API와 브라우저 워커는 Compose 내부 네트워크에서 통신하며 워커 호출에는 별도의 내부 토큰을 사용합니다. PostgreSQL과 MinIO 호스트 포트는 로컬 개발 도구 연동을 위해 별도로 열려 있습니다.
 
-* **프론트엔드 Nginx (`cs-frontend-nginx`)**: 포트 `8888`. 유일하게 호스트에 노출되는 진입점으로, 리버스 프록시 및 Basic Auth(기본 로그인 인증)를 수행합니다.
-* **백엔드 API (`cs-api`)**: Spring Boot 기반 Java API 서버. 도메인 로직 처리, 데이터베이스 관리, 내부 토큰 인증 등을 수행합니다.
-* **브라우저 자동화 워커 (`browser-worker`)**: Playwright 기반 Node.js 서비스. 네이버 카페 일회성 로그인 번호 처리 및 댓글 작성 자동화를 대행합니다.
-* **워크플로우 엔진 (`n8n`)**: 일상적인 반복 작업 및 트리거 기반 워크플로우를 담당하는 노코드/로우코드 자동화 서비스입니다.
-* **데이터베이스 (`postgres-db`)**: PostgreSQL 16. 백엔드 및 n8n의 데이터를 저장합니다.
-* **오브젝트 스토리지 (`minio`)**: S3 호환 로컬 스토리지. 고객이 제출하는 캡처 이미지 등 첨부파일을 관리합니다.
-* **개발 위키 (`wiki`)**: Docusaurus 기반의 정적 문서 사이트로, 프로젝트 내부 상세 가이드와 API 스펙을 실시간으로 확인하고 검색할 수 있습니다.
-* **옵저버빌리티 스택 (`loki`, `grafana-alloy`, `grafana`)**: 컨테이너 로그를 안전하게 수집하여 시각화하고 모니터링하기 위한 통합 로깅 아키텍처입니다.
+## 5분 코드 투어
 
----
+### 1. 멀티채널 문의가 저장되는 흐름
 
-## 🚀 빠른 시작 가이드 (Quick Start)
+[IntegrateInquiryDataUseCase](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/IntegrateInquiryDataUseCase.java)는 필터링 → 문의 생성 → 일괄 저장만 조율합니다. 세부 정책은 다음 클래스로 분리했습니다.
 
-### 개발 검증
+- [EmailIntegrationValidator](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/EmailIntegrationValidator.java): 본문·이미지와 message-id/UID 입력 계약
+- [AdminEmailSenderPolicy](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/AdminEmailSenderPolicy.java): 관리자가 보낸 답변의 재수집 방지
+- [EmailArticleUrlResolver](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/EmailArticleUrlResolver.java): UID 우선 웹메일 링크 생성
+- [EmailSenderHasher](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/EmailSenderHasher.java): 생성·수집·스레드 검색에 동일한 발신자 정규화 적용
 
-백엔드 테스트, 프론트엔드 테스트·lint·프로덕션 빌드와 Docker Compose 설정을 루트에서 한 번에 검증할 수 있습니다.
+대표 회귀 시나리오는 [IntegrateInquiryDataUseCaseTest](apps/cs-api/src/test/java/com/ttam/cs/feature/inquiry/usecase/IntegrateInquiryDataUseCaseTest.java)에서 확인할 수 있습니다.
+
+### 2. 이메일 회신이 기존 문의로 연결되는 흐름
+
+[EmailThreadResolver](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/EmailThreadResolver.java)는 명시적인 메일 헤더를 먼저 신뢰하고, 마지막 수단으로 최근 7일의 발신자 HMAC과 정규화 제목을 사용합니다. 회신의 회신은 최초 부모 ID로 연결합니다.
+
+[ResolvedInquiryReopener](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/usecase/ResolvedInquiryReopener.java)는 완료 문의에 새 회신이 들어온 경우만 상태와 감사 이력을 함께 변경합니다. 시간은 `Clock`으로 주입해 테스트를 결정적으로 만들었습니다.
+
+### 3. 개인정보가 DB 경계를 통과하는 흐름
+
+[EncryptedStringConverter](apps/cs-api/src/main/java/com/ttam/cs/infra/security/crypto/EncryptedStringConverter.java)는 JPA 저장 시 AES-GCM 암호화, 조회 시 복호화를 수행합니다. 마이그레이션 기간에는 기존 평문을 읽을 수 있지만 새 값은 암호문으로 저장합니다.
+
+[PiiEncryptionUtilsTest](apps/cs-api/src/test/java/com/ttam/cs/infra/security/crypto/PiiEncryptionUtilsTest.java)는 다음 경계를 검증합니다.
+
+- 동일 평문도 매번 다른 IV로 다른 암호문 생성
+- GCM 인증 태그가 맞지 않는 위변조 암호문 거부
+- 레거시 평문 pass-through와 암호문 판별
+- 원문을 저장하지 않는 결정적 HMAC 검색 보조값
+
+### 4. 자동 갱신 중 선택이 유지되는 흐름
+
+대형 컴포넌트에 있던 선택 로직을 [batchSelection.ts](apps/frontend/src/features/inquiry/batchSelection.ts)와 [selectedInquiry.ts](apps/frontend/src/features/inquiry/selectedInquiry.ts)로 분리했습니다.
+
+- 현재 페이지 전체 선택은 다른 페이지의 선택을 훼손하지 않습니다.
+- 새로고침 후 화면에서 사라진 ID만 일괄 선택에서 제거합니다.
+- 선택 문의가 잠시 목록에서 사라져도 같은 ID의 상세만 유지합니다.
+- 다른 ID의 오래된 상세 데이터는 표시하지 않습니다.
+
+이 정책은 브라우저 없이 [Node 내장 테스트](apps/frontend/tests)로 실행됩니다.
+
+## 검증
+
+루트에서 전체 검증을 실행합니다.
 
 ```bash
 ./scripts/verify.sh
 ```
 
-프론트엔드 의존성은 `apps/frontend`에서 `npm install` 또는 `npm ci`로 먼저 설치해야 합니다.
+검증 항목:
 
-### 1. 환경 설정 (.env)
+- Spring Boot 테스트 및 AOT 테스트 처리
+- 브라우저 워커 내부 토큰 테스트
+- 프론트엔드 상태 정책 테스트
+- ESLint 전체 검사
+- TypeScript 및 Vite 프로덕션 빌드
+- Docker Compose 설정 유효성
 
-루트 폴더에 있는 `.env.example` 파일을 복사하여 `.env` 파일을 생성하고 필요한 값을 입력합니다.
+현재 저장소 기준으로 백엔드 40개, 브라우저 워커 4개, 프론트엔드 11개 테스트가 통과합니다.
+
+## 로컬 실행
+
+### 요구 사항
+
+- Java 21
+- Node.js 24 이상
+- Docker와 Docker Compose
+- Apache `htpasswd` 명령
+
+### 1. 환경 파일과 개발 계정 준비
 
 ```bash
 cp .env.example .env
+htpasswd -c infra/nginx/.htpasswd admin
 ```
 
-`.env` 파일 내부의 주요 토큰 및 비밀번호 정보를 환경에 맞춰 수정합니다. 기본 인증 파일인 `.htpasswd`도 `/infra/nginx/` 하위에 위치하는지 확인해야 합니다.
+`.env`의 placeholder 토큰과 암호화 키를 실제 개발용 값으로 교체해야 합니다. 특히 `INTERNAL_API_TOKEN`은 16자 미만이거나 알려진 placeholder이면 브라우저 워커가 기동을 거부합니다.
 
-### 2. 컨테이너 환경 실행
+### 2. 프론트엔드 빌드
 
-Docker가 구동 중인 상태에서 아래 명령을 실행하여 전체 서비스를 백그라운드로 실행합니다.
+```bash
+cd apps/frontend
+npm ci
+npm run build
+cd ../..
+```
+
+### 3. 서비스 실행
 
 ```bash
 docker compose up -d
-```
-
-실행 후 모든 컨테이너가 정상적으로 동작하는지 확인합니다.
-
-```bash
 docker compose ps
 ```
 
-### 3. 서비스 접속 정보
+운영 콘솔은 [http://localhost:8888](http://localhost:8888)에서 확인할 수 있습니다. 로컬에서 이미 `5432`, `9000`, `9001`, `8888` 포트를 사용 중이면 Compose 포트 충돌을 먼저 해결해야 합니다.
 
-모든 서비스는 프론트엔드 Nginx 포트 `8888`을 경유하여 접속합니다. (기본 Basic Auth 창이 뜨면 `.htpasswd`에 구성된 관리자 계정으로 로그인해야 접근할 수 있습니다.)
+## 저장소 구조
 
-* **프론트엔드 웹 콘솔**: [http://localhost:8888/](http://localhost:8888/)
-* **개발자 위키 (Wiki)**: [http://localhost:8888/wiki/](http://localhost:8888/wiki/)
-* **n8n 워크플로우**: [http://localhost:8888/n8n/](http://localhost:8888/n8n/)
-* **Grafana 모니터링**: [http://localhost:8888/grafana/](http://localhost:8888/grafana/)
-* **MinIO 관리 도구**: [http://localhost:8888/minio/](http://localhost:8888/minio/)
-* **Swagger API Docs**: [http://localhost:8888/swagger-ui/index.html](http://localhost:8888/swagger-ui/index.html)
+```text
+apps/
+  cs-api/          Spring Boot 3, JPA, Querydsl, Flyway
+  frontend/        React 19, TypeScript, Vite
+  browser-worker/  Express, Playwright
+infra/
+  nginx/           단일 진입점과 Basic Auth
+  n8n/             수집 및 공통 오류 워크플로
+  alloy/            로그 수집 설정
+  loki/             로그 저장 설정
+  postgres/         초기 스키마와 개발용 mock data
+docs/               Docusaurus 개발 문서
+scripts/verify.sh   저장소 통합 검증 진입점
+```
 
----
+## 의도적으로 감수한 한계
 
-## 📖 상세 개발자 문서 안내 (Wiki)
+- Compose 단일 호스트 환경을 전제로 하므로 고가용성 배포 구성은 포함하지 않습니다.
+- n8n의 workflow static data lock은 동일 워크플로 중복 실행을 줄이지만 분산 lock은 아닙니다.
+- Playwright 자동화는 외부 사이트 DOM과 세션 정책 변경에 영향을 받습니다.
+- Basic Auth는 로컬·사설 운영 환경의 1차 경계이며, 인터넷 공개 환경이라면 SSO/OIDC와 TLS 종단 구성이 필요합니다.
+- 프론트엔드의 목록 캐시·자동 갱신과 상세 타임라인은 추가 hook/컴포넌트 분리 대상으로 남아 있습니다.
 
-시스템 설계 사상 및 아키텍처와 관련된 상세 내용은 Docusaurus 기반의 **개발자 위키**에서 제공하고 있습니다.
-로컬 컨테이너 실행 후 [http://localhost:8888/wiki/](http://localhost:8888/wiki/)에 직접 접속하거나, `docs/docs/` 아래의 Markdown 소스 파일을 직접 참조하실 수 있습니다.
+## 상세 문서
 
-* [배포 아키텍처 (Deployment Architecture)](file:///Users/shin-yoonsik/Desktop/Project/cs-test-bed-ttam/docs/docs/deployment-architecture.md)
-* [인프라 아키텍처 (Infrastructure Architecture)](file:///Users/shin-yoonsik/Desktop/Project/cs-test-bed-ttam/docs/docs/infrastructure-architecture.md)
-* [네트워크 아키텍처 (Network Architecture)](file:///Users/shin-yoonsik/Desktop/Project/cs-test-bed-ttam/docs/docs/network-architecture.md)
-* [보안 및 인증 가이드 (Security & Auth Policy)](file:///Users/shin-yoonsik/Desktop/Project/cs-test-bed-ttam/docs/docs/security-policy.md)
-* [코드 아키텍처 (Code Architecture)](file:///Users/shin-yoonsik/Desktop/Project/cs-test-bed-ttam/docs/docs/code-architecture.md)
+- [리팩터링 로드맵](docs/docs/refactoring-roadmap.md)
+- [코드 아키텍처](docs/docs/code-architecture.md)
+- [인프라 아키텍처](docs/docs/infrastructure-architecture.md)
+- [네트워크 아키텍처](docs/docs/network-architecture.md)
+- [보안 정책](docs/docs/security-policy.md)
+- [PII 암호화 마이그레이션](docs/docs/pii-encryption-migration.md)
+- [로깅 및 옵저버빌리티](docs/docs/logging-observability-policy.md)
