@@ -17,7 +17,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException exception) {
         ErrorCode errorCode = exception.getErrorCode();
-        return ResponseEntity.status(ErrorCodeHttpStatusMapper.toHttpStatus(errorCode)).body(ErrorResponse.of(errorCode));
+        return ResponseEntity.status(ErrorCodeHttpStatusMapper.toHttpStatus(errorCode))
+                .body(ErrorResponse.of(errorCode.name(), exception.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

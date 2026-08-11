@@ -3,6 +3,7 @@ package com.ttam.cs.feature.inquiry.usecase;
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.BatchUpdateInquiryStatusRequest;
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
+import com.ttam.cs.feature.inquiry.exception.InvalidInquiryRequestException;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -29,7 +30,7 @@ public class BatchUpdateInquiryStatusUseCase {
 
         BatchUpdateInquiryStatusRequest.FilterCriteria filters = request.filters();
         if (filters == null) {
-            throw new IllegalArgumentException("검색 결과 전체 선택에는 필터 조건이 필요합니다.");
+            throw new InvalidInquiryRequestException("검색 결과 전체 선택에는 필터 조건이 필요합니다.");
         }
 
         List<UUID> ids = repository.findInquiryIds(
@@ -46,7 +47,7 @@ public class BatchUpdateInquiryStatusUseCase {
                 MAX_BATCH_UPDATE_COUNT);
 
         if (ids.isEmpty()) {
-            throw new IllegalArgumentException("변경할 문의를 선택해 주세요.");
+            throw new InvalidInquiryRequestException("변경할 문의를 선택해 주세요.");
         }
 
         updateStatuses(ids, request.status(), operatorInfo, request.reason());
@@ -54,10 +55,11 @@ public class BatchUpdateInquiryStatusUseCase {
 
     private void updateStatuses(List<UUID> inquiryIds, CustomerInquiry.Status newStatus, OperatorInfo operatorInfo, String reason) {
         if (inquiryIds == null || inquiryIds.isEmpty()) {
-            throw new IllegalArgumentException("변경할 문의를 선택해 주세요.");
+            throw new InvalidInquiryRequestException("변경할 문의를 선택해 주세요.");
         }
         if (inquiryIds.size() > MAX_BATCH_UPDATE_COUNT) {
-            throw new IllegalArgumentException("한 번에 최대 " + MAX_BATCH_UPDATE_COUNT + "개까지 처리할 수 있습니다.");
+            throw new InvalidInquiryRequestException(
+                    "한 번에 최대 " + MAX_BATCH_UPDATE_COUNT + "개까지 처리할 수 있습니다.");
         }
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);

@@ -7,6 +7,7 @@ import com.ttam.cs.feature.inquiry.domain.service.InquiryUniqueKeyGenerator;
 import com.ttam.cs.feature.inquiry.domain.vo.EmailMetadata;
 import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
 import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
+import com.ttam.cs.feature.inquiry.exception.InvalidInquiryRequestException;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
@@ -259,7 +260,7 @@ class IntegrateInquiryDataUseCaseTest {
         when(adminMemberRepository.existsByEmail("customer@test.com")).thenReturn(false);
 
         // When & Then
-        assertThrows(IllegalArgumentException.class, () -> useCase.execute("EMAIL", List.of(item)));
+        assertThrows(InvalidInquiryRequestException.class, () -> useCase.execute("EMAIL", List.of(item)));
         verify(repository, never()).bulkInsert(anyList());
     }
 
@@ -404,7 +405,7 @@ class IntegrateInquiryDataUseCaseTest {
 
         when(adminMemberRepository.existsByEmail("customer@test.com")).thenReturn(false);
 
-        assertThrows(IllegalArgumentException.class, () -> useCase.execute("EMAIL", List.of(item)));
+        assertThrows(InvalidInquiryRequestException.class, () -> useCase.execute("EMAIL", List.of(item)));
         verify(repository, never()).bulkInsert(anyList());
     }
 }

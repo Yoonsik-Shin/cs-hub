@@ -2,6 +2,8 @@ package com.ttam.cs.feature.inquiry.usecase;
 
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.RegisterWorkLogRequest;
 import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
+import com.ttam.cs.feature.inquiry.exception.InquiryNotFoundException;
+import com.ttam.cs.feature.inquiry.exception.InvalidInquiryRequestException;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import java.util.UUID;
@@ -19,7 +21,7 @@ public class RegisterInquiryWorkLogUseCase {
     @Transactional
     public UUID execute(UUID inquiryId, RegisterWorkLogRequest request) {
         var inquiry = repository.findById(inquiryId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 문의입니다."));
+                .orElseThrow(InquiryNotFoundException::new);
 
         String answer = request.answer();
         String memo = request.memo();
@@ -28,7 +30,7 @@ public class RegisterInquiryWorkLogUseCase {
         boolean hasMemo = memo != null && !memo.trim().isEmpty();
 
         if (!hasAnswer && !hasMemo) {
-            throw new IllegalArgumentException("답변 또는 메모 내용은 필수입니다.");
+            throw new InvalidInquiryRequestException("답변 또는 메모 내용은 필수입니다.");
         }
 
         InquiryWorkLog.ActionType actionType;

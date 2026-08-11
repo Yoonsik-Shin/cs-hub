@@ -3,6 +3,8 @@ package com.ttam.cs.feature.inquiry.usecase;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.vo.NaverCafeMetadata;
+import com.ttam.cs.feature.inquiry.exception.InquiryNotFoundException;
+import com.ttam.cs.feature.inquiry.exception.InvalidInquiryRequestException;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.auth.usecase.NaverSessionUseCase;
 import lombok.extern.slf4j.Slf4j;
@@ -45,14 +47,14 @@ public class RefreshInquiryUseCase {
         log.info("Refreshing inquiry ID: {}", id);
 
         CustomerInquiry inquiry = repository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquiry not found"));
+                .orElseThrow(InquiryNotFoundException::new);
 
         if (!"NAVER_CAFE".equalsIgnoreCase(inquiry.getChannel())) {
-            throw new IllegalArgumentException("Only NAVER_CAFE channel can be refreshed");
+            throw new InvalidInquiryRequestException("Only NAVER_CAFE channel can be refreshed");
         }
 
         if (!(inquiry.getChannelMetadata() instanceof NaverCafeMetadata parentMeta)) {
-            throw new IllegalArgumentException("Inquiry metadata is not NAVER_CAFE type");
+            throw new InvalidInquiryRequestException("Inquiry metadata is not NAVER_CAFE type");
         }
 
         Long cafeId = parentMeta.cafeId();

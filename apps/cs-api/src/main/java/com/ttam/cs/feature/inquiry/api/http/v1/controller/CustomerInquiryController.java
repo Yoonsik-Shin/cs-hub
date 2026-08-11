@@ -30,6 +30,7 @@ import com.ttam.cs.feature.inquiry.api.http.v1.dto.response.InquiryCountResponse
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.response.SearchCustomerInquiryResponse;
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
+import com.ttam.cs.feature.inquiry.exception.InvalidInquiryRequestException;
 import com.ttam.cs.feature.inquiry.usecase.BatchUpdateInquiryStatusUseCase;
 import com.ttam.cs.feature.inquiry.usecase.CountCustomerInquiriesUseCase;
 import com.ttam.cs.feature.inquiry.usecase.CountInquiryRepliesUseCase;
@@ -156,10 +157,10 @@ public class CustomerInquiryController {
         if (request.status() != null) {
             String statusReason = request.reasons() != null ? request.reasons().get("status") : null;
             if (statusReason == null || statusReason.trim().isEmpty()) {
-                throw new IllegalArgumentException("상태 변경 사유는 필수입니다.");
+                throw new InvalidInquiryRequestException("상태 변경 사유는 필수입니다.");
             }
             if (statusReason.trim().length() < 5) {
-                throw new IllegalArgumentException("상태 변경 사유는 최소 5자 이상이어야 합니다.");
+                throw new InvalidInquiryRequestException("상태 변경 사유는 최소 5자 이상이어야 합니다.");
             }
             UpdateInquiryStatusRequest statusRequest = new UpdateInquiryStatusRequest(
                     request.operatorInfo(),

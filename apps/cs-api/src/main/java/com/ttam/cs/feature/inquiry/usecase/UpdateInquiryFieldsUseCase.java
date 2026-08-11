@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ttam.cs.feature.inquiry.api.http.v1.dto.request.UpdateInquiryFieldsRequest;
 import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
 import com.ttam.cs.feature.inquiry.domain.vo.FieldModification;
+import com.ttam.cs.feature.inquiry.exception.InquiryNotFoundException;
+import com.ttam.cs.feature.inquiry.exception.InvalidInquiryRequestException;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import com.ttam.cs.infra.storage.StorageService;
@@ -31,7 +33,7 @@ public class UpdateInquiryFieldsUseCase {
     @Transactional
     public void execute(UUID inquiryId, UpdateInquiryFieldsRequest request, String ipAddress) {
         var inquiry = repository.findById(inquiryId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 문의입니다."));
+                .orElseThrow(InquiryNotFoundException::new);
 
         List<FieldModification> modifications = new ArrayList<>();
         Map<String, String> reasons = request.reasons() != null ? request.reasons() : Map.of();
@@ -101,7 +103,8 @@ public class UpdateInquiryFieldsUseCase {
 
         if (request.customFields() != null) {
             if (inquiry.getChannelMetadata() == null) {
-                throw new IllegalArgumentException("접수 정보(channelMetadata)가 없는 문의는 임의 속성을 추가할 수 없습니다.");
+                throw new InvalidInquiryRequestException(
+                        "접수 정보(channelMetadata)가 없는 문의는 임의 속성을 추가할 수 없습니다.");
             }
             Map<String, Object> currentCustomFields = inquiry.getChannelMetadata().customFields() != null
                     ? inquiry.getChannelMetadata().customFields()
@@ -134,7 +137,7 @@ public class UpdateInquiryFieldsUseCase {
     private String requireReason(Map<String, String> reasons, String key, String message) {
         String reason = reasons.get(key);
         if (reason == null || reason.trim().isEmpty()) {
-            throw new IllegalArgumentException(message);
+            throw new InvalidInquiryRequestException(message);
         }
         return reason.trim();
     }

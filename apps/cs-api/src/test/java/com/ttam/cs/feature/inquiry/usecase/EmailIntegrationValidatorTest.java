@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.ttam.cs.feature.inquiry.domain.vo.EmailMetadata;
 import com.ttam.cs.feature.inquiry.domain.vo.NaverCafeMetadata;
+import com.ttam.cs.feature.inquiry.exception.InvalidInquiryRequestException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,7 @@ class EmailIntegrationValidatorTest {
     @Test
     void rejectsMetadataFromAnotherChannel() {
         assertThrows(
-                IllegalArgumentException.class,
+                InvalidInquiryRequestException.class,
                 () -> validator.validate(
                         new NaverCafeMetadata(null, null, null, null, null, null, null, null, null),
                         "content",
@@ -30,7 +31,7 @@ class EmailIntegrationValidatorTest {
         EmailMetadata metadata = emailMetadata("<message-id>", null);
 
         assertThrows(
-                IllegalArgumentException.class,
+                InvalidInquiryRequestException.class,
                 () -> validator.validate(metadata, "  ", List.of())
         );
     }
@@ -51,7 +52,7 @@ class EmailIntegrationValidatorTest {
         EmailMetadata metadata = emailMetadata("", null);
 
         assertThrows(
-                IllegalArgumentException.class,
+                InvalidInquiryRequestException.class,
                 () -> validator.validate(metadata, "content", List.of())
         );
     }
