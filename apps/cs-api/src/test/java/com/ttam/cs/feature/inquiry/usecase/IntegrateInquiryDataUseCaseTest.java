@@ -55,7 +55,8 @@ class IntegrateInquiryDataUseCaseTest {
     @BeforeEach
     void setUp() {
         Clock fixedClock = Clock.fixed(Instant.parse("2026-07-10T00:00:00Z"), ZoneOffset.UTC);
-        EmailThreadResolver emailThreadResolver = new EmailThreadResolver(repository, piiEncryptionUtils, fixedClock);
+        EmailSenderHasher emailSenderHasher = new EmailSenderHasher(piiEncryptionUtils);
+        EmailThreadResolver emailThreadResolver = new EmailThreadResolver(repository, emailSenderHasher, fixedClock);
         ResolvedInquiryReopener resolvedInquiryReopener = new ResolvedInquiryReopener(
                 repository,
                 workLogRepository,
@@ -66,7 +67,7 @@ class IntegrateInquiryDataUseCaseTest {
                 uniqueKeyGenerator,
                 storageService,
                 adminMemberRepository,
-                piiEncryptionUtils,
+                emailSenderHasher,
                 new EmailIntegrationValidator(),
                 new EmailArticleUrlResolver(WEBMAIL_URL),
                 emailThreadResolver,

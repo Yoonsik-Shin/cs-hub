@@ -1,11 +1,9 @@
 package com.ttam.cs.feature.inquiry.usecase;
 
-import com.ttam.cs.common.util.EmailAddressUtils;
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
 import com.ttam.cs.feature.inquiry.domain.vo.EmailMetadata;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
-import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -24,7 +22,7 @@ public class EmailThreadResolver {
     private static final int SUBJECT_FALLBACK_LOOKBACK_DAYS = 7;
 
     private final CustomerInquiryRepository repository;
-    private final PiiEncryptionUtils piiEncryptionUtils;
+    private final EmailSenderHasher emailSenderHasher;
     private final Clock clock;
 
     public Optional<UUID> resolve(String channel, ChannelMetadata metadata) {
@@ -71,12 +69,11 @@ public class EmailThreadResolver {
 
     private Optional<UUID> findBySenderAndSubject(EmailMetadata metadata) {
         String normalizedSubject = normalizeSubject(metadata.subject());
-        String normalizedSender = EmailAddressUtils.normalizeForHash(metadata.from());
-        if (normalizedSubject == null || normalizedSender == null) {
+        String senderHash = emailSenderHasher.hash(metadata.from());
+        if (normalizedSubject == null || senderHash == null) {
             return Optional.empty();
         }
 
-        String senderHash = piiEncryptionUtils.hmacHex(normalizedSender);
         OffsetDateTime since = OffsetDateTime.now(clock)
                 .minusDays(SUBJECT_FALLBACK_LOOKBACK_DAYS);
         List<CustomerInquiry> candidates = repository.findEmailCandidatesBySender(senderHash, since);

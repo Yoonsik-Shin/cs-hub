@@ -4,7 +4,6 @@ import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.vo.EmailMetadata;
 import com.ttam.cs.feature.inquiry.domain.vo.GoogleSheetMetadata;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
-import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,7 +36,7 @@ class EmailThreadResolverTest {
     private CustomerInquiryRepository repository;
 
     @Mock
-    private PiiEncryptionUtils piiEncryptionUtils;
+    private EmailSenderHasher emailSenderHasher;
 
     private EmailThreadResolver resolver;
 
@@ -45,7 +44,7 @@ class EmailThreadResolverTest {
     void setUp() {
         resolver = new EmailThreadResolver(
                 repository,
-                piiEncryptionUtils,
+                emailSenderHasher,
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }
@@ -85,7 +84,7 @@ class EmailThreadResolverTest {
                 "customer@test.com",
                 new EmailMetadata.Headers("<original>", "", "")
         ));
-        when(piiEncryptionUtils.hmacHex("customer@test.com")).thenReturn("sender-hash");
+        when(emailSenderHasher.hash("Customer <customer@test.com>")).thenReturn("sender-hash");
         when(repository.findEmailCandidatesBySender(org.mockito.ArgumentMatchers.eq("sender-hash"), any(OffsetDateTime.class)))
                 .thenReturn(List.of(candidate));
 

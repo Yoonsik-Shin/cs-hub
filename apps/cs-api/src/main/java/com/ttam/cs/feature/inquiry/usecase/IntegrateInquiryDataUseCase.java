@@ -9,7 +9,6 @@ import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.infra.storage.StorageService;
 import com.ttam.cs.feature.auth.repository.AdminMemberRepository;
 import com.ttam.cs.common.util.EmailAddressUtils;
-import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +23,7 @@ public class IntegrateInquiryDataUseCase {
     private final InquiryUniqueKeyGenerator uniqueKeyGenerator;
     private final StorageService storageService;
     private final AdminMemberRepository adminMemberRepository;
-    private final PiiEncryptionUtils piiEncryptionUtils;
+    private final EmailSenderHasher emailSenderHasher;
     private final EmailIntegrationValidator emailIntegrationValidator;
     private final EmailArticleUrlResolver emailArticleUrlResolver;
     private final EmailThreadResolver emailThreadResolver;
@@ -82,7 +81,7 @@ public class IntegrateInquiryDataUseCase {
                     });
 
                     if (resolvedMetadata instanceof EmailMetadata emailMeta) {
-                        inquiry.updateEmailSenderHash(computeEmailSenderHash(emailMeta.from()));
+                        inquiry.updateEmailSenderHash(emailSenderHasher.hash(emailMeta.from()));
                     }
 
                     return inquiry;
@@ -102,11 +101,6 @@ public class IntegrateInquiryDataUseCase {
             DeviceInfo deviceInfo,
             String content,
             List<String> imageUrls) {
-    }
-
-    private String computeEmailSenderHash(String from) {
-        String normalized = EmailAddressUtils.normalizeForHash(from);
-        return normalized != null ? piiEncryptionUtils.hmacHex(normalized) : null;
     }
 
 }
