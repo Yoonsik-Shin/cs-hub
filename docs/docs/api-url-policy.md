@@ -8,7 +8,7 @@ sidebar_label: API URL 정책
 
 이 프로젝트는 하나의 컴퓨터에 Docker Compose로 배포하고, LAN 내부 사용자에게만 노출합니다. URL은 호출 주체와 성격을 기준으로 나눕니다.
 
-인증/인가와 포트 노출 정책은 `docs/security-policy.md`를 기준으로 관리합니다.
+인증/인가와 포트 노출 정책은 [보안 정책](security-policy.md)을 기준으로 관리합니다.
 
 ```text
 /api/v1/**
@@ -19,9 +19,12 @@ sidebar_label: API URL 정책
 
 /docs
   API가 아니라 문서 페이지 진입점입니다.
+
+/internal/actuator/**
+  운영 상태 확인용 Spring Boot Actuator 경로입니다.
 ```
 
-`internal` prefix는 사용하지 않습니다. 현재 앱 API는 모두 우리 프론트엔드에서 호출하고, 외부에서 호출되는 endpoint는 `/webhooks`로 이미 분리되어 있기 때문입니다.
+업무 API에는 `internal` prefix를 사용하지 않습니다. 현재 앱 API는 `/api/v1`, 외부 callback은 `/webhooks`로 분리합니다. 단, 사용자 기능이 아닌 관리 endpoint인 Spring Boot Actuator는 `/internal/actuator` 아래에 두고 ADMIN 역할로 제한합니다.
 
 ## 앱 API
 
@@ -47,6 +50,7 @@ GET    /api/v1/inquiries/count
 GET    /api/v1/inquiries
 POST   /api/v1/inquiries
 PATCH  /api/v1/inquiries/{id}
+PATCH  /api/v1/inquiries/{id}?refresh=true
 PATCH  /api/v1/inquiries/batch/status
 
 POST   /api/v1/inquiries/{id}/work-logs
@@ -63,6 +67,8 @@ DELETE /api/v1/inquiries/custom-filters/{id}
 
 POST   /api/v1/files/presigned-urls
 ```
+
+`refresh=true`는 별도 리소스 경로가 아니라 기존 문의 수정 endpoint에서 외부 채널의 최신 상태를 다시 읽도록 지시하는 query option입니다.
 
 ### Auth API와 Admin Account API의 차이
 
