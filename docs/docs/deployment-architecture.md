@@ -2,105 +2,78 @@
 sidebar_label: 배포 아키텍처
 ---
 
-# 배포 아키텍처 (Deployment Architecture)
+# 배포 아키텍처
 
-이 문서는 CS 테스트베드 시스템의 컴포넌트 배포 모델, 호스트 리소스 마운트 전략 및 실시간 모니터링 로그 수집 흐름을 명세합니다.
+현재 시스템은 한 호스트에서 Docker Compose로 실행하는 단일 노드 배포다. 이 문서는 실제 Compose 서비스와 volume 연결을 기준으로 설명한다.
 
----
-
-## 🏗️ 단일 노드 컨테이너 아키텍처
-
-현재 전체 시스템은 1대의 호스트 머신 내에서 **Docker Compose**를 기반으로 각 컨테이너가 오케스트레이션되어 동작하는 **단일 노드(Single-Node) 배포 형태**로 구성되어 있습니다.
+## 컨테이너 구성
 
 ```mermaid
-graph TD
-    subgraph Host ["호스트 OS (서버)"]
-        subgraph Ports ["포트 바인딩"]
-            HostPort["호스트 포트 :8888"]
-        end
+flowchart TD
+    Browser[LAN Browser] -->|:8888| Frontend["frontend\nNginx + React dist"]
 
-        subgraph Docker ["Docker Compose 컨테이너 그룹"]
-            Nginx["cs-frontend-nginx (포트 80)"]
-            Frontend["cs-frontend (React Dist Static)"]
-            API["cs-api (백엔드)"]
-            Worker["browser-worker (Playwright)"]
-            n8n["n8n (워크플로우)"]
-            Postgres["postgres-db (PostgreSQL 16)"]
-            MinIO["minio (로컬 S3 호환)"]
-            Wiki["cs-wiki (Docusaurus)"]
-            Alloy["grafana-alloy (로그 에이전트)"]
-            Loki["loki (로그 데이터베이스)"]
-            Grafana["grafana (모니터링 대시보드)"]
-        end
-        
-        subgraph Volumes ["호스트 볼륨 데이터 저장소"]
-            VolPostgres["./data/postgres"]
-            Voln8n["./data/n8n"]
-            VolLogs["Named Vol: app_logs"]
-            VolMinIO["Named Vol: minio_storage"]
-            VolLoki["Named Vol: loki_data"]
-            VolGrafana["Named Vol: grafana_data"]
-        end
-    end
+    Frontend --> API[cs-api]
+    Frontend --> n8n[n8n]
+    Frontend --> Wiki[wiki]
+    Frontend --> Grafana[grafana]
+    Frontend --> MinIO[minio]
 
-    %% 연결 관계
-    HostPort -->|포트 포워딩| Nginx
-    Nginx -.->|정적 파일 로드| Frontend
-    Nginx -.->|리버스 프록시| API
-    Nginx -.->|리버스 프록시| n8n
-    Nginx -.->|리버스 프록시| Wiki
-    Nginx -.->|리버스 프록시| Grafana
+    API --> DB[(postgres-db)]
+    API --> MinIO
+    API --> Worker[browser-worker]
+    n8n --> DB
+    Sync[n8n-sync] -->|n8n CLI| n8n
 
-    %% 볼륨 연결
-    Postgres -->|마운트| VolPostgres
-    n8n -->|마운트| Voln8n
-    API -->|로그 쓰기| VolLogs
-    Alloy -->|로그 읽기| VolLogs
-    MinIO -->|마운트| VolMinIO
-    Loki -->|마운트| VolLoki
-    Grafana -->|마운트| VolGrafana
+    API -->|app_logs| Alloy[grafana-alloy]
+    Alloy --> Loki[(loki)]
+    Grafana --> Loki
 ```
 
----
+`frontend`라는 별도 React 런타임 컨테이너는 없다. `npm run build`가 만든 `apps/frontend/dist`를 `nginx:alpine` 기반 `frontend` 서비스가 `/usr/share/nginx/html`에 마운트해 정적으로 제공한다. 이 Nginx 컨테이너의 이름이 `cs-frontend-nginx`다.
 
-## 💾 볼륨 마운트 및 데이터 영속화 전략
+`wiki`는 개발 편의를 위해 `node:24-alpine`에서 소스를 bind mount하고 시작할 때 의존성을 설치한 뒤 Docusaurus 개발 서버를 포트 80으로 실행한다. 고정된 운영 이미지가 필요한 배포에서는 별도 빌드 단계와 immutable image가 필요하다.
 
-컨테이너가 종료되거나 업데이트되더라도 시스템 상태 및 사용자 데이터가 유실되지 않도록 다음과 같은 영속화(Volume Mount) 전략을 채택하고 있습니다.
+## 영속화와 설정 마운트
 
-| 컨테이너 서비스 | 마운트 유형 | 호스트 경로 (Host Source) | 컨테이너 경로 (Container Target) | 목 적 |
-| :--- | :--- | :--- | :--- | :--- |
-| **postgres-db** | Bind Mount | `./data/postgres` | `/var/lib/postgresql/data` | PostgreSQL 데이터베이스의 실제 데이터 보존 |
-| **postgres-db** | Bind Mount | `./infra/postgres/init-postgres.sql` | `/docker-entrypoint-initdb.d/init-postgres.sql` | 초기 구동 시 DB 및 스키마 자동 설치 스크립트 실행 |
-| **n8n** | Bind Mount | `./data/n8n` | `/home/node/.n8n` | n8n 사용자 워크플로우 구성 및 자격증명 상태 보존 |
-| **minio** | Named Volume | `minio_storage` | `/data` | 로컬 S3 저장소에 업로드된 대고객 CS 첨부파일 영속 저장 |
-| **cs-api** | Named Volume | `app_logs` | `/app/logs` | Spring Boot 애플리케이션의 텍스트 로그 파일 출력 및 로깅 공유 |
-| **grafana-alloy** | Named Volume | `app_logs` (Read-only) | `/app/logs` | `cs-api`가 쓴 로그 파일을 수집하기 위한 읽기 전용 공유 마운트 |
-| **loki** | Named Volume | `loki_data` | `/loki` | 수집된 시스템 로그 파일 보관 데이터베이스 |
-| **grafana** | Named Volume | `grafana_data` | `/var/lib/grafana` | 대시보드 커스텀 설정 및 데이터 소스 정보 영속 저장 |
+| 서비스 | 소스 | 컨테이너 경로 | 역할 |
+| --- | --- | --- | --- |
+| `postgres-db` | `./data/postgres` | `/var/lib/postgresql/data` | DB 데이터 보존 |
+| `postgres-db` | `infra/postgres/init-postgres.sql` | `/docker-entrypoint-initdb.d/init-postgres.sql` | 최초 시작 시 `n8n_schema` 생성 |
+| `n8n` | `./data/n8n` | `/home/node/.n8n` | n8n 설정과 상태 보존 |
+| `minio` | `minio_storage` | `/data` | 첨부 객체 보존 |
+| `cs-api` | `app_logs` | `/app/logs` | 애플리케이션·접근·웹훅 로그 기록 |
+| `grafana-alloy` | `app_logs` (read-only) | `/app/logs` | 로그 수집 |
+| `loki` | `loki_data` | `/loki` | 로그 저장 |
+| `grafana` | `grafana_data` | `/var/lib/grafana` | Grafana 상태 보존 |
+| `frontend`, `cs-api` | `infra/nginx/.htpasswd` | 각 서비스 설정 경로 | Basic Auth 사용자 원본 공유 |
+| `n8n-sync` | Docker socket, 저장소 루트 | `/var/run/docker.sock`, `/app` | 워크플로우 양방향 동기화 |
 
----
+PostgreSQL과 n8n 데이터는 저장소 아래 bind mount를 사용하고, MinIO·로그·Loki·Grafana는 Docker named volume을 사용한다. 백업 절차를 설계할 때 두 유형을 모두 포함해야 한다.
 
-## 📈 로그 모니터링 수집 아키텍처
-
-이 프로젝트는 장애 대응 및 세션 자동화 모니터링을 효율적으로 관리하기 위해 **Alloy + Loki + Grafana 기반의 로그 옵저버빌리티 파이프라인**을 구동합니다.
+## 애플리케이션 로그 배포 흐름
 
 ```mermaid
 sequenceDiagram
-    participant API as cs-api (Spring Boot)
-    participant Vol as Named Volume (app_logs)
-    participant Alloy as grafana-alloy (Agent)
-    participant Loki as loki (Storage)
-    participant Grafana as grafana (Dashboard)
+    participant API as cs-api
+    participant Volume as app_logs
+    participant Alloy as Grafana Alloy
+    participant Loki as Loki
+    participant Grafana as Grafana
 
-    API->>Vol: 1. 애플리케이션 로그 생성 및 파일 기록 (JSON/Text 포맷)
-    Note over API,Vol: /app/logs/spring.log
-    Alloy->>Vol: 2. 공유 마운트된 로그 디렉토리 실시간 tailing
-    Alloy->>Loki: 3. 수집한 로그에 메타 데이터(레이블) 추가 후 Loki API 전송
-    Loki->>Loki: 4. 타임스탬프 기준으로 인덱싱 및 로테이션 저장
-    Grafana->>Loki: 5. LogQL 쿼리를 통해 로그 실시간 질의 및 대시보드 렌더링
+    API->>Volume: application / error / access / webhook 로그
+    Alloy->>Volume: 파일 tail
+    Alloy->>Loki: push API 전송
+    Grafana->>Loki: LogQL 조회
 ```
 
-1. **로그 생성**: 백엔드 API 서버(`cs-api`)가 발생시키는 주요 세션 변경 기록 및 CS 문의 트래픽 로그를 호스트 공유 디렉토리인 `app_logs` 볼륨의 파일로 씁니다.
-2. **로그 수집**: `grafana-alloy` 컨테이너가 동일한 `app_logs` 볼륨을 읽기 전용(`ro`)으로 연동하여 파일 쓰기 이벤트를 실시간으로 탐지(tailing)합니다.
-3. **로그 적재**: 수집된 파일 스트림은 Docker 네트워크를 통해 로컬 `loki` 컨테이너의 포트로 전송되고, Loki는 이를 압축하여 타임스탬프 색인과 함께 `loki_data` 볼륨에 영구 보존합니다.
-4. **모니터링**: 개발자 및 운영자는 [http://localhost:8888/grafana/](http://localhost:8888/grafana/)에 접속하여 Loki를 데이터 소스로 지정한 뒤 실시간으로 로그를 조회하고 경고 알림(Alerting)을 설정할 수 있습니다.
+대표 로그 경로는 `/app/logs/app/application.log`이며, 오류·접근·웹훅 로그는 각각 별도 하위 경로로 회전 저장된다. Alloy는 `app_logs`를 읽기 전용으로 마운트하므로 애플리케이션 로그를 변경하지 않는다.
+
+## 빌드와 기동 경계
+
+- `cs-api`: `apps/cs-api/Dockerfile`에서 빌드하는 애플리케이션 이미지
+- `browser-worker`: Playwright와 Chromium을 포함한 전용 Dockerfile 이미지
+- `frontend`: 호스트에서 만들어 둔 `dist`를 Nginx에 mount
+- `wiki`: mount한 소스를 컨테이너 시작 시 실행
+- PostgreSQL, n8n, MinIO, Loki, Alloy, Grafana: upstream image 사용
+
+따라서 새 checkout에서 `docker compose up`만 실행하기 전에 환경 변수, `.htpasswd`, 프론트엔드 `dist`를 준비해야 한다. 저장소의 실행 절차와 `scripts/verify.sh`를 기준으로 사전 검증한다.

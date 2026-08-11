@@ -2,91 +2,76 @@
 sidebar_label: 네트워크 아키텍처
 ---
 
-# 네트워크 아키텍처 (Network Architecture)
+# 네트워크 아키텍처
 
-이 문서는 CS 테스트베드 시스템 내부 컨테이너 통신망(Docker Bridge Network) 구조와 단일 호스트 인그레스 차단 원칙, 그리고 Nginx 리버스 프록시를 통한 IP 대역별 인바운드 통제 설정을 정의합니다.
+이 문서는 `docker-compose.yml`과 `infra/nginx/nginx.conf`를 기준으로 컨테이너 통신, 호스트 포트, Nginx 라우팅 경계를 설명한다.
 
----
+## Docker 브릿지 네트워크
 
-## 🌐 1. Docker 브릿지 네트워크 (`n8n_network`)
-
-시스템의 모든 컨테이너 서비스는 Docker 엔진이 제공하는 독립 브릿지 네트워크인 `n8n_network`에 가입되어 상호 통신을 수행합니다.
-
-* **Docker 내부 DNS 분석**: 컨테이너들은 호스트의 실제 IP나 동적 포트 매핑 상태를 몰라도, 컨테이너 서비스 이름(예: `cs-api`, `postgres-db`, `minio`, `n8n` 등)을 호스트명으로 사용하여 1:1 사설 통신을 수행합니다.
-  * *예시*: `browser-worker` 서비스에서 백엔드로 연결 시 `http://cs-api:8080` 주소로 즉시 라우팅됩니다.
-* **격리 효과**: 호스트 네트워크 카드나 공인 인터넷 인터페이스와 직접 결합하지 않고 내부 가상 브릿지를 사용하므로, 스니핑 및 외부 해킹 위협으로부터 DB 및 백그라운드 태스크 엔진을 안전하게 격리합니다.
-
----
-
-## 🔒 2. 호스트 포트 노출 제한 원칙
-
-외부 침투 경로를 원천 차단하기 위해 **외부 인그레스 포트(Ingress Port) 노출 최소화** 원칙을 고수합니다.
+모든 Compose 서비스는 `n8n_network`에 참여한다. 컨테이너는 동적인 IP 대신 서비스 이름을 내부 DNS 이름으로 사용한다.
 
 ```text
-                  [ 인터넷 / LAN 환경 ]
-                            │
-                      (포트 8888만 허용)
-                            ▼
-              ┌───────────────────────────┐
-              │    cs-frontend-nginx      │ (Nginx 리버스 프록시)
-              └─────────────┬─────────────┘
-                            │
-               [ n8n_network 내부 네트워크 ]
-                            │ (포트 미공개 상태로 격리 통신)
-        ┌───────────────────┼───────────────────┐
-        ▼                   ▼                   ▼
-     cs-api           browser-worker          grafana
-    (8080)               (3000)               (3000)
+cs-api          -> postgres-db:5432, minio:9000, browser-worker:3000
+n8n             -> postgres-db:5432, cs-api:8080
+grafana-alloy   -> loki:3100
+frontend/nginx  -> cs-api, n8n, wiki, minio, grafana
 ```
 
-### 컨테이너 포트 노출 현황
+브릿지 네트워크는 내부 서비스 탐색과 호스트 포트 최소화에 유용하지만, 그 자체가 암호화나 완전한 보안 경계는 아니다. 서비스 토큰, Nginx 인증, 최소 포트 노출을 함께 적용한다.
 
-* **포트 노출 대상 (Host Binding)**:
-  * `cs-frontend-nginx` (`8888:80`): 사용자가 서비스 콘솔에 접근하기 위한 유일한 공인 게이트웨이.
-  * `postgres-db` (`5432:5432`): 개발자의 DBeaver 등 DB 툴 접속 편의를 위한 개발용 바인딩.
-  * `minio` (`9000:9000`, `9001:9001`): 외부 S3 연동 테스트 및 관리용 로컬 포트 바인딩.
-* **포트 노출 차단 대상 (Internal Only)**:
-  * `cs-api` (백엔드): 외부 포트 미노출. 포트 8080은 Docker 내부망에서만 사용 가능합니다.
-  * `browser-worker` (자동화 워커): 외부 포트 미노출. 포트 3000은 백엔드의 API 요청 수신 용도로 격리됩니다.
-  * `n8n` (워크플로우): 외부 포트 미노출. 포트 5678 접근은 Nginx 어드민 로그인 후에만 포워딩됩니다.
-  * `grafana` (모니터링): 외부 포트 미노출. 포트 3000 접근 역시 Nginx 리버스 프록시 검증 후에 연결됩니다.
+## 호스트 포트
 
----
+```mermaid
+flowchart TD
+    Client[LAN 브라우저] -->|8888| Nginx["frontend 서비스\ncs-frontend-nginx"]
+    DevTool[개발 도구] -.->|5432| DB[(PostgreSQL)]
+    DevTool -.->|9000 / 9001| MinIO[(MinIO)]
+    Nginx --> API[cs-api:8080]
+    Nginx --> n8n[n8n:5678]
+    Nginx --> Wiki[wiki:80]
+    Nginx --> Grafana[grafana:3000]
+```
 
-## 🚦 3. Nginx 리버스 프록시 라우팅 테이블
+| 호스트 바인딩 | 용도 | 운영 시 주의 |
+| --- | --- | --- |
+| `8888:80` | 애플리케이션과 관리 도구의 Nginx 진입점 | LAN allowlist와 인증 적용 |
+| `5432:5432` | DBeaver 등 로컬 개발 도구 | 개발 편의 포트이므로 방화벽으로 제한하거나 운영 배포에서 제거 |
+| `9000:9000` | MinIO S3 API 테스트 | 외부 공개 금지 권장 |
+| `9001:9001` | MinIO 관리 콘솔 직접 접근 | Nginx `/minio/` 경로 사용을 권장하고 직접 포트는 제한 |
 
-호스트의 단일 진입점인 `8888` 포트를 타고 들어온 요청은 Nginx(`infra/nginx/nginx.conf`) 설정에 의해 다음과 같이 내부망 주소로 프록시 패스됩니다.
+`cs-api`, `browser-worker`, `n8n`, `wiki`, `Loki`, `Alloy`, `Grafana`는 호스트 포트를 publish하지 않는다. Compose의 `5432`, `9000`, `9001` 바인딩은 기본적으로 모든 호스트 인터페이스에 열릴 수 있으므로 “외부 포트가 8888 하나뿐”이라고 가정해서는 안 된다.
 
-| 인입 URI 경로 (Inbound Path) | 목적지 컨테이너 주소 (Docker Upstream) | Basic Auth / 추가 어드민 권한 검증 | 목 적 |
-| :--- | :--- | :--- | :--- |
-| `/` | `cs-frontend-nginx` (Local Serve) | Basic Auth 적용 | 프론트엔드 React SPA 정적 리소스 서빙 |
-| `/api/` | `http://cs-api:8080` | Basic Auth 적용 (`X-Remote-User` 전달) | 스프링 부트 업무 백엔드 API 연동 |
-| `/n8n/` | `http://n8n:5678` | 어드민 로그인 검증 (`auth_request` 위임) | n8n 자동화 워크플로우 관리 콘솔 연결 |
-| `/docs` | `http://cs-api:8080/docs` | 어드민 로그인 검증 (`auth_request` 위임) | 백엔드 API 문서 및 명세 조회 |
-| `/wiki/` | `http://wiki:80` | 어드민 로그인 검증 (`auth_request` 위임) | Docusaurus 위키 기술 문서 서빙 |
-| `/grafana/` | `http://grafana:3000` | 어드민 로그인 검증 (`auth_request` 위임) | 시스템 모니터링 로그 대시보드 |
-| `/attachments/` | `http://minio:9000` | 보안 인증 제외 (익명 읽기) | MinIO 버킷 내 업로드된 첨부파일 다이렉트 뷰 |
-| `/minio/` | `http://minio:9001` | 어드민 로그인 검증 (`auth_request` 위임) | MinIO 스토리지 웹 관리 콘솔 연결 |
+## Nginx 라우팅
 
----
+`frontend` Compose 서비스는 React 정적 파일을 제공하는 Nginx이자 내부 서비스의 리버스 프록시다.
 
-## 🛡️ 4. 사설망 IP 접근 통제 (LAN IP Whitelisting)
+| 경로 | 목적지 | 접근 제어 | 역할 |
+| --- | --- | --- | --- |
+| `/` | Nginx 로컬 `dist` | Basic Auth | React SPA |
+| `/api/` | `cs-api:8080` | Basic Auth, `X-Remote-User` 재설정 | 앱 API |
+| `/n8n/` | `n8n:5678` | `auth_request` 어드민 쿠키 검증 | 워크플로우 UI |
+| `/docs` | `cs-api:8080` | `auth_request` | API 문서 진입점 |
+| `/v3/api-docs` | `cs-api:8080` | `auth_request` | OpenAPI JSON |
+| `/swagger-ui/` | `cs-api:8080` | `auth_request` | Swagger UI 자산 |
+| `/wiki/`, `/ws` | `wiki:80` | `/wiki/`는 `auth_request` | Docusaurus와 개발 WebSocket |
+| `/grafana/` | `grafana:3000` | `auth_request` | 로그 조회 UI |
+| `/minio/` | `minio:9001` | `auth_request` | MinIO 관리 콘솔 |
+| `/attachments/` | `minio:9000` | 인증 없음 | 공개 읽기 첨부파일 |
 
-Nginx 설정 상단에 LAN 외부 주소로부터의 공격 위협을 무력화하기 위해 사설 대역 IP 화이트리스트 필터링을 강제합니다.
+Nginx는 클라이언트가 보낸 `X-Remote-User` 값을 그대로 신뢰하지 않고 `$remote_user`로 덮어쓴 뒤 `cs-api`로 전달한다.
+
+## LAN allowlist
+
+Nginx는 다음 소스 대역만 허용하고 나머지는 `deny all`로 거부한다.
 
 ```nginx
-# 일반적인 가정/사무실 C클래스 사설망 대역 허용
-allow 192.168.0.0/16;   
-# 기업용 대형 네트워크 A클래스 사설망 대역 허용
-allow 10.0.0.0/8;       
-# Docker 내부 가상 브릿지망 대역 허용
-allow 172.16.0.0/12;    
-# 로컬 개발 접속 허용
+allow 192.168.0.0/16;
+allow 10.0.0.0/8;
+allow 172.16.0.0/12;
 allow 127.0.0.1;
 allow ::1;
-# IPv6 사설망 대역 허용
-allow fc00::/7;         
-
-# 상기 허용 리스트에 매칭되지 않는 외부 공인 IP (WAN) 요청은 즉각 거부 (HTTP 403 Forbidden)
-deny all;               
+allow fc00::/7;
+deny all;
 ```
+
+이 정책은 `8888`을 통해 들어오는 요청에 적용된다. PostgreSQL과 MinIO의 직접 host binding에는 Nginx allowlist가 적용되지 않으므로 호스트 방화벽 또는 포트 제거가 별도로 필요하다.

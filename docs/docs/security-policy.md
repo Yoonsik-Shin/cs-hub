@@ -1,112 +1,87 @@
 ---
-sidebar_label: 보안 및 인증 정책
+sidebar_label: 보안 정책
 ---
 
-# 보안 및 인증 정책 (Security & Auth Policy)
+# 보안 정책
 
-이 문서는 CS 테스트베드 시스템에 적용된 네트워크 경계 보안 모델, 사용자 API 인증 절차, 어드민 툴 통합 단일인증(SSO-like) 구조 및 시스템 내부 토큰 인증 방침을 정의합니다.
+현재 보안 모델은 LAN allowlist, Nginx Basic Auth, DB 역할, 관리 도구 쿠키, 내부 서비스 토큰을 서로 다른 경계에 적용한다. 공유 토큰은 요청 주체를 확인하지만 통신 내용을 암호화하지는 않는다.
 
----
-
-## 🛡️ 1. 네트워크 경계 보안 모델
-
-본 서비스는 원칙적으로 **사설망(LAN) 전용 배포**를 전제로 합니다.
-
-* 외부 노출을 수반하는 유일한 관문은 `cs-frontend-nginx` 컨테이너이며, 백엔드 API 및 다른 어드민 모니터링 툴은 포트 바인딩을 차단하여 내부 브릿지 네트워크 영역에 격리합니다.
-* 공유 오피스나 다중 접속 사설망 환경의 잠재적 위협을 방어하기 위해 Nginx 수준에서 전체 LAN 접근 허용 필터링과 동시에 **Basic Authentication(기본 로그인 인증)**을 필수 적용합니다.
+## 신뢰 경계
 
 ```mermaid
-graph LR
-    User([사설 LAN 사용자]) -->|1. HTTP basic 로그인| Nginx[cs-frontend-nginx:8888]
-    Nginx -->|2. 신뢰 헤더 전달 X-Remote-User| API[cs-api:8080]
-    
-    style Nginx fill:#f9f,stroke:#333,stroke-width:2px
-    style API fill:#bbf,stroke:#333,stroke-width:2px
+flowchart LR
+    User[LAN 사용자] -->|Basic Auth| Nginx[cs-frontend-nginx]
+    Nginx -->|X-Remote-User| API[cs-api]
+    API -->|admin_member 역할 조회| DB[(PostgreSQL)]
+    API -->|X-Internal-Token| Worker[browser-worker]
+    n8n[n8n] -->|X-Internal-Token| API
 ```
 
----
+Nginx의 `8888` 경로는 LAN allowlist를 적용한 애플리케이션 진입점이다. 다만 개발 편의를 위한 PostgreSQL `5432`와 MinIO `9000/9001` host binding도 존재하므로 호스트 방화벽으로 제한하거나 운영 배포에서 제거해야 한다.
 
-## 🔑 2. 사용자 API 인증 (X-Remote-User)
+## 사용자 인증과 역할
 
-사용자가 브라우저를 통해 호출하는 일반 비즈니스 API(`/api/**`)의 인증은 Nginx와 Spring Boot 간의 신뢰 협약을 기반으로 동작합니다.
+1. Nginx가 `infra/nginx/.htpasswd`로 Basic Auth를 검증한다.
+2. `/api/` 프록시에서 클라이언트의 `X-Remote-User`를 `$remote_user` 값으로 덮어쓴다.
+3. `NginxHeaderAuthFilter`가 `admin_member` 테이블에서 사용자를 조회한다.
+4. 등록된 역할로 Spring Security 인증 컨텍스트를 만들고 `@RequireRoles`가 기능 권한을 검사한다.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as 브라우저 (사용자)
-    participant Nginx as cs-frontend-nginx
-    participant API as cs-api (Spring Security)
-    participant DB as postgres-db (admin_member)
+| 요청 상태 | 결과 |
+| --- | --- |
+| 유효한 `X-Internal-Token` | `ROLE_SYSTEM` 내부 인증 생성 |
+| 등록된 `X-Remote-User` | DB 역할 기반 사용자 인증 생성 |
+| 사용자 헤더가 없거나 DB에 없음 | `401 Unauthorized` |
+| 인증은 됐지만 요구 역할 없음 | `403 Forbidden` |
 
-    User->>Nginx: /api/inquiry 조회 요청 (Basic Auth 정보 포함)
-    Nginx->>Nginx: Basic Auth 정보 및 .htpasswd 검증
-    Nginx->>API: 리버스 프록시 패스 (X-Remote-User: 인증된_아이디 추가)
-    API->>API: NginxHeaderAuthFilter 인터셉트
-    API->>DB: admin_member 테이블에서 해당 아이디 존재 여부 확인
-    alt 미등록 사용자인 경우
-        API-->>User: 401 Unauthorized 반환 (인증 실패)
-    else 등록된 관리자인 경우
-        API->>API: Spring Security 내부 관리자 인증 객체 생성
-        API-->>User: 200 OK & 데이터 결과 전송
-    end
-```
+`X-Remote-User` 신뢰는 `cs-api`가 외부에 직접 publish되지 않고 Nginx가 헤더를 덮어쓴다는 배포 조건에 의존한다. 백엔드 포트를 직접 공개하면 이 가정이 깨진다.
 
-### 📝 인증 시나리오 요약
+관리자 계정 API는 `admin_member`와 `.htpasswd`를 함께 갱신한다. 파일 쓰기 실패 시 계정 상태가 어긋나지 않도록 관련 코드를 변경할 때 두 저장소의 정합성을 함께 검토해야 한다.
 
-1. `X-Remote-User` 헤더는 클라이언트(브라우저) 측에서 임의로 조작하거나 변조하여 전송할 수 없습니다. Nginx가 직접 클라이언트의 원본 요청을 덮어쓰고(overwrite) 인증된 사용자명을 주입하여 백엔드로 안전하게 터널링합니다.
-2. 백엔드 API 서버는 들어오는 모든 요청에 대해 아래 규칙을 토대로 `NginxHeaderAuthFilter`에서 필터링을 수행합니다:
-   * `X-Remote-User` 헤더 없음 + `X-Internal-Token` 헤더 없음 $\rightarrow$ **HTTP 401 Unauthorized**
-   * `X-Remote-User` 헤더 존재 + `admin_member` DB 테이블에 미등록된 사용자 $\rightarrow$ **HTTP 401 Unauthorized**
-   * `X-Remote-User` 헤더 존재 + `admin_member` DB 테이블에 등록된 사용자 $\rightarrow$ **Spring Security 관리자 인증 컨텍스트 생성**
-   * `X-Internal-Token` 헤더 일치 $\rightarrow$ **Spring Security 내부 시스템 인증 컨텍스트 생성 (ROLE_SYSTEM)**
+## 관리 도구 접근 쿠키
 
----
-
-## 🎫 3. 어드민 툴 통합 접근 제어 (Cookie-based auth_request)
-
-Nginx를 경유해 노출되는 모니터링 및 개발 어드민 도구들(n8n UI, Grafana, MinIO 콘솔 등)은 별도의 기본 인증(Basic Auth) 창을 다시 요구하지 않는 대신, 백엔드 API 서버의 권한 검증에 통합되어 제어됩니다.
+n8n, Grafana, MinIO 콘솔, Wiki와 API 문서는 Basic Auth를 통과한 것만으로 열리지 않는다. ADMIN 사용자가 발급받은 `cs_admin_access` 쿠키를 Nginx `auth_request`로 검증한다.
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    actor Admin as 관리자
-    participant Nginx as Nginx 리버스 프록시
-    participant API as cs-api (인증 컨트롤러)
+    actor Admin as ADMIN 사용자
+    participant UI as React UI
+    participant API as cs-api
+    participant Nginx as Nginx
+    participant Tool as 관리 도구
 
-    Admin->>API: POST /api/v1/auth/admin-tool-access (관리자 비밀키 입력)
-    Note over Admin,API: 관리자 권한 확인 후 cs_admin_access 쿠키 발급
-    API-->>Admin: cs_admin_access=유효토큰 쿠키 반환
-    
-    Admin->>Nginx: 어드민 툴 경로 접속 요청 (/n8n/, /grafana/ 등)
-    Nginx->>API: GET /api/v1/auth/admin-tool-check (쿠키 전달)
-    alt 쿠키 유효 (권한 충족)
-        API-->>Nginx: HTTP 200 OK
-        Nginx->>Admin: 어드민 툴 화면 프록시 연동 및 노출
-    else 쿠키 무효 또는 만료
-        API-->>Nginx: HTTP 403 Forbidden
-        Nginx-->>Admin: 302 / (프론트엔드 메인화면 리다이렉트)
+    Admin->>UI: 관리 도구 열기
+    UI->>API: POST /api/v1/auth/admin-tool-access
+    Note over API: X-Remote-User의 ADMIN 역할 확인
+    API-->>Admin: HttpOnly cs_admin_access 쿠키
+    Admin->>Nginx: /n8n/, /grafana/, /minio/, /wiki/ 요청
+    Nginx->>API: GET /api/v1/auth/admin-tool-check + Cookie
+    alt 쿠키 유효
+        API-->>Nginx: 204 No Content
+        Nginx->>Tool: 요청 프록시
+    else 쿠키 없음·만료·무효
+        API-->>Nginx: 403 Forbidden
+        Nginx-->>Admin: 302 /
     end
 ```
 
-### ⚙️ 검증 세부 명세
+이 흐름에는 별도의 “관리자 비밀키” 입력이 없다. 현재 Basic Auth 사용자와 DB의 ADMIN 역할을 확인해 12시간 유효한 HttpOnly, SameSite=Lax 쿠키를 발급한다. 로컬 HTTP 구성을 지원하기 위해 `Secure` 속성은 사용하지 않으므로 HTTPS 배포 시 쿠키 설정도 함께 강화해야 한다.
 
-* **어드민 툴 경로 지정**: `/n8n/`, `/grafana/`, `/minio/`, `/wiki/` 등.
-* **권한 위임 기작**: Nginx 설정의 `auth_request /_admin_tool_auth;` 구문을 통해 사용자가 해당 서비스에 접근을 시도할 때 Nginx가 보이지 않게 백엔드 API인 `/api/v1/auth/admin-tool-check`를 호출합니다.
-* **결과 처리**: 백엔드가 HTTP 200을 리턴하면 프록시 연결을 이어나가고, HTTP 403을 리턴하면 어드민 권한이 없는 것으로 간주하여 프론트 로그인 메인화면 `/`로 리다이렉트 처리합니다.
+## 내부 서비스 인증
 
----
+`.env`의 `INTERNAL_API_TOKEN`을 다음 경계에서 공유한다.
 
-## 🔒 4. 내부 서비스 간 통신 보안 (Internal System Auth)
+- `cs-api` → `browser-worker`: 일회용 로그인, 댓글 등록, 세션 검증
+- `n8n` → `cs-api`: `POST /webhooks/n8n`
+- 내부 시스템 → 일부 Naver session API: `@RequireInternalAuth`가 선언된 endpoint
 
-Docker Compose 내부 사설 브릿지 네트워크 내에 있어도 서비스 간의 무단 API 호출이나 데이터 오남용을 예방하기 위해 **Shared Secret (공유 비밀 토큰) 방식**을 활용합니다.
+browser-worker는 토큰 누락, 예시 값, 짧은 값으로 시작하지 않으며 요청 토큰을 상수 시간 비교한다. 검증 실패는 브라우저 작업 전에 `401`로 끝난다. 백엔드는 `NginxHeaderAuthFilter`와 `@RequireInternalAuth`로 시스템 요청을 검증한다.
 
-```mermaid
-graph LR
-    API[cs-api Backend] -->|HTTP POST 요청<br/>X-Internal-Token 사용| Worker[browser-worker Playwright]
-    
-    n8n[n8n Workflow] -->|HTTP Webhook 호출<br/>X-Internal-Token 사용| API
-```
+Kakao 웹훅은 `@RequireInternalAuth` 대상이 아니다. 현재 LAN 차단 또는 개발용 public tunnel 경계에 의존하므로 외부 공개 운영 전에는 공급자 서명 검증, 별도 비밀값 또는 게이트웨이 정책을 추가해야 한다.
 
-* **토큰 정보**: `.env`에 정의된 `${INTERNAL_API_TOKEN}` 환경변수 값을 활용합니다.
-* **browser-worker 보안**: `browser-worker` Express 서버는 들어오는 모든 POST API 요청 헤더의 `x-internal-token`을 검사하는 미들웨어를 내장하고 있습니다. 토큰이 무효하거나 비어 있으면 HTTP 401 Unauthorized를 응답하고 브라우저 제어 명령 수행을 즉시 거부합니다.
-* **백엔드 Webhook 보호**: n8n 워크플로우 엔진이 백엔드의 `/webhooks/n8n` 등 전용 웹훅 API 엔드포인트를 호출할 때도 이 토큰을 검증하는 `@RequireInternalAuth` 어노테이션 기반 필터를 구동하여 시스템 간 통신을 암호화 수준으로 보호합니다.
+내부 HTTP 트래픽은 TLS로 암호화되지 않는다. 토큰은 인증·무결성 판단용 비밀값이며 네트워크 암호화를 대신하지 않는다. 다중 호스트나 신뢰할 수 없는 네트워크로 확장할 때는 TLS 또는 서비스 메시 같은 전송 보안이 필요하다.
+
+## 저장 데이터 보호
+
+네이버 세션과 PII는 `infra/security/crypto`의 AES-GCM 변환을 통해 저장 시 암호화한다. 이메일 검색은 평문 저장 대신 별도 HMAC 검색 보조값을 사용한다. `PII_ENCRYPTION_SECRET`과 `NAVER_SESSION_SECRET`은 예시 값을 실제 비밀값으로 교체하고 저장소에 커밋하지 않는다.
+
+첨부파일 버킷은 현재 익명 다운로드 정책이다. 공개 가능한 문의 이미지라는 전제에 맞춘 설정이며, 개인정보나 기밀 문서는 같은 버킷에 저장하지 않아야 한다.

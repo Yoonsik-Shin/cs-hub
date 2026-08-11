@@ -2,91 +2,72 @@
 sidebar_label: 인프라 아키텍처
 ---
 
-# 인프라 아키텍처 (Infrastructure Architecture)
+# 인프라 아키텍처
 
-이 문서는 CS 테스트베드 시스템을 구성하는 주요 인프라 컴포넌트(데이터베이스, 오브젝트 스토리지, 워크플로우 동기화 엔진)의 세부 명세와 컨테이너 간의 내부 유기적 협력 관계를 설명합니다.
+이 문서는 `docker-compose.yml`과 현재 프로비저닝 파일을 기준으로 데이터 저장, 자동화, 로그 관측 구성을 설명한다.
 
----
-
-## 🏗️ 전체 인프라 구성도
-
-시스템의 인프라스트럭처는 Docker Compose 브릿지 네트워크 내에서 서로 격리된 채 전용 스키마, 스토리지 버킷 및 동기화 도구들을 구동합니다.
+## 전체 구성
 
 ```mermaid
-graph TD
-    subgraph DataStorage ["데이터 저장 인프라"]
-        Postgres[(PostgreSQL 16)]
-        MinIO[(MinIO S3)]
-    end
+flowchart LR
+    API[cs-api] -->|JDBC| Postgres[(PostgreSQL 16)]
+    API -->|S3 API| MinIO[(MinIO)]
+    n8n[n8n] -->|n8n_schema| Postgres
 
-    subgraph Automation ["자동화 및 동기화"]
-        n8n[n8n Engine]
-        Sync[n8n-sync Worker]
-    end
+    Sync[n8n-sync] -->|docker exec + n8n CLI| n8n
+    Workflow["infra/n8n/*.json"] <--> Sync
 
-    subgraph Observability ["모니터링 인프라"]
-        Alloy[Grafana Alloy]
-        Loki[Loki DB]
-        Grafana[Grafana Console]
-    end
-
-    %% 데이터 연결
-    API[cs-api Backend] -->|JDBC 연동| Postgres
-    API -->|S3 SDK 파일 업로드| MinIO
-    n8n -->|상태 저장| Postgres
-
-    %% 동기화 흐름
-    Sync -->|Docker Socket API| Sync
-    Sync -->|Workflow JSON Sync| n8n
-
-    %% 모니터링 흐름
-    Alloy -->|Log Feed| Loki
-    Grafana -->|Query| Loki
+    API -->|app_logs 볼륨| Alloy[Grafana Alloy]
+    Alloy -->|Loki push API| Loki[(Loki)]
+    Grafana[Grafana] -->|LogQL| Loki
 ```
 
----
+모든 서비스는 `n8n_network` 브릿지 네트워크에 참여하고 Compose 서비스 이름으로 통신한다.
 
-## 💾 1. 데이터베이스 인프라 (PostgreSQL 16)
+## PostgreSQL과 스키마 소유권
 
-시스템은 단일 데이터베이스 서버인 `postgres-db` (PostgreSQL 16)를 공동으로 공유하며 스키마를 분리하여 격리합니다.
+단일 `postgres-db` 인스턴스 안에서 두 애플리케이션의 스키마를 분리한다.
 
-* **인프라 역할**: 백엔드 시스템(`cs-api`)의 업무용 문의 내역 데이터 저장 및 워크플로우 자동화 도구(`n8n`)의 핵심 엔진 메타데이터 관리를 병행합니다.
-* **스키마 분리 전략**:
-  * `public` 스키마: 백엔드 `cs-api` 서버가 사용하는 테이블 공간 (예: `customer_inquiry`, `admin_member` 등).
-  * `n8n_schema` 스키마: n8n 컨테이너 환경 변수 `DB_POSTGRESDB_SCHEMA=n8n_schema`를 통해 n8n 내부 구동 정보(실행 이력, 노드 상태, 크레덴셜)가 별도 스키마 영역에 적재되도록 격리.
-* **자동 초기화**: `./infra/postgres/init-postgres.sql` 파일을 최초 1회 볼륨 마운트하여 데이터베이스 초기 기동 시 데이터 테이블 생성 및 필수 데이터(테스트용 계정 등)를 생성합니다.
+| 스키마 | 소유 애플리케이션 | 초기화 주체 |
+| --- | --- | --- |
+| `public` | `cs-api` | 애플리케이션 시작 시 Flyway migration |
+| `n8n_schema` | `n8n` | `init-postgres.sql`이 스키마만 만들고, n8n이 자체 테이블을 관리 |
 
----
+`infra/postgres/init-postgres.sql`은 `n8n_schema`만 생성한다. 문의, 관리자 계정 등 `cs-api` 업무 테이블과 기준 데이터는 `apps/cs-api/src/main/resources/db/migration`의 Flyway migration이 관리한다. 따라서 초기화 SQL에 업무 테이블을 중복 정의하지 않는다.
 
-## 📂 2. 오브젝트 스토리지 인프라 (MinIO)
+데이터 디렉터리 `./data/postgres`는 `/var/lib/postgresql/data`에 bind mount한다. 초기화 스크립트는 빈 데이터 디렉터리에서 PostgreSQL이 처음 시작할 때만 실행된다.
 
-CS 처리 과정에서 수집된 화면 캡처나 문서 이미지 등을 저장하기 위해 AWS S3 호환 로컬 오브젝트 스토리지인 **MinIO**를 구동합니다.
+## MinIO
 
-* **포트 분리**:
-  * `9000`: S3 API 통신 전용 포트. `cs-api` 백엔드 서버가 첨부파일 업로드 및 다운로드 시 사용합니다.
-  * `9001`: MinIO 웹 관리 콘솔 포트. 어드민이 UI 환경에서 직접 파일 내역을 관리할 수 있는 접근 경로를 제공합니다.
-* **초기 자동 버킷 생성 (MinIO Init)**:
-  * MinIO 스토리지의 버킷 생성을 수동화하지 않고 `minio-init` 컨테이너 서비스를 추가하여 기동 시 자동화합니다.
-  * `minio-init` 서비스는 `minio/mc:latest` 이미지를 활용하여, MinIO API 포트가 준비될 때까지 대기(polling)한 후 `myminio` 별칭을 바인딩하고 환경 변수 `${S3_BUCKET}`에 입력된 버킷 명칭(예: `cs-application`)을 자동으로 생성(`mc mb`)합니다.
-  * 생성된 버킷은 비로그인 사용자도 프론트엔드 링크를 통해 이미지를 원활하게 참조할 수 있도록 다운로드 정책(`mc anonymous set download`)을 부여합니다.
+MinIO는 문의 첨부파일용 S3 호환 저장소다.
 
----
+- `cs-api`는 내부 주소 `http://minio:9000`으로 업로드 URL을 생성한다.
+- 호스트의 `9000`은 S3 API, `9001`은 관리 콘솔에 바인딩된다.
+- `minio-init`은 MinIO가 준비될 때까지 기다린 뒤 `${S3_BUCKET}` 버킷을 만들고 익명 다운로드 정책을 설정한다.
+- 객체 데이터는 `minio_storage` named volume에 보존한다.
+- 브라우저 읽기 주소는 Nginx의 `/attachments/` 프록시를 사용한다.
 
-## 🔄 3. 워크플로우 동기화 인프라 (n8n-sync)
+익명 읽기는 현재 첨부파일 표시 요구에 따른 선택이다. 민감 파일을 저장한다면 공개 버킷 대신 인증된 다운로드 또는 만료형 presigned URL로 정책을 변경해야 한다.
 
-n8n 워크플로우 자동화 프로그램이 개발 코드 및 버전 관리(Git)와 함께 조율되도록 하는 **Node.js 기반 동기화 인프라**입니다.
+## n8n 워크플로우 동기화
 
-* **동작 원리**:
-  * 호스트 머신의 Docker 소켓(`/var/run/docker.sock`)을 컨테이너 내부에 바인드 마운트하여 기동됩니다.
-  * Docker 컨테이너가 켜진 직후, `/infra/n8n/n8n-sync.js` 스크립트를 즉시 실행하여 로컬 디스크 파일 시스템 내의 JSON 워크플로우 리소스(`scratch_workflow.json` 등)를 n8n API 엔드포인트와 대조합니다.
-  * 새로 추가되거나 변경된 로컬 워크플로우 파일 상태가 n8n 엔진 내부 데이터베이스에 자동으로 최신화(Import)되므로 개발과 빌드 환경 일치성을 확보합니다.
+`n8n-sync`는 `infra/n8n/n8n-sync.js`를 실행하며 다음 두 워크플로우 JSON을 감시한다.
 
----
+- `scratch_workflow.json`
+- `error_workflow.json`
 
-## 📊 4. 모니터링 인프라 (Grafana & Loki & Alloy)
+동기화 컨테이너는 저장소와 `/var/run/docker.sock`을 마운트한다. n8n HTTP API를 호출하는 방식이 아니라 Docker CLI로 `n8n` 컨테이너 안의 `n8n export:workflow`와 `n8n import:workflow` 명령을 실행한다. 로컬 파일과 export 결과를 정규화해 비교하고 `updatedAt`이 더 최신인 쪽을 반영하며, 시각이 같고 내용만 다르면 자동 덮어쓰기를 보류한다.
 
-개발 환경 및 운영 환경의 이상 유무 진단을 위해 시각화 인프라를 상시 구동합니다.
+Docker socket 마운트는 호스트 Docker 제어 권한을 제공하는 강한 권한이다. 이 서비스는 신뢰된 개발 호스트에서만 실행하고 외부 요청을 받지 않도록 유지한다.
 
-*   **Grafana Alloy**: 리소스 효율적인 로그 에이전트. `app_logs` 볼륨을 모니터링하여 로그를 파일 단위로 tailing 한 후 Loki로 전달합니다.
-*   **Grafana Provisioning**:
-    *   Grafana 대시보드와 데이터 소스를 최초 1회 자동으로 프로비저닝하기 위해 `./infra/grafana/provisioning` 폴더가 읽기 전용으로 연동되어 있어 컨테이너 시작 시 데이터베이스 연동과 대시보드 설정이 완료되어 있습니다.
+## 로그 수집과 조회
+
+`cs-api`는 `app_logs` volume 아래에 다음 로그를 분리해 기록한다.
+
+- `/app/logs/app/application*.log`, `/app/logs/app/error*.log`
+- `/app/logs/access/*.log`
+- `/app/logs/webhooks/kakao-*.log`, `/app/logs/webhooks/n8n*.log`
+
+Grafana Alloy는 이 volume을 읽기 전용으로 마운트해 파일을 tail하고 `http://loki:3100/loki/api/v1/push`로 전송한다. Loki 데이터는 `loki_data`, Grafana 상태는 `grafana_data` volume에 보존한다.
+
+현재 `infra/grafana/provisioning`은 Loki datasource만 자동 등록한다. 대시보드 JSON은 프로비저닝하지 않으며, Grafana UI에서 만든 대시보드는 `grafana_data`에 저장된다.
