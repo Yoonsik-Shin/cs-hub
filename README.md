@@ -96,6 +96,10 @@ flowchart LR
 
 ![합성 첨부 이미지로 실행한 상세 이미지 뷰어](docs/static/img/cs-dashboard-image-viewer.jpg)
 
+동일한 fixture를 `390x844` viewport에서 확인해, 좁은 화면에서도 문의 목록의 채널·상태·요약과 필터 진입점이 유지되는지 검증했습니다.
+
+![390px 좁은 화면의 합성 문의 목록](docs/static/img/cs-dashboard-narrow.jpg)
+
 ## 검증
 
 루트에서 전체 검증을 실행합니다.
