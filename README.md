@@ -25,7 +25,7 @@
 | API 업무 오류 | 문의 부재와 잘못된 업무 요청을 타입으로 구분하고 안정적인 오류 코드로 응답 | [문의 예외](apps/cs-api/src/main/java/com/ttam/cs/feature/inquiry/exception), [HTTP 계약 테스트](apps/cs-api/src/test/java/com/ttam/cs/infra/web/exception/GlobalExceptionHandlerTest.java) |
 | PII 저장과 검색 | AES-GCM 저장 암호화와 HMAC-SHA256 검색 보조값을 분리 | [PiiEncryptionUtils](apps/cs-api/src/main/java/com/ttam/cs/infra/security/crypto/PiiEncryptionUtils.java), [암호화 경계 테스트](apps/cs-api/src/test/java/com/ttam/cs/infra/security/crypto/PiiEncryptionUtilsTest.java) |
 | 내부 워커 인증 | 토큰 미설정 시 fail-fast, 상수 시간 비교, 요청 토큰 비로깅 | [internalToken.js](apps/browser-worker/src/security/internalToken.js), [테스트](apps/browser-worker/test/internalToken.test.js) |
-| 자동 갱신 중 사용자 맥락 | 선택 정책과 상세 유지 규칙을 React 밖의 순수 함수로 분리 | [batchSelection](apps/frontend/src/features/inquiry/batchSelection.ts), [selectedInquiry](apps/frontend/src/features/inquiry/selectedInquiry.ts), [테스트](apps/frontend/tests) |
+| 자동 갱신 중 사용자 맥락 | 조회·페이지 캐시·선택 유지·갱신 주기를 React 밖의 정책과 전용 훅으로 분리 | [inquiryListLoader](apps/frontend/src/features/inquiry/inquiryListLoader.ts), [pageCache](apps/frontend/src/features/inquiry/pageCache.ts), [useAutoRefresh](apps/frontend/src/hooks/useAutoRefresh.ts), [테스트](apps/frontend/tests) |
 | 워크플로 중복 실행과 실패 알림 | 채널별 실행 lock과 동일 오류 30분 억제 | [수집 워크플로](infra/n8n/scratch_workflow.json), [공통 오류 워크플로](infra/n8n/error_workflow.json) |
 
 ## 아키텍처
@@ -82,7 +82,7 @@ flowchart LR
 
 ### 4. 자동 갱신 중 선택이 유지되는 흐름
 
-대형 컴포넌트에 있던 선택 로직을 [batchSelection.ts](apps/frontend/src/features/inquiry/batchSelection.ts)와 [selectedInquiry.ts](apps/frontend/src/features/inquiry/selectedInquiry.ts)로 분리했습니다.
+대형 컴포넌트에 있던 목록 조회와 상태 정책을 [inquiryListLoader.ts](apps/frontend/src/features/inquiry/inquiryListLoader.ts), [pageCache.ts](apps/frontend/src/features/inquiry/pageCache.ts), [batchSelection.ts](apps/frontend/src/features/inquiry/batchSelection.ts), [selectedInquiry.ts](apps/frontend/src/features/inquiry/selectedInquiry.ts)로 분리했습니다. 타이머 생명주기는 [useAutoRefresh](apps/frontend/src/hooks/useAutoRefresh.ts)가 담당합니다.
 
 - 현재 페이지 전체 선택은 다른 페이지의 선택을 훼손하지 않습니다.
 - 새로고침 후 화면에서 사라진 ID만 일괄 선택에서 제거합니다.
@@ -108,7 +108,7 @@ flowchart LR
 - TypeScript 및 Vite 프로덕션 빌드
 - Docker Compose 설정 유효성
 
-현재 저장소 기준으로 백엔드 43개, 브라우저 워커 4개, 프론트엔드 11개 테스트가 통과합니다.
+현재 저장소 기준으로 백엔드 43개, 브라우저 워커 4개, 프론트엔드 21개 테스트가 통과합니다.
 
 ## 로컬 실행
 
