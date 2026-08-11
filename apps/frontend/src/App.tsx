@@ -28,6 +28,8 @@ import {
   updateCachedItem,
 } from './features/inquiry/pageCache';
 import type { PageCache } from './features/inquiry/pageCache';
+import { parseRefreshInterval } from './features/inquiry/refreshInterval';
+import { useAutoRefresh } from './hooks/useAutoRefresh';
 
 const SIDEBAR_EXPANDED_WIDTH = 300;
 const SIDEBAR_COLLAPSED_WIDTH = 64;
@@ -80,8 +82,7 @@ export const App: React.FC = () => {
 
   // Auto-refresh states
   const [refreshInterval, setRefreshInterval] = useState<number>(() => {
-    const saved = localStorage.getItem('admin_cs_refresh_interval');
-    return saved ? Number(saved) : 0;
+    return parseRefreshInterval(localStorage.getItem('admin_cs_refresh_interval'));
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Batch selection states
@@ -703,17 +704,12 @@ export const App: React.FC = () => {
     }
   }, [fetchStats, fetchNaverSessionStatus, buildCurrentSearchParams]);
 
-  // Auto-refresh timer hook
-  useEffect(() => {
-    if (refreshInterval <= 0) return;
-
-    const intervalId = setInterval(() => {
-      if (isBatchSelectionMode) return;
-      handleRefresh(true);
-    }, refreshInterval * 1000);
-
-    return () => clearInterval(intervalId);
-  }, [refreshInterval, handleRefresh, isBatchSelectionMode]);
+  const handleAutoRefresh = useCallback(() => handleRefresh(true), [handleRefresh]);
+  useAutoRefresh({
+    intervalSeconds: refreshInterval,
+    paused: isBatchSelectionMode,
+    onRefresh: handleAutoRefresh,
+  });
 
   const handleManualRefresh = useCallback(() => {
     if (isBatchSelectionMode && selectedInquiryIds.size > 0) {
