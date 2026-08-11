@@ -282,4 +282,109 @@ class IntegrateInquiryDataUseCaseTest {
             return true;
         }));
     }
+
+    @Test
+    void replyToReplyLinksToRootInquiry() {
+        UUID rootId = UUID.randomUUID();
+        CustomerInquiry previousReply = mock(CustomerInquiry.class);
+        when(previousReply.getParentId()).thenReturn(rootId);
+
+        CustomerInquiry root = mock(CustomerInquiry.class);
+        when(root.getStatus()).thenReturn(CustomerInquiry.Status.OPEN);
+
+        EmailMetadata metadata = new EmailMetadata(
+                "customer@test.com",
+                "cs@test.com",
+                "Re: Re: 문의드립니다",
+                "2026-07-10T00:00:00Z",
+                new EmailMetadata.Headers("<reply-2>", "<reply-1>", ""),
+                null
+        );
+        IntegrateInquiryDataUseCase.IntegrationItem item = new IntegrateInquiryDataUseCase.IntegrationItem(
+                "2026-07-10T00:00:00Z",
+                "user_01",
+                metadata,
+                null,
+                "두 번째 회신입니다.",
+                List.of()
+        );
+
+        when(adminMemberRepository.existsByEmail("customer@test.com")).thenReturn(false);
+        when(repository.findEmailByMessageId("reply-1")).thenReturn(Optional.of(previousReply));
+        when(repository.findById(rootId)).thenReturn(Optional.of(root));
+        when(uniqueKeyGenerator.generateUniqueKey(any(), any(), any(), any(), any()))
+                .thenReturn(UUID.randomUUID());
+
+        useCase.execute("EMAIL", List.of(item));
+
+        verify(repository).bulkInsert(argThat(inquiries -> {
+            assertEquals(rootId, inquiries.get(0).getParentId());
+            return true;
+        }));
+        verify(repository, never()).save(root);
+        verify(workLogRepository, never()).save(any());
+    }
+
+    @Test
+    void replyToOpenInquiryDoesNotCreateReopenHistory() {
+        UUID parentId = UUID.randomUUID();
+        CustomerInquiry parent = mock(CustomerInquiry.class);
+        when(parent.getId()).thenReturn(parentId);
+        when(parent.getStatus()).thenReturn(CustomerInquiry.Status.OPEN);
+
+        EmailMetadata metadata = new EmailMetadata(
+                "customer@test.com",
+                "cs@test.com",
+                "Re: 문의드립니다",
+                "2026-07-10T00:00:00Z",
+                new EmailMetadata.Headers("<reply-message>", "<parent-message>", ""),
+                null
+        );
+        IntegrateInquiryDataUseCase.IntegrationItem item = new IntegrateInquiryDataUseCase.IntegrationItem(
+                "2026-07-10T00:00:00Z",
+                "user_01",
+                metadata,
+                null,
+                "추가 문의입니다.",
+                List.of()
+        );
+
+        when(adminMemberRepository.existsByEmail("customer@test.com")).thenReturn(false);
+        when(repository.findEmailByMessageId("parent-message")).thenReturn(Optional.of(parent));
+        when(repository.findById(parentId)).thenReturn(Optional.of(parent));
+        when(uniqueKeyGenerator.generateUniqueKey(any(), any(), any(), any(), any()))
+                .thenReturn(UUID.randomUUID());
+
+        useCase.execute("EMAIL", List.of(item));
+
+        verify(parent, never()).updateStatus(any(), any());
+        verify(repository, never()).save(parent);
+        verify(workLogRepository, never()).save(any());
+        verify(repository).bulkInsert(anyList());
+    }
+
+    @Test
+    void emailWithoutMessageIdOrImapUidIsRejected() {
+        EmailMetadata metadata = new EmailMetadata(
+                "customer@test.com",
+                "cs@test.com",
+                "문의드립니다",
+                "2026-07-10T00:00:00Z",
+                new EmailMetadata.Headers("", "", ""),
+                null
+        );
+        IntegrateInquiryDataUseCase.IntegrationItem item = new IntegrateInquiryDataUseCase.IntegrationItem(
+                "2026-07-10T00:00:00Z",
+                "user_01",
+                metadata,
+                null,
+                "문의 내용입니다.",
+                List.of()
+        );
+
+        when(adminMemberRepository.existsByEmail("customer@test.com")).thenReturn(false);
+
+        assertThrows(IllegalArgumentException.class, () -> useCase.execute("EMAIL", List.of(item)));
+        verify(repository, never()).bulkInsert(anyList());
+    }
 }
