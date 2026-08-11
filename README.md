@@ -94,9 +94,11 @@ flowchart LR
 
 이 정책은 브라우저 없이 [Node 내장 테스트](apps/frontend/tests)로 실행됩니다.
 
-`App.tsx`에서는 개인화 사이드바를 `AdminSidebar`로 분리하고, 계정 메뉴와 네이버 세션 상태도 전용 위젯으로 옮겼습니다. `InquiryDetailPanel.tsx`에서는 작업 이력·회신 조회를 `useInquiryActivity`, 수정값 검증·이미지 업로드·저장을 `useInquiryFieldEditor`, 채널·디바이스 표시를 `InquiryMetadataSections`가 담당합니다. 타임라인과 이미지 뷰어 역시 전용 컴포넌트로 유지합니다.
+`App.tsx`에서는 개인화 사이드바를 `AdminSidebar`, 목록·배치·페이지네이션을 [InquiryWorkspacePane](apps/frontend/src/components/InquiryWorkspacePane.tsx), 선택 상세를 [SelectedInquiryPane](apps/frontend/src/components/SelectedInquiryPane.tsx)으로 분리했습니다. 운영자·네이버 세션·통계·목록 리사이즈는 각각 전용 훅이 소유합니다.
 
-이 분리 후 `App.tsx`는 2,343줄에서 1,213줄로, `InquiryDetailPanel.tsx`는 2,240줄에서 1,393줄로 줄었습니다. 줄 수 자체보다 API 상태 조율, 사이드바 개인화, 필드 편집 트랜잭션, 상세 표현을 서로 독립적으로 변경할 수 있게 된 점을 기준으로 경계를 정했습니다.
+`InquiryDetailPanel.tsx`에서는 작업 이력·회신 조회를 `useInquiryActivity`, 수정값 검증·이미지 업로드·저장을 `useInquiryFieldEditor`, 답변·상태·즐겨찾기 명령을 [useInquiryActions](apps/frontend/src/hooks/useInquiryActions.ts)가 담당합니다. 헤더·처리 콘솔·이력 열도 각각 독립 컴포넌트로 분리했습니다.
+
+현재 기준으로 `App.tsx`는 2,343줄에서 776줄로, `InquiryDetailPanel.tsx`는 2,240줄에서 786줄로 줄었습니다. 줄 수 자체보다 목록 조회, 상세 편집, 처리 명령, 이력 표현을 서로 독립적으로 변경할 수 있는지를 경계로 삼았습니다.
 
 다음 화면은 실제 고객 데이터가 아닌 [합성 fixture](scripts/showcase-server.mjs)로 이미지 선택과 확대 동작을 검증한 결과입니다.
 

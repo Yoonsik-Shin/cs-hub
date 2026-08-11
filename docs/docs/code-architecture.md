@@ -46,6 +46,9 @@ flowchart LR
   - `OperatorWidget.tsx`: 계정 정보와 권한별 관리자 도구 진입점
   - `NaverSessionWidget.tsx`: 네이버 세션 상태 표시와 갱신 명령
   - `InquiryDetailPanel.tsx`: 선택 문의의 상세 섹션과 처리 명령 조립
+  - `InquiryWorkspacePane.tsx`: 목록 열, 배치 선택 UI, 페이지네이션 표현
+  - `SelectedInquiryPane.tsx`: 선택 상세와 빈 상태 전환
+  - `InquiryDetailHeader.tsx`, `InquiryWorkConsole.tsx`, `InquiryHistoryPane.tsx`: 상세 헤더, 처리 명령, 이력 열 표현
   - `InquiryMetadataSections.tsx`: 채널별 메타데이터와 디바이스 표시·편집
   - `InquiryActionModal.tsx`: 상태 변경·작업 기록·즐겨찾기 확인 계약
   - `InquiryTimeline.tsx`: 작업 로그·회신 타임라인 표현
@@ -58,6 +61,8 @@ flowchart LR
 - `src/hooks/useAutoRefresh.ts`: 자동 갱신 주기와 실행 생명주기
 - `src/hooks/useInquiryActivity.ts`: 작업 이력·회신 조회와 외부 데이터 갱신
 - `src/hooks/useInquiryFieldEditor.ts`: 필드 변경 감지, 사유 검증, 이미지 업로드와 저장
+- `src/hooks/useInquiryActions.ts`: 답변·메모·상태·즐겨찾기 명령과 확인 모달 상태
+- `src/hooks/useOperatorSession.ts`, `useNaverSession.ts`, `useInquiryStats.ts`: 최상위 운영 상태와 API 생명주기
 - `src/types/inquiry.ts`: 서버 계약과 UI 상태에 사용하는 TypeScript 타입
 
 `App.tsx`는 API 상태와 문의 작업 흐름을 조율하고, `InquiryDetailPanel.tsx`는 상세 화면 배치와 사용자 명령을 조립한다. 사이드바 개인화와 상세 데이터 조회·편집은 전용 컴포넌트와 훅이 소유한다. 순수 사용자 맥락 정책은 DOM 없이 테스트하고, `conventionGuard.test.ts`는 공유 HTTP·모달·피드백 경계의 우회를 소스 수준에서 차단한다. 컴포넌트 조합은 합성 showcase를 데스크톱과 `390x844`에서 실행해 검증한다.
