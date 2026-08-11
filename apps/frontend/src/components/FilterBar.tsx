@@ -79,6 +79,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const [showNameInput, setShowNameInput] = useState(false);
   const [newFilterName, setNewFilterName] = useState('');
   const [isEditingFilter, setIsEditingFilter] = useState(false);
+  const [previousInitialValues, setPreviousInitialValues] = useState(initialValues);
 
   const defaultPresets = [
     { id: 'default-all', name: '📢 전체 문의', filterData: { userCode: '', userCodeMissing: false, statuses: [], channels: [], startDate: '', endDate: '', isManual: undefined, bookmarkedOnly: false } },
@@ -102,8 +103,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     { value: 'NAVER_CAFE', label: '네이버카페' },
   ];
 
-  // Keep internal states synced if parent values change
-  useEffect(() => {
+  // Guarded render-time adjustment keeps the local draft aligned without a stale effect render.
+  if (previousInitialValues !== initialValues) {
+    setPreviousInitialValues(initialValues);
     setUserCode(initialValues.userCode);
     setUserCodeMissing(Boolean(initialValues.userCodeMissing));
     setStatuses(initialValues.statuses);
@@ -112,7 +114,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     setEndDate(initialValues.endDate);
     setIsManual(initialValues.isManual);
     setBookmarkedOnly(Boolean(initialValues.bookmarkedOnly));
-  }, [initialValues]);
+  }
 
   // Automatically select newly created custom filter
   useEffect(() => {
@@ -125,13 +127,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     }
   }, [customFilters]);
 
-  // Sync selectedFilterId with current values: find if any custom filter matches the current inputs
-  useEffect(() => {
-    if (isEditingFilter) return; // Skip sync during manual filter update editing
-
-    // 1. Check custom user-saved filters
-    const matchedFilter = customFilters.find(f => {
-      const data = f.filterData || {};
+  if (!isEditingFilter) {
+    const matchedFilter = customFilters.find((filter) => {
+      const data = filter.filterData || {};
       return (
         JSON.stringify(data.channels || []) === JSON.stringify(channels) &&
         JSON.stringify(data.statuses || []) === JSON.stringify(statuses) &&
@@ -143,15 +141,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         (data.userCode || '') === userCode
       );
     });
-
-    if (matchedFilter) {
-      setSelectedFilterId(matchedFilter.id);
-      return;
-    }
-
-    // 2. Check default system presets
-    const matchedPreset = defaultPresets.find(p => {
-      const data = p.filterData;
+    const matchedPreset = defaultPresets.find((preset) => {
+      const data = preset.filterData;
       return (
         JSON.stringify(data.channels || []) === JSON.stringify(channels) &&
         JSON.stringify(data.statuses || []) === JSON.stringify(statuses) &&
@@ -163,13 +154,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         (data.userCode || '') === userCode
       );
     });
-
-    if (matchedPreset) {
-      setSelectedFilterId(matchedPreset.id);
-    } else {
-      setSelectedFilterId('');
+    const matchedFilterId = matchedFilter?.id ?? matchedPreset?.id ?? '';
+    if (selectedFilterId !== matchedFilterId) {
+      setSelectedFilterId(matchedFilterId);
     }
-  }, [channels, statuses, startDate, endDate, isManual, bookmarkedOnly, userCodeMissing, userCode, customFilters]);
+  }
 
   const toggleValue = <T extends string>(values: T[], value: T, setter: React.Dispatch<React.SetStateAction<T[]>>) => {
     setter(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
@@ -279,8 +268,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       pendingSelectName.current = newFilterName.trim();
       await onSaveCustomFilter(newFilterName.trim(), currentValues());
       setShowNameInput(false);
-    } catch (err: any) {
-      alert('필터 저장에 실패했습니다: ' + err.message);
+    } catch (err) {
+      alert('필터 저장에 실패했습니다: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
     } finally {
       setSavingFilter(false);
     }
@@ -297,8 +286,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     try {
       await onSaveCustomFilter(activeFilter.name, currentValues());
       setIsEditingFilter(false);
-    } catch (err: any) {
-      alert('필터 업데이트에 실패했습니다: ' + err.message);
+    } catch (err) {
+      alert('필터 업데이트에 실패했습니다: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
     } finally {
       setSavingFilter(false);
     }
@@ -317,8 +306,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     if (!window.confirm('저장된 필터를 삭제할까요?')) return;
     try {
       await onDeleteCustomFilter(id);
-    } catch (err: any) {
-      alert('필터 삭제에 실패했습니다: ' + err.message);
+    } catch (err) {
+      alert('필터 삭제에 실패했습니다: ' + (err instanceof Error ? err.message : '알 수 없는 오류'));
     }
   };
 
