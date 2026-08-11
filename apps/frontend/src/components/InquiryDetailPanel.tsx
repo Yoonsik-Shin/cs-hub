@@ -1,33 +1,26 @@
 import React, { useState } from 'react';
 import {
-    Info, Calendar, Clock, History,
-    FileText, CheckCircle, MessageSquare, Pin,
-    ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ImagePlus, Loader2, Star, X as XIcon
+    Info, FileText, ImagePlus, Loader2, Star, X as XIcon
 } from 'lucide-react';
 import type {
     CustomerInquiry,
-    InquiryStatus,
     OperatorInfo,
 } from '../types/inquiry';
-import { inquiryApi } from '../api/inquiryApi';
-import { InquiryTimeline } from './InquiryTimeline';
 import { InquiryImageViewer } from './InquiryImageViewer';
 import { buildInquiryTimeline } from '../features/inquiry/timeline';
 import { useInquiryActivity } from '../hooks/useInquiryActivity';
 import { useInquiryFieldEditor } from '../hooks/useInquiryFieldEditor';
 import { InquiryActionModal } from './InquiryActionModal';
-import type { InquiryActionModalState } from './InquiryActionModal';
 import { InquiryChannelMetadataSection, InquiryDeviceInfoSection } from './InquiryMetadataSections';
 import {
-    formatInquiryDate,
     getChannelPresentation,
-    getStatusLabel,
     IMAGE_POLICY,
-    isValidStatusReason,
-    MIN_STATUS_REASON_LENGTH,
 } from '../features/inquiry/policy';
-import { getErrorMessage } from '../lib/errors';
 import { InlineAlert } from './ui/InlineAlert';
+import { useInquiryActions } from '../hooks/useInquiryActions';
+import { InquiryWorkConsole } from './InquiryWorkConsole';
+import { InquiryHistoryPane } from './InquiryHistoryPane';
+import { InquiryDetailHeader } from './InquiryDetailHeader';
 
 interface InquiryDetailPanelProps {
     inquiry: CustomerInquiry;
@@ -59,25 +52,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     const [isResizingLeft, setIsResizingLeft] = useState(false);
 
     // Collapsible states
-    const [isActionsCollapsed, setIsActionsCollapsed] = useState(false);
     const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false);
-
-    // Form states
-    const [answerText, setAnswerText] = useState('');
-    const [memoText, setMemoText] = useState('');
-    const [submittingLog, setSubmittingLog] = useState(false);
-    const [statusChanging, setStatusChanging] = useState(false);
-    const [isEditingAnswer, setIsEditingAnswer] = useState(false);
-    const [bookmarkChanging, setBookmarkChanging] = useState(false);
-    const [actionError, setActionError] = useState<string | null>(null);
-
-    // Confirmation Modal state
-    const [modal, setModal] = useState<InquiryActionModalState>({
-        isOpen: false,
-        type: 'STATUS_CHANGE',
-    });
-
-    const [statusChangeReason, setStatusChangeReason] = useState('');
 
     // Image preview state
     const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
@@ -147,143 +122,42 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
     };
 
 
-    const handleRegisterWorkLogClick = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!answerText.trim() && !memoText.trim()) {
-            setActionError('답변 내용 또는 메모 내용을 입력해 주세요.');
-            return;
-        }
-        setActionError(null);
-        setModal({
-            isOpen: true,
-            type: 'REGISTER_LOG',
-            selectedStatus: inquiry.status
-        });
+    const {
+        answerText,
+        setAnswerText,
+        memoText,
+        setMemoText,
+        submittingLog,
+        statusChanging,
+        isEditingAnswer,
+        setIsEditingAnswer,
+        latestAnswerLog,
+        bookmarkChanging,
+        modal,
+        setModal,
+        statusChangeReason,
+        setStatusChangeReason,
+        error: actionError,
+        requestWorkLogRegistration,
+        requestStatusChange: handleStatusChangeClick,
+        requestBookmarkToggle: handleToggleBookmark,
+        confirmModal,
+    } = useInquiryActions({
+        inquiry,
+        operator: currentOperator,
+        workLogs,
+        onUpdateInquiry,
+        onToggleBookmark,
+        refreshWorkLogs: fetchWorkLogs,
+    });
+
+    const handleRegisterWorkLogClick = (event: React.FormEvent) => {
+        event.preventDefault();
+        requestWorkLogRegistration();
     };
 
-    const handleStatusChangeClick = (newStatus: InquiryStatus) => {
-        if (newStatus === inquiry.status) return;
-        setActionError(null);
-        setStatusChangeReason('');
-        setModal({
-            isOpen: true,
-            type: 'STATUS_CHANGE',
-            targetStatus: newStatus
-        });
-    };
-
-    const executeRegisterWorkLog = async () => {
-        setSubmittingLog(true);
-        setActionError(null);
-        try {
-            const targetStatus = modal.selectedStatus && modal.selectedStatus !== inquiry.status
-                ? modal.selectedStatus
-                : undefined;
-            const changeReason = targetStatus
-                ? (isValidStatusReason(memoText)
-                    ? memoText.trim()
-                    : (isValidStatusReason(answerText)
-                        ? answerText.trim()
-                        : '답변/메모 등록에 따른 상태 변경'))
-                : undefined;
-            await inquiryApi.createWorkLog(inquiry.id, {
-                operatorInfo: currentOperator,
-                answer: answerText.trim() || undefined,
-                memo: memoText.trim() || undefined,
-                targetStatus,
-                statusReason: changeReason,
-            });
-
-            if (targetStatus && onUpdateInquiry) {
-                onUpdateInquiry(inquiry.id, { status: targetStatus });
-            }
-
-            setAnswerText('');
-            setMemoText('');
-            setIsEditingAnswer(false);
-            await fetchWorkLogs();
-            setModal({ isOpen: false, type: 'REGISTER_LOG' });
-        } catch (err) {
-            console.error(err);
-            setActionError('등록 중 문제가 발생했습니다: ' + getErrorMessage(err));
-        } finally {
-            setSubmittingLog(false);
-        }
-    };
-
-    const executeStatusChange = async () => {
-        const targetStatus = modal.targetStatus;
-        if (!targetStatus) return;
-        if (!isValidStatusReason(statusChangeReason)) {
-            setActionError(`상태 변경 사유는 최소 ${MIN_STATUS_REASON_LENGTH}자 이상이어야 합니다.`);
-            return;
-        }
-
-        setStatusChanging(true);
-        setActionError(null);
-        try {
-            await inquiryApi.updateInquiryStatus(inquiry.id, {
-                operatorInfo: currentOperator,
-                status: targetStatus,
-                reason: statusChangeReason.trim()
-            });
-            await fetchWorkLogs();
-            if (onUpdateInquiry) {
-                onUpdateInquiry(inquiry.id, { status: targetStatus });
-            }
-            setModal({ isOpen: false, type: 'STATUS_CHANGE' });
-            setStatusChangeReason('');
-        } catch (err) {
-            console.error(err);
-            setActionError('상태 변경에 실패했습니다: ' + getErrorMessage(err));
-        } finally {
-            setStatusChanging(false);
-        }
-    };
-
-    const handleToggleBookmark = () => {
-        if (!onToggleBookmark || bookmarkChanging) return;
-        setActionError(null);
-        setModal({
-            isOpen: true,
-            type: 'BOOKMARK'
-        });
-    };
-
-    const executeToggleBookmark = async () => {
-        if (!onToggleBookmark || bookmarkChanging) return;
-        setBookmarkChanging(true);
-        setModal(prev => ({ ...prev, isOpen: false }));
-        try {
-            await onToggleBookmark(inquiry.id);
-            fetchWorkLogs();
-        } finally {
-            setBookmarkChanging(false);
-        }
-    };
-
-    const getStatusHeaderStyle = (status: string) => {
-        let bgColor = 'var(--status-open)';
-        if (status === 'IN_PROGRESS') {
-            bgColor = 'var(--status-inprogress)';
-        } else if (status === 'RESOLVED') {
-            bgColor = 'var(--status-resolved)';
-        }
-
-        return {
-            background: bgColor,
-            color: '#ffffff',
-            padding: '16px 20px',
-            borderBottom: 'none',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexShrink: 0
-        };
-    };
 
     const channelInfo = getChannelPresentation(inquiry.channel);
-    const latestAnswerLog = workLogs.find(log => log.answer && log.answer.trim() !== '');
 
     const getDisplayImageUrl = (url: string) => {
         if (!url) return '';
@@ -637,55 +511,8 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
 
     return (
         <div className="detail-pane-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div className="detail-pane-header" style={getStatusHeaderStyle(inquiry.status)}>
-                <div className="detail-modal-header-left" style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                    <span
-                        className={`channel-badge ${channelInfo.className}`}
-                        style={{
-                            border: '1px solid rgba(255, 255, 255, 0.3)',
-                            color: '#ffffff',
-                            background: 'rgba(255, 255, 255, 0.15)'
-                        }}
-                    >
-                        {channelInfo.label}
-                    </span>
-                    {inquiry.isManual && (
-                        <span
-                            className="channel-badge manual"
-                            style={{
-                                border: '1px solid #f59e0b',
-                                color: '#d97706',
-                                background: '#fef3c7',
-                                fontSize: '11px',
-                                fontWeight: '700',
-                                padding: '2px 6px',
-                                borderRadius: '4px'
-                            }}
-                        >
-                            수동 등록
-                        </span>
-                    )}
-                    <span className="detail-modal-title" style={{ color: '#ffffff', fontSize: '20px', fontWeight: '700' }}>
-                        {inquiry.userCode || '비회원 (익명)'} 님의 문의 상세
-                    </span>
-                    <span className="inquiry-time" style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Calendar size={12} />
-                        {formatInquiryDate(inquiry.timestamp)}
-                    </span>
-                    <span
-                        className={`status-badge ${inquiry.status.toLowerCase()}`}
-                        style={{
-                            border: '1px solid rgba(255, 255, 255, 0.4)',
-                            color: '#ffffff',
-                            background: 'rgba(255, 255, 255, 0.1)'
-                        }}
-                    >
-                        {getStatusLabel(inquiry.status)}
-                    </span>
-                </div>
-            </div>
+            <InquiryDetailHeader inquiry={inquiry} />
 
-            {/* Pane Split Body */}
             <div className="detail-modal-body" style={{ flex: 1, minHeight: 0 }}>
                 {/* Left Pane: CS Reference + Support Actions */}
                 <div
@@ -910,464 +737,38 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                     />
                 </div>
 
-                    {/* Bottom: Support Actions Console */}
-                    <div
-                        className="cs-action-console cs-card"
-                        style={{
-                            flexShrink: 0,
-                            background: '#ffffff',
-                            border: '1px solid var(--border-light)',
-                            borderRadius: '12px',
-                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
-                            overflow: 'hidden',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            height: 'auto',
-                            overflowY: 'visible',
-                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                        }}
-                    >
-                        {/* Toggle Header Button */}
-                        <button
-                            type="button"
-                            onClick={() => setIsActionsCollapsed(!isActionsCollapsed)}
-                            style={{
-                                width: '100%',
-                                background: isActionsCollapsed ? 'rgba(99, 102, 241, 0.05)' : 'rgba(99, 102, 241, 0.02)',
-                                border: 'none',
-                                borderBottom: isActionsCollapsed ? 'none' : '1px solid var(--border-light)',
-                                padding: '10px 16px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                cursor: 'pointer',
-                                textAlign: 'left',
-                                transition: 'all 0.2s',
-                                outline: 'none'
-                            }}
-                            onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.08)'; }}
-                            onMouseOut={(e) => { e.currentTarget.style.background = isActionsCollapsed ? 'rgba(99, 102, 241, 0.05)' : 'rgba(99, 102, 241, 0.02)'; }}
-                        >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <CheckCircle size={16} style={{ color: 'var(--accent-indigo)' }} />
-                                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>실시간 티켓 처리 콘솔</span>
-                            </div>
-                            <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}>
-                                <span>{isActionsCollapsed ? '펼치기' : '접기'}</span>
-                                {isActionsCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            </div>
-                        </button>
-
-                        {/* Collapsible content */}
-                        <div
-                            style={{
-                                padding: '16px 20px',
-                                display: isActionsCollapsed ? 'none' : 'grid',
-                                gridTemplateColumns: '1fr 3.2fr', /* Wide area for side-by-side textareas */
-                                gap: '24px',
-                                transition: 'all 0.3s ease'
-                            }}
-                        >
-                            {/* Left Side: Status Change Buttons */}
-                            <div
-                                className="status-control-container"
-                                style={{
-                                    margin: 0,
-                                    background: 'none',
-                                    border: 'none',
-                                    borderRadius: 0,
-                                    padding: '0 24px 0 0',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '12px',
-                                    justifyContent: 'flex-start',
-                                    alignItems: 'stretch',
-                                    borderRight: '1px solid var(--border-light)',
-                                    boxShadow: 'none'
-                                }}
-                            >
-                                <span className="detail-title" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
-                                    <Clock size={12} style={{ verticalAlign: 'middle' }} />
-                                    티켓 상태 즉시 변경
-                                </span>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    <button
-                                        type="button"
-                                        className={`btn-status-change open ${inquiry.status === 'OPEN' ? 'active' : ''}`}
-                                        style={inquiry.status === 'OPEN' ? {
-                                            background: 'var(--status-open)',
-                                            color: '#ffffff',
-                                            borderColor: 'var(--status-open)',
-                                            fontWeight: '700',
-                                            boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
-                                            padding: '8px 12px',
-                                            fontSize: '12.5px',
-                                            height: '36px',
-                                            borderRadius: '8px',
-                                            width: '100%',
-                                            textAlign: 'center'
-                                        } : {
-                                            padding: '8px 12px',
-                                            fontSize: '12.5px',
-                                            height: '36px',
-                                            borderRadius: '8px',
-                                            width: '100%',
-                                            textAlign: 'center',
-                                            background: '#ffffff',
-                                            border: '1px solid var(--border-light)',
-                                            color: 'var(--text-secondary)'
-                                        }}
-                                        disabled={statusChanging || inquiry.status === 'OPEN'}
-                                        onClick={() => handleStatusChangeClick('OPEN')}
-                                    >
-                                        {getStatusLabel('OPEN')}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`btn-status-change inprogress ${inquiry.status === 'IN_PROGRESS' ? 'active' : ''}`}
-                                        style={inquiry.status === 'IN_PROGRESS' ? {
-                                            background: 'var(--status-inprogress)',
-                                            color: '#ffffff',
-                                            borderColor: 'var(--status-inprogress)',
-                                            fontWeight: '700',
-                                            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
-                                            padding: '8px 12px',
-                                            fontSize: '12.5px',
-                                            height: '36px',
-                                            borderRadius: '8px',
-                                            width: '100%',
-                                            textAlign: 'center'
-                                        } : {
-                                            padding: '8px 12px',
-                                            fontSize: '12.5px',
-                                            height: '36px',
-                                            borderRadius: '8px',
-                                            width: '100%',
-                                            textAlign: 'center',
-                                            background: '#ffffff',
-                                            border: '1px solid var(--border-light)',
-                                            color: 'var(--text-secondary)'
-                                        }}
-                                        disabled={statusChanging || inquiry.status === 'IN_PROGRESS'}
-                                        onClick={() => handleStatusChangeClick('IN_PROGRESS')}
-                                    >
-                                        {getStatusLabel('IN_PROGRESS')}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`btn-status-change resolved ${inquiry.status === 'RESOLVED' ? 'active' : ''}`}
-                                        style={inquiry.status === 'RESOLVED' ? {
-                                            background: 'var(--status-resolved)',
-                                            color: '#ffffff',
-                                            borderColor: 'var(--status-resolved)',
-                                            fontWeight: '700',
-                                            boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)',
-                                            padding: '8px 12px',
-                                            fontSize: '12.5px',
-                                            height: '36px',
-                                            borderRadius: '8px',
-                                            width: '100%',
-                                            textAlign: 'center'
-                                        } : {
-                                            padding: '8px 12px',
-                                            fontSize: '12.5px',
-                                            height: '36px',
-                                            borderRadius: '8px',
-                                            width: '100%',
-                                            textAlign: 'center',
-                                            background: '#ffffff',
-                                            border: '1px solid var(--border-light)',
-                                            color: 'var(--text-secondary)'
-                                        }}
-                                        disabled={statusChanging || inquiry.status === 'RESOLVED'}
-                                        onClick={() => handleStatusChangeClick('RESOLVED')}
-                                    >
-                                        {getStatusLabel('RESOLVED')}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Right Side: Answer and Memo Inputs (Side-by-side split layout) */}
-                            <div className="work-log-form-container" style={{ border: 'none', padding: 0, margin: 0 }}>
-                                <form className="work-log-form" onSubmit={handleRegisterWorkLogClick} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'stretch' }}>
-                                        {/* Official Answer Section */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <label htmlFor={`answer-${inquiry.id}`} className="detail-title" style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', margin: 0 }}>
-                                                    <MessageSquare size={12} style={{ verticalAlign: 'middle' }} />
-                                                    {latestAnswerLog && !isEditingAnswer ? '등록된 공식 답변' : '공식 답변 등록'}
-                                                </label>
-                                                {latestAnswerLog && (
-                                                    isEditingAnswer ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setIsEditingAnswer(false);
-                                                                setAnswerText('');
-                                                            }}
-                                                            style={{
-                                                                border: 'none',
-                                                                background: 'transparent',
-                                                                color: 'var(--text-muted)',
-                                                                fontSize: '11px',
-                                                                fontWeight: '700',
-                                                                cursor: 'pointer',
-                                                                padding: '2px 6px',
-                                                                borderRadius: '4px',
-                                                                transition: 'background 0.15s'
-                                                            }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.04)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                        >
-                                                            수정 취소
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setIsEditingAnswer(true);
-                                                                setAnswerText(latestAnswerLog.answer || '');
-                                                            }}
-                                                            style={{
-                                                                border: 'none',
-                                                                background: 'transparent',
-                                                                color: 'var(--accent-indigo)',
-                                                                fontSize: '11px',
-                                                                fontWeight: '700',
-                                                                cursor: 'pointer',
-                                                                padding: '2px 6px',
-                                                                borderRadius: '4px',
-                                                                transition: 'background 0.15s'
-                                                            }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(99,102,241,0.06)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                        >
-                                                            수정하기
-                                                        </button>
-                                                    )
-                                                )}
-                                            </div>
-                                            {latestAnswerLog && !isEditingAnswer ? (
-                                                <div
-                                                    style={{
-                                                        minHeight: '100px',
-                                                        height: '100px',
-                                                        padding: '12px',
-                                                        fontSize: '12.5px',
-                                                        borderRadius: '8px',
-                                                        border: '1px solid var(--border-light)',
-                                                        background: 'rgba(99, 102, 241, 0.02)',
-                                                        color: 'var(--text-primary)',
-                                                        overflowY: 'auto',
-                                                        whiteSpace: 'pre-wrap',
-                                                        lineHeight: '1.4'
-                                                    }}
-                                                >
-                                                    {latestAnswerLog.answer}
-                                                </div>
-                                            ) : (
-                                                <textarea
-                                                    id={`answer-${inquiry.id}`}
-                                                    className="form-textarea textarea-answer"
-                                                    placeholder="고객에게 전달될 공식 답변을 입력하세요..."
-                                                    value={answerText}
-                                                    onChange={(e) => setAnswerText(e.target.value)}
-                                                    style={{
-                                                        minHeight: '100px',
-                                                        height: '100px',
-                                                        padding: '12px',
-                                                        fontSize: '12.5px',
-                                                        borderRadius: '8px',
-                                                        resize: 'none',
-                                                        border: '1px solid var(--border-light)',
-                                                        background: '#ffffff'
-                                                    }}
-                                                />
-                                            )}
-                                        </div>
-
-                                        {/* Private Memo Section */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label htmlFor={`memo-${inquiry.id}`} className="detail-title" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px', cursor: 'pointer' }}>
-                                                <Pin size={12} style={{ verticalAlign: 'middle' }} />
-                                                관리자 비공개 메모
-                                            </label>
-                                            <textarea
-                                                id={`memo-${inquiry.id}`}
-                                                className="form-textarea textarea-memo"
-                                                placeholder="관리자 전용 내부 비공개 메모를 입력하세요..."
-                                                value={memoText}
-                                                onChange={(e) => setMemoText(e.target.value)}
-                                                style={{
-                                                    minHeight: '100px',
-                                                    height: '100px',
-                                                    padding: '12px',
-                                                    fontSize: '12.5px',
-                                                    borderRadius: '8px',
-                                                    resize: 'none',
-                                                    border: '1px solid var(--border-light)',
-                                                    background: '#ffffff'
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2px' }}>
-                                        <button
-                                            type="submit"
-                                            className="btn-primary"
-                                            disabled={submittingLog}
-                                            style={{ padding: '0 16px', fontSize: '12.5px', fontWeight: '600', borderRadius: '8px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                        >
-                                            {latestAnswerLog && !isEditingAnswer ? (
-                                                submittingLog ? '메모 등록 중...' : '메모 등록'
-                                            ) : (
-                                                submittingLog ? '등록 중...' : '답변 및 메모 등록'
-                                            )}
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Divider 1 */}
-                {!isHistoryCollapsed && (
-                    <div
-                        className={`resize-divider ${isResizingLeft ? 'active' : ''}`}
-                        onMouseDown={startResizingLeft}
+                    <InquiryWorkConsole
+                        inquiry={inquiry}
+                        answerText={answerText}
+                        memoText={memoText}
+                        latestAnswerLog={latestAnswerLog}
+                        editingAnswer={isEditingAnswer}
+                        submittingLog={submittingLog}
+                        statusChanging={statusChanging}
+                        onAnswerTextChange={setAnswerText}
+                        onMemoTextChange={setMemoText}
+                        onEditingAnswerChange={setIsEditingAnswer}
+                        onStatusChange={handleStatusChangeClick}
+                        onSubmit={handleRegisterWorkLogClick}
                     />
-                )}
-
-                {/* Right Pane: CS Work History (With Slide Collapse support) */}
-                <div
-                    className="detail-modal-right-pane"
-                    style={{
-                        width: isHistoryCollapsed ? '48px' : `${100 - leftWidth}%`,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        height: '100%',
-                        padding: isHistoryCollapsed ? '12px 0' : '12px 16px',
-                        overflow: 'hidden',
-                        borderLeft: '1px solid var(--border-light)',
-                        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease',
-                        background: 'var(--bg-secondary)',
-                        flexShrink: 0
-                    }}
-                >
-                    {isHistoryCollapsed ? (
-                        /* ── Collapsed Work History Column ── */
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', width: '100%', gap: '16px' }}>
-                            <button
-                                type="button"
-                                onClick={() => setIsHistoryCollapsed(false)}
-                                title="이력 펼치기"
-                                style={{
-                                    background: 'var(--bg-tertiary)',
-                                    border: '1px solid var(--border-light)',
-                                    color: 'var(--text-primary)',
-                                    borderRadius: '8px',
-                                    width: '32px',
-                                    height: '32px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    flexShrink: 0,
-                                    outline: 'none'
-                                }}
-                                onMouseOver={(e) => { e.currentTarget.style.background = 'var(--border-light)'; }}
-                                onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
-                            >
-                                <ChevronLeft size={16} />
-                            </button>
-
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <span style={{
-                                    writingMode: 'vertical-rl',
-                                    textOrientation: 'mixed',
-                                    fontSize: '11px',
-                                    fontWeight: '700',
-                                    color: 'var(--text-muted)',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.8px',
-                                    userSelect: 'none'
-                                }}>
-                                    업무 처리 이력
-                                </span>
-                            </div>
-                        </div>
-                    ) : (
-                        /* ── Expanded Work History Column ── */
-                        <div
-                            className="cs-reference-panel"
-                            style={{
-                                border: 'none',
-                                padding: 0,
-                                boxShadow: 'none',
-                                background: 'transparent',
-                                height: '100%',
-                                display: 'flex',
-                                flexDirection: 'column'
-                            }}
-                        >
-                            {/* Header with Collapse Button */}
-                            <div
-                                className="cs-panel-section-title"
-                                style={{
-                                    margin: 0,
-                                    padding: '10px 12px',
-                                    borderBottom: '1px solid var(--border-light)',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    flexShrink: 0
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <History size={16} style={{ color: '#64748b' }} />
-                                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>업무 처리 이력</span>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsHistoryCollapsed(true)}
-                                    title="이력 접기"
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: 'var(--text-muted)',
-                                        cursor: 'pointer',
-                                        padding: '4px',
-                                        borderRadius: '4px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'all 0.2s',
-                                        outline: 'none'
-                                    }}
-                                    onMouseOver={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
-                                    onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
-                                >
-                                    <ChevronRight size={16} />
-                                </button>
-                            </div>
-
-                            <InquiryTimeline
-                                items={timelineItems}
-                                loadingLogs={loadingLogs}
-                                loadingReplies={loadingReplies}
-                                error={activityError}
-                                activeImageUrl={activeImageUrl}
-                                getImageUrl={getDisplayImageUrl}
-                                onSelectImage={selectImage}
-                            />
-                        </div>
-                    )}
                 </div>
+
+                <InquiryHistoryPane
+                    leftWidth={leftWidth}
+                    collapsed={isHistoryCollapsed}
+                    resizing={isResizingLeft}
+                    items={timelineItems}
+                    loadingLogs={loadingLogs}
+                    loadingReplies={loadingReplies}
+                    error={activityError}
+                    activeImageUrl={activeImageUrl}
+                    getImageUrl={getDisplayImageUrl}
+                    onSelectImage={selectImage}
+                    onResizeStart={startResizingLeft}
+                    onCollapsedChange={setIsHistoryCollapsed}
+                />
             </div>
+
 
             <InquiryActionModal
                 modal={modal}
@@ -1378,15 +779,7 @@ export const InquiryDetailPanel: React.FC<InquiryDetailPanelProps> = ({ inquiry,
                 submitting={submittingLog || statusChanging || bookmarkChanging}
                 onModalChange={setModal}
                 onStatusChangeReason={setStatusChangeReason}
-                onConfirm={() => {
-                    if (modal.type === 'STATUS_CHANGE') {
-                        executeStatusChange();
-                    } else if (modal.type === 'BOOKMARK') {
-                        executeToggleBookmark();
-                    } else {
-                        executeRegisterWorkLog();
-                    }
-                }}
+                onConfirm={confirmModal}
             />
         </div>
     );
