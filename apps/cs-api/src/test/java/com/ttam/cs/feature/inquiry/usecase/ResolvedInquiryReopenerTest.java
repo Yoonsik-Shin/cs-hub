@@ -2,6 +2,7 @@ package com.ttam.cs.feature.inquiry.usecase;
 
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
+import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +30,8 @@ import static org.mockito.Mockito.when;
 class ResolvedInquiryReopenerTest {
 
     private static final Instant NOW = Instant.parse("2026-07-10T03:00:00Z");
+    private static final OperatorInfo AUTOMATION_OPERATOR =
+            new OperatorInfo("automation", "문의 자동화", "automation@example.com");
 
     @Mock
     private CustomerInquiryRepository inquiryRepository;
@@ -43,7 +46,8 @@ class ResolvedInquiryReopenerTest {
         reopener = new ResolvedInquiryReopener(
                 inquiryRepository,
                 workLogRepository,
-                Clock.fixed(NOW, ZoneOffset.UTC)
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                () -> AUTOMATION_OPERATOR
         );
     }
 
@@ -81,6 +85,6 @@ class ResolvedInquiryReopenerTest {
         assertEquals(InquiryWorkLog.ActionType.STATUS_CHANGED, workLog.getActionType());
         assertEquals(CustomerInquiry.Status.RESOLVED, workLog.getPreviousStatus());
         assertEquals(CustomerInquiry.Status.OPEN, workLog.getCurrentStatus());
-        assertEquals("system", workLog.getOperatorInfo().id());
+        assertEquals(AUTOMATION_OPERATOR, workLog.getOperatorInfo());
     }
 }

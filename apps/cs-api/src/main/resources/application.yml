@@ -35,6 +35,11 @@ admin:
 cs:
   email:
     webmail-url: ${CS_EMAIL_WEBMAIL_URL:https://company.daouoffice.com/app/mail}
+  inquiry:
+    system-operator:
+      id: ${CS_SYSTEM_OPERATOR_ID:system}
+      nickname: ${CS_SYSTEM_OPERATOR_NICKNAME:시스템}
+      email: ${CS_SYSTEM_OPERATOR_EMAIL:}
 
 naver:
   session:

@@ -6,6 +6,7 @@ import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
 import com.ttam.cs.feature.inquiry.domain.service.InquiryUniqueKeyGenerator;
 import com.ttam.cs.feature.inquiry.domain.vo.EmailMetadata;
 import com.ttam.cs.feature.inquiry.domain.vo.ChannelMetadata;
+import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import com.ttam.cs.infra.security.crypto.PiiEncryptionUtils;
@@ -60,7 +61,8 @@ class IntegrateInquiryDataUseCaseTest {
         ResolvedInquiryReopener resolvedInquiryReopener = new ResolvedInquiryReopener(
                 repository,
                 workLogRepository,
-                fixedClock
+                fixedClock,
+                () -> new OperatorInfo("system", "시스템", "")
         );
         useCase = new IntegrateInquiryDataUseCase(
                 repository,

@@ -2,7 +2,6 @@ package com.ttam.cs.feature.inquiry.usecase;
 
 import com.ttam.cs.feature.inquiry.domain.entity.CustomerInquiry;
 import com.ttam.cs.feature.inquiry.domain.entity.InquiryWorkLog;
-import com.ttam.cs.feature.inquiry.domain.vo.OperatorInfo;
 import com.ttam.cs.feature.inquiry.repository.CustomerInquiryRepository;
 import com.ttam.cs.feature.inquiry.repository.InquiryWorkLogRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,12 +17,10 @@ public class ResolvedInquiryReopener {
 
     private static final String REOPEN_MEMO =
             "[시스템] 회신 메일 유입으로 인해 문의가 다시 오픈되었습니다.";
-    private static final OperatorInfo SYSTEM_OPERATOR =
-            new OperatorInfo("system", "시스템", "");
-
     private final CustomerInquiryRepository inquiryRepository;
     private final InquiryWorkLogRepository workLogRepository;
     private final Clock clock;
+    private final SystemOperatorProvider systemOperatorProvider;
 
     public void reopen(UUID inquiryId) {
         inquiryRepository.findById(inquiryId).ifPresent(this::reopenIfResolved);
@@ -43,7 +40,7 @@ public class ResolvedInquiryReopener {
                 InquiryWorkLog.ActionType.STATUS_CHANGED,
                 null,
                 REOPEN_MEMO,
-                SYSTEM_OPERATOR,
+                systemOperatorProvider.getOperator(),
                 previousStatus,
                 CustomerInquiry.Status.OPEN
         );
