@@ -1,11 +1,12 @@
 const express = require('express');
 const naverCafe = require('./src/tasks/naverCafe');
+const { matchesInternalToken, requireInternalToken } = require('./src/security/internalToken');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const app = express();
 const port = process.env.PORT || 3000;
-const token = process.env.INTERNAL_API_TOKEN || 'changeme';
+const token = requireInternalToken();
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -13,8 +14,8 @@ app.use(express.json());
 // Token Validation Middleware for security
 app.use((req, res, next) => {
     const requestToken = req.headers['x-internal-token'];
-    if (!requestToken || requestToken !== token) {
-        console.warn(`[SERVER] Unauthorized API access request blocked. Token: "${requestToken}"`);
+    if (!matchesInternalToken(requestToken, token)) {
+        console.warn('[SERVER] Unauthorized API access request blocked.');
         return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid internal token' });
     }
     next();

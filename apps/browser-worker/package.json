@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test": "node --test test/*.test.js",
     "mock-server": "node mock-naver-server.js",
     "get-session": "node get_session.js"
   },
